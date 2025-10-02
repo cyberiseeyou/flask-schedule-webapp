@@ -1,0 +1,94 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+*.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+scheduler_app/instance/scheduler.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation builds
+docs/_build/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.bak
+
+# Chrome DevTools
+chrome-devtools-mcp/
+
+# Migration versions (optional - uncomment if you want to exclude)
+# scheduler_app/migrations/versions/
+
+# Node modules (if any)
+node_modules/
+
+# PDFs and generated files
+*.pdf
+edr_printer/*.html
+edr_printer/*.pdf
+
+# Archived code
+archived_code/
+
+# Reference files
+reference/
+
+# Test files
+test_*.py
+comprehensive_api_test.py
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+
+# README and docs
+README.md
+SETUP.md
+QUICK_START.md
+*.md
