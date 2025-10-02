@@ -1,0 +1,47 @@
+schema: 1
+story: '1.11'
+story_title: 'Weekly Summary Printing'
+gate: CONCERNS
+status_reason: 'Landscape PDF with event filtering works correctly, but lacks required automated tests'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-02T00:00:00Z'
+
+top_issues:
+  - severity: high
+    category: testing
+    description: 'No automated tests exist despite story requiring comprehensive test coverage'
+    refs: ['docs/stories/1.11.weekly-summary-printing.md']
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 80
+expires: '2025-10-16T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Date validation prevents injection. Week calculation is safe.'
+  performance:
+    status: PASS
+    notes: 'Efficient query with joins and event type filtering. defaultdict grouping is fast.'
+  reliability:
+    status: PASS
+    notes: 'Week boundary calculation correct. Empty cells handled with "-". Error handling adequate.'
+  maintainability:
+    status: PASS
+    notes: 'HTML template for PDF is well-structured. xhtml2pdf conversion is clean.'
+
+recommendations:
+  immediate:
+    - action: 'Write comprehensive test suite for weekly summary printing'
+      refs: ['scheduler_app/test_routes.py']
+  future: []

@@ -1,0 +1,247 @@
+{
+  "summary": {
+    "total_tests": 28,
+    "passed": 10,
+    "failed": 18,
+    "errors": 0,
+    "expected_failures": 0,
+    "success_rate": "35.7%"
+  },
+  "risk_assessment": {
+    "critical_failures": 10,
+    "high_risk_failures": 2,
+    "avg_response_time": "0.15s",
+    "slow_endpoints": 0
+  },
+  "quality_gate": {
+    "decision": "FAIL",
+    "reason": "10 critical failures detected",
+    "timestamp": "2025-09-29T00:41:47.609348"
+  },
+  "detailed_results": [
+    {
+      "endpoint": "health_check",
+      "status": "PASS",
+      "risk_level": "CRITICAL",
+      "response_time": "0.62s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:43.953825"
+    },
+    {
+      "endpoint": "is_session_valid",
+      "status": "PASS",
+      "risk_level": "CRITICAL",
+      "response_time": "0.00s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:43.953825"
+    },
+    {
+      "endpoint": "login_attempt",
+      "status": "PASS",
+      "risk_level": "CRITICAL",
+      "response_time": "0.15s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:44.100245"
+    },
+    {
+      "endpoint": "get_user_locale",
+      "status": "FAIL",
+      "risk_level": "HIGH",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:44.243221"
+    },
+    {
+      "endpoint": "get_user_info",
+      "status": "FAIL",
+      "risk_level": "HIGH",
+      "response_time": "0.15s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:44.393792"
+    },
+    {
+      "endpoint": "get_employees",
+      "status": "PASS",
+      "risk_level": "HIGH",
+      "response_time": "0.14s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:44.538221"
+    },
+    {
+      "endpoint": "get_client_logo",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.15s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:44.684205"
+    },
+    {
+      "endpoint": "get_current_branch_info",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.15s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:44.836027"
+    },
+    {
+      "endpoint": "get_navigation_options",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:44.973283"
+    },
+    {
+      "endpoint": "get_scheduling_preferences",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.115243"
+    },
+    {
+      "endpoint": "get_fullcalendar_license_key",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.13s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.244487"
+    },
+    {
+      "endpoint": "get_available_representatives",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.386849"
+    },
+    {
+      "endpoint": "get_scheduled_events",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.530198"
+    },
+    {
+      "endpoint": "get_non_scheduled_visits",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.13s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.664048"
+    },
+    {
+      "endpoint": "get_unscheduled_events",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.802871"
+    },
+    {
+      "endpoint": "save_scheduled_event",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:45.941519"
+    },
+    {
+      "endpoint": "update_scheduled_event",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.083261"
+    },
+    {
+      "endpoint": "delete_scheduled_event",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.224293"
+    },
+    {
+      "endpoint": "get_event_details",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.361452"
+    },
+    {
+      "endpoint": "get_rep_availability",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.505381"
+    },
+    {
+      "endpoint": "bulk_schedule_events",
+      "status": "FAIL",
+      "risk_level": "CRITICAL",
+      "response_time": "0.13s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.639331"
+    },
+    {
+      "endpoint": "get_more_filters_options",
+      "status": "FAIL",
+      "risk_level": "MEDIUM",
+      "response_time": "0.14s",
+      "error": "Method returned None",
+      "timestamp": "2025-09-29T00:41:46.779765"
+    },
+    {
+      "endpoint": "get_events_legacy",
+      "status": "PASS",
+      "risk_level": "LOW",
+      "response_time": "0.14s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:46.923837"
+    },
+    {
+      "endpoint": "create_schedule",
+      "status": "PASS",
+      "risk_level": "LOW",
+      "response_time": "0.27s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:47.198070"
+    },
+    {
+      "endpoint": "update_schedule",
+      "status": "PASS",
+      "risk_level": "LOW",
+      "response_time": "0.13s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:47.327608"
+    },
+    {
+      "endpoint": "delete_schedule",
+      "status": "PASS",
+      "risk_level": "LOW",
+      "response_time": "0.28s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:47.607354"
+    },
+    {
+      "endpoint": "date_formatting",
+      "status": "PASS",
+      "risk_level": "MEDIUM",
+      "response_time": "0.00s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:47.607354"
+    },
+    {
+      "endpoint": "json_parsing",
+      "status": "PASS",
+      "risk_level": "MEDIUM",
+      "response_time": "0.00s",
+      "error": null,
+      "timestamp": "2025-09-29T00:41:47.607354"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+schema: 1
+story: '1.9'
+story_title: 'Single-Event Auto-Scheduling'
+gate: CONCERNS
+status_reason: 'Feature integrates well with SchedulingEngine and approval workflow, but lacks required automated tests'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-02T00:00:00Z'
+
+top_issues:
+  - severity: high
+    category: testing
+    description: 'No automated tests exist despite story requiring comprehensive test coverage'
+    refs: ['docs/stories/1.9.single-event-auto-scheduling.md']
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 80
+expires: '2025-10-16T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Event ID validation. Returns 400 for already scheduled. Good error handling prevents unauthorized scheduling.'
+  performance:
+    status: PASS
+    notes: 'Single event scheduling is fast. No N+1 queries.'
+  reliability:
+    status: PASS
+    notes: 'Comprehensive error handling. SchedulerRunHistory tracking for audit trail.'
+  maintainability:
+    status: PASS
+    notes: 'Integrates with existing SchedulingEngine. SystemSetting integration for approval workflow.'
+
+recommendations:
+  immediate:
+    - action: 'Write comprehensive test suite for auto-scheduling'
+      refs: ['scheduler_app/test_routes.py']
+  future: []

@@ -1,0 +1,47 @@
+schema: 1
+story: '1.8'
+story_title: 'Per-Event Paperwork Printing'
+gate: CONCERNS
+status_reason: 'Feature is functional and well-implemented, but lacks required automated tests'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-02T00:00:00Z'
+
+top_issues:
+  - severity: high
+    category: testing
+    description: 'No automated tests exist despite story requiring comprehensive test coverage'
+    refs: ['docs/stories/1.8.per-event-paperwork-printing.md']
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 80
+expires: '2025-10-16T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Event ID parameter properly validated. 404 returned for not found. Reuses secure PDF generation helpers.'
+  performance:
+    status: PASS
+    notes: 'Efficient single-event PDF generation. No performance concerns.'
+  reliability:
+    status: PASS
+    notes: 'Good error handling for missing events, failed downloads, EDR failures.'
+  maintainability:
+    status: PASS
+    notes: 'Reuses existing helpers avoiding code duplication. Clean implementation.'
+
+recommendations:
+  immediate:
+    - action: 'Write comprehensive test suite for per-event printing'
+      refs: ['scheduler_app/test_routes.py']
+  future: []

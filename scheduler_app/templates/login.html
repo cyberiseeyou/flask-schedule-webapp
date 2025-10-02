@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Product Connections Scheduler</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    <meta name="description" content="Secure login for Product Connections Scheduler - Crossmark MVRetail Integration">
+</head>
+<body class="login-body">
+    <!-- Login Container -->
+    <div class="login-container">
+        <!-- Header Section -->
+        <div class="login-header">
+            <div class="login-logo-container">
+                <img src="{{ url_for('static', filename='img/PC-Logo_Primary_Full-Color-1024x251.png') }}"
+                     alt="Product Connections" class="login-logo">
+            </div>
+            <h1 class="login-title">Scheduler Login</h1>
+            <p class="login-subtitle">Access your scheduling dashboard</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="login-form-container">
+            <form id="loginForm" class="login-form" method="POST" action="{{ url_for('auth.login') }}">
+                {{ csrf_token() if csrf_token }}
+
+                <!-- Username Field -->
+                <div class="form-group">
+                    <label for="username" class="form-label">
+                        <span class="label-text">Username</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    <div class="input-container">
+                            <input
+                                type="text"
+                                id="username"
+                                name="username"
+                                class="form-input"
+                                placeholder="Enter your Crossmark username"
+                                required
+                                autocomplete="username"
+                                aria-describedby="username-help"
+                                maxlength="50"
+                            >
+                    </div>
+                    <small id="username-help" class="form-help">Use your Crossmark MVRetail credentials</small>
+                </div>
+
+                <!-- Password Field -->
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        <span class="label-text">Password</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    <div class="input-container">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                class="form-input"
+                                placeholder="Enter your password"
+                                required
+                                autocomplete="current-password"
+                                aria-describedby="password-help"
+                                minlength="8"
+                            >
+                            <button type="button" class="password-toggle" aria-label="Show password" tabindex="-1">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-open">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-closed" style="display: none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                    </div>
+                    <small id="password-help" class="form-help">Your Crossmark account password</small>
+                </div>
+
+                <!-- Remember Me & Forgot Password -->
+                <div class="form-row">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="remember" name="remember" class="checkbox-input">
+                        <label for="remember" class="checkbox-label">Remember me on this device</label>
+                    </div>
+                    <a href="#" class="forgot-password">Forgot password?</a>
+                </div>
+
+                <!-- Error Messages -->
+                <div id="errorContainer" class="error-container" style="display: none;">
+                    <div class="error-message">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        <span id="errorMessage"></span>
+                    </div>
+                </div>
+
+                <!-- Success Message -->
+                <div id="successContainer" class="success-container" style="display: none;">
+                    <div class="success-message">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                        <span id="successMessage">Login successful! Redirecting...</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="loginButton" class="login-button">
+                    <span class="button-text">Sign In</span>
+                    <div class="button-loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <span>Authenticating...</span>
+                    </div>
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="login-footer">
+            <p class="footer-text">
+                Powered by <strong>Crossmark MVRetail</strong> Integration
+            </p>
+            <p class="footer-links">
+                <a href="#" class="footer-link">Help</a>
+                <span class="footer-separator">•</span>
+                <a href="#" class="footer-link">Privacy</a>
+                <span class="footer-separator">•</span>
+                <a href="#" class="footer-link">Terms</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Background Elements -->
+    <div class="login-background">
+        <div class="bg-shape shape-1"></div>
+        <div class="bg-shape shape-2"></div>
+        <div class="bg-shape shape-3"></div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+</body>
+</html>

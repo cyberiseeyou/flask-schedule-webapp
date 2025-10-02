@@ -1,0 +1,68 @@
+schema: 1
+story: '1.7'
+story_title: 'Flexible Date-Based Printing'
+gate: CONCERNS
+status_reason: 'Feature works but incomplete refactoring causes code duplication, and no tests were written despite story requirements'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-02T00:00:00Z'
+
+top_issues:
+  - severity: high
+    category: testing
+    description: 'No automated tests exist despite story requiring comprehensive test coverage'
+    refs: ['docs/stories/1.7.flexible-date-based-printing.md:53-60']
+    suggested_owner: dev
+  - severity: medium
+    category: code_quality
+    description: 'Incomplete refactoring - print_paperwork() still has inline logic instead of calling print_paperwork_internal()'
+    refs: ['scheduler_app/routes/admin.py:938-1213']
+    suggested_owner: dev
+  - severity: medium
+    category: maintainability
+    description: 'Code duplication - PDF generation logic exists in both print_paperwork() and print_paperwork_internal()'
+    refs: ['scheduler_app/routes/admin.py:938', 'scheduler_app/routes/admin.py:print_paperwork_internal']
+    suggested_owner: dev
+  - severity: low
+    category: documentation
+    description: 'Story Tasks 1-6 still marked as unchecked despite implementation being complete'
+    refs: ['docs/stories/1.7.flexible-date-based-printing.md:21-60']
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 70
+expires: '2025-10-16T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 5, 6, 7]  # Most ACs implemented
+    ac_gaps: [4]  # AC4 partially met - refactoring incomplete
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Date validation with try/except prevents injection. Error messages are user-friendly without exposing internals. Authentication likely enforced via existing decorator.'
+  performance:
+    status: PASS
+    notes: 'Reuses existing PDF generation logic. No performance degradation. Date parsing is efficient.'
+  reliability:
+    status: CONCERNS
+    notes: 'Code duplication increases maintenance burden and risk of divergence. Error handling is adequate with try/except and logging.'
+  maintainability:
+    status: CONCERNS
+    notes: 'Incomplete refactoring creates two implementations of same logic. Future changes must be made in two places. Violates DRY principle.'
+
+recommendations:
+  immediate:  # Should fix before next iteration
+    - action: 'Write comprehensive test suite covering all acceptance criteria'
+      refs: ['scheduler_app/test_routes.py']
+    - action: 'Complete refactoring: Update print_paperwork() to call print_paperwork_internal() instead of inline logic'
+      refs: ['scheduler_app/routes/admin.py:938']
+  future:  # Can be addressed in later iterations
+    - action: 'Update story task checkboxes to reflect completed work'
+      refs: ['docs/stories/1.7.flexible-date-based-printing.md:21-60']
+    - action: 'Consider extracting common date validation logic to helper function'
+      refs: ['scheduler_app/routes/admin.py']

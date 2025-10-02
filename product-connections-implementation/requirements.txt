@@ -1,0 +1,13 @@
+# EDR Printing Dependencies
+product-connections-manager==1.0.1
+
+# Core Dependencies for EDR functionality
+requests>=2.28.0
+typing-extensions>=4.5.0
+
+# PDF Generation (choose one)
+# Option 1: WeasyPrint (full featured but has system dependencies)
+# weasyprint>=60.0
+
+# Option 2: ReportLab (lightweight, easier to install)
+reportlab>=4.0.0

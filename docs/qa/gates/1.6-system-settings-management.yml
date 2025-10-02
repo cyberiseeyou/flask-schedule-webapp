@@ -1,0 +1,91 @@
+schema: 1
+story: '1.6'
+story_title: 'System Settings Management Infrastructure'
+gate: FAIL
+status_reason: 'Critical security vulnerabilities (CSRF, encryption key persistence) and missing required tests must be addressed before production'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-02T00:00:00Z'
+
+top_issues:
+  - severity: high
+    category: security
+    description: 'POST /admin/settings lacks CSRF protection, vulnerable to cross-site request forgery attacks'
+    refs: ['scheduler_app/templates/settings.html:19', 'scheduler_app/routes/admin.py']
+    suggested_owner: dev
+  - severity: high
+    category: security
+    description: 'Encryption key generated in memory only - will be lost on restart causing inability to decrypt passwords'
+    refs: ['scheduler_app/utils/encryption.py:26']
+    suggested_owner: dev
+  - severity: high
+    category: testing
+    description: 'No automated tests exist despite story requiring comprehensive test coverage'
+    refs: ['docs/stories/1.6.system-settings-management.md:81-88']
+    suggested_owner: dev
+  - severity: medium
+    category: code_quality
+    description: 'Using print() instead of logger for error messages in model'
+    refs: ['scheduler_app/models/system_setting.py:57']
+    suggested_owner: dev
+  - severity: medium
+    category: maintainability
+    description: 'Inline CSS in template violates separation of concerns (202 lines of CSS)'
+    refs: ['scheduler_app/templates/settings.html:77-202']
+    suggested_owner: dev
+  - severity: medium
+    category: security
+    description: 'No rate limiting on sensitive settings endpoint - could be abused'
+    refs: ['scheduler_app/routes/admin.py']
+    suggested_owner: dev
+  - severity: low
+    category: reliability
+    description: 'Decrypt error handling catches but may fail silently with default value'
+    refs: ['scheduler_app/models/system_setting.py:54-58']
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 40
+expires: '2025-10-16T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 7
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]  # All ACs implemented
+    ac_gaps: []  # All ACs have implementation, but lacking tests
+
+nfr_validation:
+  security:
+    status: FAIL
+    notes: 'CSRF vulnerability on settings form. Encryption key persistence issue will cause data loss on restart. No rate limiting on sensitive endpoint.'
+  performance:
+    status: PASS
+    notes: 'Fernet encryption is performant for small credential strings. Database queries are infrequent.'
+  reliability:
+    status: CONCERNS
+    notes: 'Error handling in decrypt may fail silently. No validation on setting values. Encryption key loss will break all encrypted settings.'
+  maintainability:
+    status: CONCERNS
+    notes: 'Inline CSS should be in separate stylesheet. Using print() instead of logger. Code is generally well-structured with factory pattern.'
+
+recommendations:
+  immediate:  # Must fix before production
+    - action: 'Add Flask-WTF and CSRF protection to settings form'
+      refs: ['requirements.txt', 'scheduler_app/templates/settings.html', 'scheduler_app/routes/admin.py']
+    - action: 'Persist encryption key to .env file or database on first generation'
+      refs: ['scheduler_app/utils/encryption.py', 'scheduler_app/config.py']
+    - action: 'Write comprehensive test suite covering all acceptance criteria'
+      refs: ['scheduler_app/test_routes.py']
+    - action: 'Replace print() with logger.error() in system_setting.py:57'
+      refs: ['scheduler_app/models/system_setting.py:57']
+  future:  # Can be addressed in later iterations
+    - action: 'Extract inline CSS to separate stylesheet (scheduler_app/static/css/settings.css)'
+      refs: ['scheduler_app/templates/settings.html']
+    - action: 'Add rate limiting to /admin/settings endpoint (e.g., Flask-Limiter)'
+      refs: ['scheduler_app/routes/admin.py']
+    - action: 'Add input validation/sanitization for setting values'
+      refs: ['scheduler_app/routes/admin.py:save_settings']
+    - action: 'Improve decrypt error handling with explicit logging and alerting'
+      refs: ['scheduler_app/models/system_setting.py:54-58']
