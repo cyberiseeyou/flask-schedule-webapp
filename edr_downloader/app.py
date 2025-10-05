@@ -40,7 +40,8 @@ import logging
 import re
 from config import Config
 from models import db, Event, Schedule, Employee
-from edr_auth import EDRAuthenticator, EDRPDFGenerator
+from authenticator import EDRAuthenticator
+from pdf_generator import EDRPDFGenerator
 
 # Configure logging to show INFO level messages and above
 logging.basicConfig(level=logging.INFO)
