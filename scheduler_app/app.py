@@ -169,6 +169,13 @@ app.register_blueprint(walmart_bp)
 # Exempt Walmart API blueprint from CSRF (API endpoints use session-based auth)
 csrf.exempt(walmart_bp)
 
+# Import and register EDR Sync blueprint
+from routes.edr_sync import edr_sync_bp
+app.register_blueprint(edr_sync_bp)
+
+# Exempt EDR Sync blueprint from CSRF (API endpoints use session-based auth)
+csrf.exempt(edr_sync_bp)
+
 # Setup Walmart API session cleanup
 from walmart_api import session_manager
 import threading

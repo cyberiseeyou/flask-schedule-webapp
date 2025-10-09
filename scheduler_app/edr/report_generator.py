@@ -31,6 +31,9 @@ import os
 import subprocess
 import platform
 
+# Import database manager for caching
+from .db_manager import EDRDatabaseManager
+
 
 class EDRReportGenerator:
     """
@@ -43,24 +46,29 @@ class EDRReportGenerator:
     4. HTML report generation with print styling
     """
     
-    def __init__(self):
+    def __init__(self, enable_caching: bool = True, cache_max_age_hours: int = 24, db_path: Optional[str] = None):
         self.session = requests.Session()
         self.base_url = "https://retaillink2.wal-mart.com/EventManagement"
         self.auth_token = None
         self.user_data = None
-        
+
         # Store credentials (in production, use environment variables)
         self.username = ""
         self.password = ""
         self.mfa_credential_id = ""
-        
+
         # Event report table headers from the JavaScript component
         self.report_headers = [
             "Item Number", "Primary Item Number", "Description", "Vendor", "Category"
         ]
-        
+
         # Default store number for filtering (from cURL command)
         self.default_store_number = "8135"
+
+        # Caching configuration
+        self.enable_caching = enable_caching
+        self.cache_max_age_hours = cache_max_age_hours
+        self.db = EDRDatabaseManager(db_path) if enable_caching else None
 
     def _get_initial_cookies(self) -> Dict[str, str]:
         """Return initial cookies required for authentication."""
@@ -363,11 +371,16 @@ class EDRReportGenerator:
         if not self.auth_token:
             raise ValueError("Must authenticate first before browsing events")
         
-        # Set defaults based on cURL command
+        # Set defaults: 1 month before today to 1 month after today
         if not start_date or not end_date:
             now = datetime.datetime.now()
-            start_date = f"{now.year}-{now.month:02d}-01"
-            end_date = f"{now.year}-{now.month:02d}-{now.day:02d}"
+            # Calculate 1 month before
+            one_month_ago = now - datetime.timedelta(days=30)
+            # Calculate 1 month ahead
+            one_month_ahead = now + datetime.timedelta(days=30)
+
+            start_date = one_month_ago.strftime("%Y-%m-%d")
+            end_date = one_month_ahead.strftime("%Y-%m-%d")
         
         if not store_number:
             store_number = self.default_store_number
@@ -401,13 +414,492 @@ class EDRReportGenerator:
         try:
             response = self.session.post(url, headers=headers, json=payload)
             response.raise_for_status()
-            
+
             events_data = response.json()
-            print(f"✅ Found {len(events_data)} events")
+            print(f"✅ Found {len(events_data)} event items")
+
+            # Cache the data if caching is enabled
+            if self.enable_caching and self.db and events_data:
+                stored_count = self.db.store_events(events_data, store_number, start_date, end_date)
+                print(f"💾 Cached {stored_count} event items to database")
+
             return events_data
         except requests.exceptions.RequestException as e:
             print(f"❌ Event browsing failed: {e}")
-            return {}
+            return []
+
+    def browse_events_with_cache(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                                  store_number: Optional[str] = None, event_types: Optional[List[int]] = None,
+                                  force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        Browse events with caching support - checks cache first, falls back to API.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (defaults to current month)
+            end_date: End date in YYYY-MM-DD format (defaults to current month)
+            store_number: Store number (defaults to 8135)
+            event_types: List of event type IDs (not used for cache lookup)
+            force_refresh: Force refresh from API even if cache is fresh
+
+        Returns:
+            List of event dictionaries
+        """
+        # Set defaults: 1 month before today to 1 month after today
+        if not start_date or not end_date:
+            now = datetime.datetime.now()
+            # Calculate 1 month before
+            one_month_ago = now - datetime.timedelta(days=30)
+            # Calculate 1 month ahead
+            one_month_ahead = now + datetime.timedelta(days=30)
+
+            start_date = one_month_ago.strftime("%Y-%m-%d")
+            end_date = one_month_ahead.strftime("%Y-%m-%d")
+
+        if not store_number:
+            store_number = self.default_store_number
+
+        # Check cache first if caching is enabled and not forcing refresh
+        if self.enable_caching and self.db and not force_refresh:
+            is_fresh = self.db.is_cache_fresh(store_number, start_date, end_date, self.cache_max_age_hours)
+
+            if is_fresh:
+                print(f"📦 Using cached data (less than {self.cache_max_age_hours} hours old)")
+                cached_events = self.db.get_events_by_date_range(start_date, end_date, store_number, self.cache_max_age_hours)
+                if cached_events:
+                    print(f"✅ Retrieved {len(cached_events)} event items from cache")
+                    return cached_events
+
+        # Cache miss or force refresh - fetch from API
+        if force_refresh:
+            print("🔄 Force refresh requested - fetching from API")
+        else:
+            print("⚠️ Cache miss or stale - fetching from API")
+
+        # Ensure authentication
+        if not self.auth_token:
+            print("❌ Not authenticated - cannot fetch from API")
+            return []
+
+        return self.browse_events(start_date, end_date, store_number, event_types)
+
+    def get_event_from_cache(self, event_id: int) -> List[Dict[str, Any]]:
+        """
+        Get event data from cache by event ID.
+
+        Args:
+            event_id: The event ID to retrieve
+
+        Returns:
+            List of event item dictionaries (one event can have multiple items)
+        """
+        if not self.enable_caching or not self.db:
+            print("⚠️ Caching is disabled")
+            return []
+
+        event_items = self.db.get_event_by_id(event_id, self.cache_max_age_hours)
+
+        if event_items:
+            print(f"✅ Found {len(event_items)} items for event {event_id} in cache")
+        else:
+            print(f"⚠️ Event {event_id} not found in cache or cache is stale")
+
+        return event_items
+
+    def refresh_cache(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                     store_number: Optional[str] = None) -> bool:
+        """
+        Force refresh cache data from API.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (defaults to current month)
+            end_date: End date in YYYY-MM-DD format (defaults to current month)
+            store_number: Store number (defaults to 8135)
+
+        Returns:
+            True if refresh was successful, False otherwise
+        """
+        print("🔄 Refreshing cache from API...")
+
+        if not self.auth_token:
+            print("❌ Not authenticated - cannot refresh cache")
+            return False
+
+        events_data = self.browse_events(start_date, end_date, store_number)
+        return len(events_data) > 0 if isinstance(events_data, list) else False
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about cached data.
+
+        Returns:
+            Dictionary with cache statistics or empty dict if caching is disabled
+        """
+        if not self.enable_caching or not self.db:
+            return {'caching_enabled': False}
+
+        stats = self.db.get_cache_stats()
+        stats['caching_enabled'] = True
+        stats['max_age_hours'] = self.cache_max_age_hours
+        return stats
+
+    def clear_old_cache(self, max_age_days: int = 30) -> Tuple[int, int]:
+        """
+        Clear cache data older than specified days.
+
+        Args:
+            max_age_days: Maximum age to keep in days (default: 30)
+
+        Returns:
+            Tuple of (events_deleted, metadata_records_deleted)
+        """
+        if not self.enable_caching or not self.db:
+            print("⚠️ Caching is disabled")
+            return (0, 0)
+
+        events_deleted, metadata_deleted = self.db.clear_old_cache(max_age_days)
+        print(f"🗑️ Cleared {events_deleted} old event records and {metadata_deleted} metadata records")
+        return (events_deleted, metadata_deleted)
+
+    def generate_html_report_from_cache(self, event_id: int) -> str:
+        """
+        Generate HTML report from cached event data (bypasses get_edr_report API call).
+
+        Args:
+            event_id: The event ID to generate report for
+
+        Returns:
+            Complete HTML report ready for printing, or empty string if event not found
+        """
+        # Get event items from cache
+        event_items = self.get_event_from_cache(event_id)
+
+        if not event_items:
+            print(f"❌ Cannot generate report - event {event_id} not found in cache")
+            return ""
+
+        # Get current date and time for the report header
+        now = datetime.datetime.now()
+        report_date = now.strftime("%Y-%m-%d")
+        report_time = now.strftime("%H:%M:%S")
+
+        # Extract event information from first item (all items share same event metadata)
+        first_item = event_items[0]
+        event_number = first_item.get('eventId', 'N/A')
+        event_type = first_item.get('eventType', 'N/A')
+        event_status = first_item.get('eventStatus', 'N/A')
+        event_date = first_item.get('eventDate', 'N/A')
+        event_name = first_item.get('eventName', 'N/A')
+        event_locked = first_item.get('lockDate', 'N/A')
+
+        # For cached data, we don't have instructions - use placeholder
+        event_prep = "N/A - Check event management system for preparation instructions"
+        event_portion = "N/A - Check event management system for portion instructions"
+
+        # Generate table rows for items
+        item_rows = ""
+        for item in event_items:
+            # Mark featured items with a star
+            featured = "⭐ " if item.get('featuredItemInd') == 'Y' else ""
+
+            item_rows += f"""
+                <tr class="edr-wrapper">
+                    <td class="report-table-content">{item.get('itemNbr', '')}</td>
+                    <td class="report-table-content">{item.get('upcNbr', '')}</td>
+                    <td class="report-table-content">{featured}{item.get('itemDesc', '')}</td>
+                    <td class="report-table-content">{item.get('vendorBilledNbr', '')} - {item.get('vendorBilledDesc', '')}</td>
+                    <td class="report-table-content">{item.get('deptNbr', '')} - {item.get('deptDesc', '')}</td>
+                </tr>
+            """
+
+        # Complete HTML template
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Event Management System - EDR Report</title>
+    <style>
+        /* CSS from the provided files combined with print optimization */
+        body {{
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0;
+        }}
+
+        .detail-header {{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 700;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+
+        .elememnt-padding {{
+            padding: 10px 0;
+        }}
+
+        .font-weight-bold {{
+            font-size: 18px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }}
+
+        .space-underlined {{
+            display: inline-block;
+            width: calc(80% - 230px);
+            border-bottom: 1px solid black;
+            margin-left: 10px;
+        }}
+
+        .instruction-heading {{
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 18px;
+            font-weight: 500;
+        }}
+
+        .report-footer div {{
+            padding: 2px 0;
+        }}
+
+        .report-first {{
+            margin-left: 20%;
+        }}
+
+        .help-text {{
+            font-size: 14px;
+            line-height: 1.2;
+        }}
+
+        .demo-text {{
+            margin-left: 12px;
+            font-weight: 700;
+        }}
+
+        .col-40 {{
+            flex: 0 0 40%;
+            max-width: 40%;
+        }}
+
+        .report-table-content {{
+            text-align: center;
+        }}
+
+        .row {{
+            display: flex;
+            padding: 5px;
+            width: 100%;
+        }}
+
+        .col {{
+            flex: 1;
+            display: block;
+            padding: 5px;
+            width: 100%;
+        }}
+
+        .col-25 {{
+            flex: 0 0 25%;
+            max-width: 25%;
+        }}
+
+        .input-label {{
+            font-weight: normal;
+        }}
+
+        td {{
+            padding: 8px;
+            border-top: solid 1px #ccc;
+            font-family: arial;
+            font-size: 12px;
+            text-align: left;
+            font-weight: 400;
+            color: grey;
+            line-height: 18px;
+        }}
+
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 94%;
+            outline: #ccc solid 1px;
+            table-layout: fixed;
+            margin-bottom: 10px;
+        }}
+
+        th {{
+            padding: 5px;
+            background: #e2e1e1;
+            font-size: 14px;
+            font-weight: 400;
+            color: grey;
+        }}
+
+        .demo-table-header {{
+            background: #e2e1e1;
+        }}
+
+        hr {{
+            border: 1px solid #ccc;
+            margin: 10px 0;
+        }}
+
+        .cache-notice {{
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+        }}
+
+        @media print {{
+            body {{
+                padding: 10px;
+            }}
+            .print-button {{
+                display: none;
+            }}
+            .cache-notice {{
+                display: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div id="reportDdr_pdf">
+        <div class="detail-header">EVENT DETAIL REPORT</div>
+
+        <div class="cache-notice">
+            ℹ️ This report was generated from cached data. For the most up-to-date information including instructions, please verify in the Event Management System.
+        </div>
+
+        <div class="elememnt-padding font-weight-bold">
+            <span>RUN ON </span>
+            <span>{report_date}</span>
+            <span> AT </span>
+            <span>{report_time}</span>
+        </div>
+
+        <hr>
+
+        <div class="elememnt-padding help-text">
+            <div>
+                <span class="report-first">IMPORTANT!!!</span>
+                This report should be printed each morning prior to completing each event.<br>
+                1. The Event Details Report should be kept in the event prep area for each demonstrator to review instructions and item status.<br>
+                2. The Event Co-ordinator should use this sheet when visiting the event area. Comments should be written to enter into the system at a later time.<br>
+                3. Remember to scan items for product charge using the Club Use function on the handheld device.<br>
+                Retention: This report should be kept in a monthly folder with the most recent being put in the front. The previous 6 months need to be kept accessible in the event prep area. Reports older than 6 months should be boxed and stored. Discard any report over 18 months old.
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="demo_div">
+            <div class="row responsive-md">
+                <div class="col col-25">
+                    <span class="input-label" title="Event Number">
+                        Event Number <span class="demo-text">{event_number}</span>
+                    </span>
+                </div>
+                <div class="col col-25">
+                    <span class="input-label" title="Event Type">
+                        Event Type <span class="demo-text">{event_type}</span>
+                    </span>
+                </div>
+                <div class="col col-40">
+                    <span class="input-label" title="Event Locked">
+                        Event Locked <span class="demo-text">{event_locked}</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="row responsive-md">
+                <div class="col col-25">
+                    <span class="input-label" title="Event Status">
+                        Event Status <span class="demo-text">{event_status}</span>
+                    </span>
+                </div>
+                <div class="col col-25">
+                    <span class="input-label" title="Event Date">
+                        Event Date <span class="demo-text">{event_date}</span>
+                    </span>
+                </div>
+                <div class="col col-40">
+                    <span class="input-label" title="Event Name">
+                        Event Name <span class="demo-text" title="{event_name}">{event_name}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div id="demo_pdf">
+            <table id="new_event">
+                <thead>
+                    <tr class="demo-table-header">
+                        <th>Item Number</th>
+                        <th>UPC Number</th>
+                        <th>Description</th>
+                        <th>Vendor</th>
+                        <th>Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {item_rows}
+                </tbody>
+            </table>
+        </div>
+
+        <h4 class="instruction-heading">Instructions:</h4>
+
+        <div>
+            <span class="input-label" title="Event Preparation">
+                Event Preparation: <span class="demo-text">{event_prep}</span>
+            </span>
+            <div>
+                <span class="input-label" title="Event Portion">
+                    Event Portion: <span class="demo-text">{event_portion}</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="report-footer">
+            <div>
+                <span>Club Associate Printed Name:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Club Associate Signature:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Club Associate Title:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Date:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Tastes & Tips Rep Signature:</span>
+                <span class="space-underlined"></span>
+            </div>
+        </div>
+
+        <div class="print-button" style="margin-top: 20px; text-align: right;">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                🖨️ Print Report
+            </button>
+        </div>
+    </div>
+</body>
+</html>
+        """
+
+        return html_content.strip()
 
     def get_edr_report(self, event_id: str) -> Dict[str, Any]:
         """

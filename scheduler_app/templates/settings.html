@@ -74,6 +74,42 @@
             </div>
         </section>
 
+        <!-- Data Synchronization Section -->
+        <section class="settings-section">
+            <h3>Data Synchronization</h3>
+            <p class="section-description">Manually synchronize data from external systems</p>
+
+            <div class="sync-buttons-container">
+                <div class="sync-button-group">
+                    <button type="button" id="sync-mvretail-btn" class="btn btn-sync">
+                        <span class="sync-icon">🔄</span>
+                        Sync with MVRetail
+                    </button>
+                    <small class="form-text">Synchronize employee and schedule data from MVRetail system</small>
+                    <div id="mvretail-sync-status" class="sync-status" style="display: none;"></div>
+                </div>
+
+                <div class="sync-button-group">
+                    <button type="button" id="sync-retaillink-btn" class="btn btn-sync">
+                        <span class="sync-icon">🔄</span>
+                        Sync with Retail Link
+                    </button>
+                    <small class="form-text">Refresh EDR event data cache from Walmart Retail Link (requires MFA authentication)</small>
+                    <div id="retaillink-sync-status" class="sync-status" style="display: none;"></div>
+                </div>
+
+                <div class="sync-info">
+                    <strong>About Data Caching:</strong>
+                    <ul>
+                        <li>EDR event data is cached for 24 hours by default</li>
+                        <li>Retail Link sync requires MFA code for authentication</li>
+                        <li>Cached data allows report generation without repeated authentication</li>
+                        <li>Last sync time is displayed after successful synchronization</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
         <!-- Form Actions -->
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -207,6 +243,99 @@
     border: 1px solid #f5c6cb;
     color: #721c24;
 }
+
+.sync-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.sync-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-sync {
+    background: #28a745;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    transition: all 0.3s ease;
+}
+
+.btn-sync:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-sync:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-sync.syncing .sync-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.sync-status {
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.sync-status.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.sync-status.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.sync-status.info {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.sync-info {
+    background: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.sync-info strong {
+    color: #004085;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.sync-info ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.sync-info li {
+    color: #004085;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
 </style>
 
 <script>
@@ -291,6 +420,102 @@ document.addEventListener('DOMContentLoaded', function() {
             saveStatus.style.display = 'none';
         }, 5000);
     }
+
+    // Sync button handlers
+    const syncMVRetailBtn = document.getElementById('sync-mvretail-btn');
+    const syncRetailLinkBtn = document.getElementById('sync-retaillink-btn');
+    const mvretailStatus = document.getElementById('mvretail-sync-status');
+    const retaillinkStatus = document.getElementById('retaillink-sync-status');
+
+    function showSyncStatus(statusElement, message, type) {
+        statusElement.textContent = message;
+        statusElement.className = 'sync-status ' + type;
+        statusElement.style.display = 'block';
+    }
+
+    // MVRetail Sync Handler
+    syncMVRetailBtn.addEventListener('click', function() {
+        syncMVRetailBtn.disabled = true;
+        syncMVRetailBtn.classList.add('syncing');
+        syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
+
+        showSyncStatus(mvretailStatus, 'Synchronizing with MVRetail...', 'info');
+
+        fetch('/api/sync/mvretail', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const message = data.message || 'Successfully synchronized with MVRetail';
+                const details = data.details ? ` (${data.details})` : '';
+                showSyncStatus(mvretailStatus, message + details, 'success');
+            } else {
+                showSyncStatus(mvretailStatus, 'Error: ' + (data.message || 'Sync failed'), 'error');
+            }
+        })
+        .catch(error => {
+            showSyncStatus(mvretailStatus, 'Error: ' + error.message, 'error');
+        })
+        .finally(() => {
+            syncMVRetailBtn.disabled = false;
+            syncMVRetailBtn.classList.remove('syncing');
+            syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with MVRetail';
+        });
+    });
+
+    // Retail Link Sync Handler
+    syncRetailLinkBtn.addEventListener('click', function() {
+        // Prompt for MFA code
+        const mfaCode = prompt('Enter your MFA code to authenticate with Retail Link:');
+
+        if (!mfaCode || mfaCode.trim() === '') {
+            showSyncStatus(retaillinkStatus, 'Sync cancelled - MFA code required', 'error');
+            return;
+        }
+
+        syncRetailLinkBtn.disabled = true;
+        syncRetailLinkBtn.classList.add('syncing');
+        syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
+
+        showSyncStatus(retaillinkStatus, 'Authenticating with Retail Link...', 'info');
+
+        fetch('/api/sync/retaillink', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mfa_code: mfaCode.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const message = data.message || 'Successfully synchronized with Retail Link';
+                const details = data.details ? `<br><small>${data.details}</small>` : '';
+                retaillinkStatus.innerHTML = message + details;
+                retaillinkStatus.className = 'sync-status success';
+                retaillinkStatus.style.display = 'block';
+            } else {
+                const errorDetails = data.details ? `<br><small>${data.details}</small>` : '';
+                retaillinkStatus.innerHTML = 'Error: ' + (data.message || 'Sync failed') + errorDetails;
+                retaillinkStatus.className = 'sync-status error';
+                retaillinkStatus.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            showSyncStatus(retaillinkStatus, 'Error: ' + error.message, 'error');
+        })
+        .finally(() => {
+            syncRetailLinkBtn.disabled = false;
+            syncRetailLinkBtn.classList.remove('syncing');
+            syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with Retail Link';
+        });
+    });
 });
 </script>
 {% endblock %}
