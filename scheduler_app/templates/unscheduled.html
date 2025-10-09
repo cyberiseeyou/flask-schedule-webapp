@@ -526,14 +526,40 @@
 
     .event-info {
         display: flex;
+        flex-direction: column;
         gap: var(--spacing-sm);
-        align-items: center;
         margin: var(--spacing-sm) 0;
         font-size: var(--font-size-small);
     }
 
     .event-store {
         color: var(--text-muted);
+    }
+
+    .schedule-info-box {
+        background: rgba(27, 155, 216, 0.08);
+        border-left: 3px solid var(--pc-blue);
+        padding: var(--spacing-sm);
+        border-radius: var(--border-radius-sm);
+        margin-top: var(--spacing-xs);
+    }
+
+    .schedule-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: 4px 0;
+        color: var(--text-primary);
+    }
+
+    .schedule-employee {
+        font-weight: var(--font-weight-bold);
+        color: var(--pc-navy);
+    }
+
+    .schedule-time {
+        color: var(--pc-blue);
+        font-weight: 500;
     }
 
     .events-stats {
@@ -667,10 +693,29 @@
                     {% endif %}
                 </div>
 
-                <div class="event-meta">
+                <div class="event-info">
                     <div class="event-dates">
                         📅 {{ event.start_datetime.strftime('%Y-%m-%d') }} - {{ event.due_datetime.strftime('%Y-%m-%d') }}
                     </div>
+                    {% if event.schedule_info %}
+                        <div class="schedule-info-box">
+                            <div style="font-size: 11px; text-transform: uppercase; color: var(--pc-blue); font-weight: bold; margin-bottom: 4px;">
+                                📋 Schedule Details
+                            </div>
+                            {% for schedule in event.schedule_info %}
+                                <div class="schedule-item">
+                                    <span>👤</span>
+                                    <span class="schedule-employee">{{ schedule.employee_name }}</span>
+                                    <span style="color: var(--text-muted);">•</span>
+                                    <span>⏰</span>
+                                    <span class="schedule-time">{{ schedule.schedule_time }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="event-meta">
                     <div class="event-actions">
                         {% if condition == 'scheduled' %}
                             <a href="{{ url_for('scheduling.schedule_event', event_id=event.id) }}" class="btn btn-primary btn-sm">
@@ -690,10 +735,6 @@
                             </a>
                             <button onclick="autoScheduleEvent({{ event.id }}, '{{ event.project_name|replace("'", "\\'") }}')" class="btn btn-info btn-sm">
                                 Auto Schedule
-                            </button>
-                        {% else %}
-                            <button onclick="window.open('/api/print_event_paperwork/{{ event.id }}', '_blank')" class="btn btn-success btn-sm">
-                                Print Event Paperwork
                             </button>
                         {% endif %}
                         <button onclick="confirmDeleteEvent({{ event.id }}, '{{ event.project_name|replace("'", "\\'") }}')"

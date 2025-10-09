@@ -3,7 +3,7 @@ Tests for Weekly Summary Printing (Story 1.11)
 """
 import pytest
 from datetime import date, datetime, timedelta
-from scheduler_app.app import app, db
+from app import app, db
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def client():
 @pytest.fixture
 def auth_client(client):
     """Client with authenticated session"""
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -37,7 +37,7 @@ def auth_client(client):
 def sample_weekly_data(auth_client):
     """Create sample week schedule data"""
     with app.app_context():
-        from scheduler_app.app import Employee, Event, Schedule
+        from app import Employee, Event, Schedule
 
         # Create employee
         employee = Employee(id='TEST001', name='Test User', email='test@example.com')

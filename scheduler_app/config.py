@@ -59,9 +59,10 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     # Production should always use environment variables for sensitive data
-    SECRET_KEY = config('SECRET_KEY')  # Required in production
-    EXTERNAL_API_USERNAME = config('EXTERNAL_API_USERNAME')  # Required in production
-    EXTERNAL_API_PASSWORD = config('EXTERNAL_API_PASSWORD')  # Required in production
+    # Using default values to prevent import errors, will be validated at runtime
+    SECRET_KEY = config('SECRET_KEY', default='prod-secret-key-must-be-set')
+    EXTERNAL_API_USERNAME = config('EXTERNAL_API_USERNAME', default='')
+    EXTERNAL_API_PASSWORD = config('EXTERNAL_API_PASSWORD', default='')
 
 
 # Configuration mapping

@@ -16,35 +16,42 @@
         {% endif %}
     {% endwith %}
 
-    <form method="POST" action="{{ url_for('admin.save_settings') }}" class="settings-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
+    <form id="settings-form" class="settings-form">
         <!-- Retail-Link Credentials Section -->
         <section class="settings-section">
             <h3>Walmart Retail-Link Credentials</h3>
-            <p class="section-description">Configure Walmart Retail-Link EDR authentication credentials</p>
+            <p class="section-description">Configure Walmart Retail-Link EDR authentication credentials for paperwork printing</p>
 
             <div class="form-group">
                 <label for="edr_username">EDR Username:</label>
                 <input type="text" id="edr_username" name="edr_username"
                        value="{{ settings.get('edr_username', '') }}"
-                       class="form-control" placeholder="Enter EDR username">
+                       class="form-control" placeholder="Enter EDR username" required>
             </div>
 
             <div class="form-group">
                 <label for="edr_password">EDR Password:</label>
                 <input type="password" id="edr_password" name="edr_password"
-                       placeholder="Leave blank to keep current"
-                       class="form-control">
-                <small class="form-text">Leave blank to keep current password</small>
+                       placeholder="{% if settings.get('edr_password') %}Leave blank to keep current{% else %}Enter password{% endif %}"
+                       class="form-control" {% if not settings.get('edr_password') %}required{% endif %}>
+                <small class="form-text">
+                    {% if settings.get('edr_password') %}
+                        Leave blank to keep current password
+                    {% else %}
+                        Enter your Walmart Retail Link password
+                    {% endif %}
+                </small>
             </div>
 
             <div class="form-group">
                 <label for="edr_mfa_credential_id">MFA Credential ID:</label>
                 <input type="text" id="edr_mfa_credential_id" name="edr_mfa_credential_id"
                        value="{{ settings.get('edr_mfa_credential_id', '') }}"
-                       class="form-control" placeholder="Enter MFA credential ID">
+                       class="form-control" placeholder="Enter MFA credential ID" required>
+                <small class="form-text">This is the unique ID for your MFA device (usually a phone number or device ID)</small>
             </div>
+
+            <div id="save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
         <!-- Auto-Scheduler Configuration Section -->
@@ -201,4 +208,89 @@
     color: #721c24;
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('settings-form');
+    const saveStatus = document.getElementById('save-status');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const username = document.getElementById('edr_username').value.trim();
+        const password = document.getElementById('edr_password').value;
+        const mfaCredentialId = document.getElementById('edr_mfa_credential_id').value.trim();
+
+        // Validation
+        if (!username || !mfaCredentialId) {
+            showStatus('Please fill in all required fields', 'error');
+            return;
+        }
+
+        // If password field is empty and there's already a saved password, skip password validation
+        const passwordFieldPlaceholder = document.getElementById('edr_password').placeholder;
+        if (!password && !passwordFieldPlaceholder.includes('Leave blank')) {
+            showStatus('Password is required', 'error');
+            return;
+        }
+
+        // Show loading state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+
+        // Send AJAX request
+        fetch('/api/settings/edr', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password || undefined,  // Don't send empty password
+                mfa_credential_id: mfaCredentialId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showStatus('Settings saved successfully!', 'success');
+                // Clear password field after successful save
+                document.getElementById('edr_password').value = '';
+                document.getElementById('edr_password').placeholder = 'Leave blank to keep current';
+            } else {
+                showStatus('Error: ' + (data.message || 'Failed to save settings'), 'error');
+            }
+        })
+        .catch(error => {
+            showStatus('Error: ' + error.message, 'error');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+        });
+    });
+
+    function showStatus(message, type) {
+        saveStatus.textContent = message;
+        saveStatus.style.display = 'block';
+
+        if (type === 'success') {
+            saveStatus.style.background = '#d4edda';
+            saveStatus.style.border = '1px solid #c3e6cb';
+            saveStatus.style.color = '#155724';
+        } else {
+            saveStatus.style.background = '#f8d7da';
+            saveStatus.style.border = '1px solid #f5c6cb';
+            saveStatus.style.color = '#721c24';
+        }
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            saveStatus.style.display = 'none';
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}

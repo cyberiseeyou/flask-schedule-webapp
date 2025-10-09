@@ -3,7 +3,7 @@ Tests for Employee Analytics Dashboard (Story 1.10)
 """
 import pytest
 from datetime import date, datetime, timedelta
-from scheduler_app.app import app, db
+from app import app, db
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def client():
 @pytest.fixture
 def auth_client(client):
     """Client with authenticated session"""
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -37,7 +37,7 @@ def auth_client(client):
 def sample_data(auth_client):
     """Create sample employees and schedules for testing"""
     with app.app_context():
-        from scheduler_app.app import Employee, Event, Schedule
+        from app import Employee, Event, Schedule
 
         # Create employees
         emp1 = Employee(id='EMP001', name='Alice', email='alice@example.com')

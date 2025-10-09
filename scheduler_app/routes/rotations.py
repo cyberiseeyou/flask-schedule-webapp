@@ -3,7 +3,7 @@ Rotation management routes
 Handles weekly rotation assignments for Juicers and Primary Leads
 """
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
-from scheduler_app.services import RotationManager
+from services import RotationManager
 
 rotations_bp = Blueprint('rotations', __name__, url_prefix='/rotations')
 

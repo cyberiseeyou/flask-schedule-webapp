@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Product Connections Scheduler</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16x16.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', filename='img/favicon-48x48.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
     <meta name="description" content="Secure login for Product Connections Scheduler - Crossmark MVRetail Integration">
@@ -24,8 +27,6 @@
         <!-- Login Form -->
         <div class="login-form-container">
             <form id="loginForm" class="login-form" method="POST" action="{{ url_for('auth.login') }}">
-                {{ csrf_token() if csrf_token }}
-
                 <!-- Username Field -->
                 <div class="form-group">
                     <label for="username" class="form-label">

@@ -18,6 +18,16 @@ def create_event_model(db):
         """
         __tablename__ = 'events'
 
+        # Default durations (in minutes) for each event type
+        DEFAULT_DURATIONS = {
+            'Core': 390,        # 6.5 hours
+            'Juicer': 540,      # 9 hours
+            'Supervisor': 5,    # 5 minutes
+            'Digitals': 15,     # 15 minutes
+            'Freeosk': 5,       # 5 minutes
+            'Other': 15         # 15 minutes
+        }
+
         id = db.Column(db.Integer, primary_key=True, autoincrement=True)
         project_name = db.Column(db.Text, nullable=False)
         project_ref_num = db.Column(db.Integer, nullable=False, unique=True)
@@ -78,6 +88,43 @@ def create_event_model(db):
                 return 'Freeosk'
             else:
                 return 'Other'
+
+        @classmethod
+        def get_default_duration(cls, event_type):
+            """
+            Get the default duration in minutes for a given event type
+
+            Args:
+                event_type (str): The event type
+
+            Returns:
+                int: Duration in minutes
+            """
+            return cls.DEFAULT_DURATIONS.get(event_type, 15)
+
+        def set_default_duration(self):
+            """
+            Set the estimated_time field to the default duration for this event's type
+
+            This should be called when creating new events or when event_type changes.
+            Only sets the duration if estimated_time is not already set.
+            """
+            if not self.estimated_time:
+                self.estimated_time = self.get_default_duration(self.event_type)
+
+        def calculate_end_datetime(self, start_datetime):
+            """
+            Calculate the end datetime based on start datetime and estimated duration
+
+            Args:
+                start_datetime (datetime): The start datetime of the event
+
+            Returns:
+                datetime: The calculated end datetime
+            """
+            from datetime import timedelta
+            duration_minutes = self.estimated_time or self.get_default_duration(self.event_type)
+            return start_datetime + timedelta(minutes=duration_minutes)
 
         def __repr__(self):
             return f'<Event {self.project_ref_num}: {self.project_name}>'

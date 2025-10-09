@@ -3,7 +3,7 @@ Employees routes blueprint
 Handles employee management, availability, and time off operations
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
-from scheduler_app.routes.auth import require_authentication
+from routes.auth import require_authentication
 from datetime import datetime, timedelta
 
 # Create blueprint

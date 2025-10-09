@@ -1,0 +1,9 @@
+{
+  "chrome-devtools": {
+    "command": "/c/Users/mathe/flask-schedule-webapp/chrome-devtools-mcp/.venv/bin/python",
+    "args": ["/c/Users/mathe/flask-schdule-webapp/chrome-devtools-mcp/server.py"],
+    "env": {
+      "CHROME_DEBUG_PORT": "9222"
+    }
+  }
+}

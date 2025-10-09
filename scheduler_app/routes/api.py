@@ -3,7 +3,7 @@ API routes blueprint
 Handles all API endpoints for schedule operations, imports, exports, and AJAX calls
 """
 from flask import Blueprint, request, jsonify, current_app, make_response
-from scheduler_app.routes.auth import require_authentication
+from routes.auth import require_authentication
 from datetime import datetime, timedelta, date
 import csv
 import io
@@ -337,7 +337,7 @@ def reschedule():
                 return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
 
         # Submit to Crossmark API BEFORE updating local record
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or 60
@@ -470,7 +470,7 @@ def reschedule_event():
                 return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
 
         # Submit to Crossmark API BEFORE updating local record
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or 60
@@ -615,8 +615,8 @@ def trade_events():
             return jsonify({'error': 'Both events must be Core events'}), 400
 
         # Trade the employees (keep times the same)
-        from scheduler_app.session_api_service import session_api as external_api
-        from scheduler_app.models import Employee
+        from session_api_service import session_api as external_api
+        from models import Employee
 
         original_emp1_id = schedule1.employee_id
         original_emp2_id = schedule2.employee_id
@@ -770,7 +770,7 @@ def change_employee():
                 return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
 
         # Submit to Crossmark API BEFORE updating local record
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or 60
@@ -1041,6 +1041,9 @@ def import_events():
                 # Auto-detect and set event type
                 new_event.event_type = new_event.detect_event_type()
 
+                # Set default duration if estimated_time is not set
+                new_event.set_default_duration()
+
                 db.session.add(new_event)
                 imported_count += 1
 
@@ -1116,6 +1119,10 @@ def import_scheduled_events():
 
                     # Auto-detect and set event type
                     new_event.event_type = new_event.detect_event_type()
+
+                    # Set default duration if estimated_time is not set
+                    new_event.set_default_duration()
+
                     db.session.add(new_event)
                     db.session.flush()  # Get the ID
                     event = new_event
@@ -1168,6 +1175,17 @@ def import_scheduled_events():
                             schedule_datetime=schedule_datetime
                         )
                         db.session.add(new_schedule)
+
+                    # AUTO-SCHEDULE SUPERVISOR EVENT if this is a Core event
+                    if event.event_type == 'Core' and not existing_schedule:
+                        from routes.scheduling import auto_schedule_supervisor_event
+                        scheduled_date = schedule_datetime.date()
+                        auto_schedule_supervisor_event(
+                            db, Event, Schedule, Employee,
+                            event.project_ref_num,
+                            scheduled_date,
+                            employee_id
+                        )
 
                 imported_count += 1
 

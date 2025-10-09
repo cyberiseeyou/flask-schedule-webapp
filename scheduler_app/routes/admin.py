@@ -3,12 +3,16 @@ Admin routes blueprint
 Handles admin operations, sync management, testing, and utility endpoints
 """
 from flask import Blueprint, render_template, request, jsonify, current_app, abort, make_response
-from scheduler_app.routes.auth import require_authentication
+from routes.auth import require_authentication
 from datetime import datetime, timedelta, date, time
 from io import BytesIO
+from sqlalchemy import func
 import requests
 import re
 import logging
+import os
+import pickle
+import tempfile
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -46,7 +50,7 @@ def refresh_database():
         Event = current_app.config['Event']
         Schedule = current_app.config['Schedule']
         Employee = current_app.config['Employee']
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
         current_app.logger.info("Starting complete database refresh from Crossmark API")
 
@@ -68,15 +72,36 @@ def refresh_database():
         current_app.logger.info("Clearing all existing events from database")
         existing_count = Event.query.count()
 
-        # Clear related schedules first (foreign key constraint)
-        Schedule.query.delete()
+        # Disable foreign key constraints temporarily for SQLite
+        db.session.execute(db.text('PRAGMA foreign_keys=OFF'))
 
-        # Clear all events
-        Event.query.delete()
+        try:
+            # Clear all related tables in order (to handle foreign key constraints)
+            # Import AutoSchedulerResult if available
+            try:
+                from models.auto_scheduler import AutoSchedulerResult
+                AutoSchedulerResult.query.delete()
+                current_app.logger.info("Cleared auto scheduler results")
+            except (ImportError, AttributeError):
+                pass  # Table doesn't exist or not imported
 
-        # Commit the deletions
-        db.session.commit()
-        current_app.logger.info(f"Cleared {existing_count} existing events from database")
+            # Clear schedules (has FK to events)
+            Schedule.query.delete()
+            current_app.logger.info("Cleared schedules")
+
+            # Clear all events
+            Event.query.delete()
+            current_app.logger.info(f"Cleared {existing_count} events")
+
+            # Commit the deletions
+            db.session.commit()
+
+        finally:
+            # Re-enable foreign key constraints
+            db.session.execute(db.text('PRAGMA foreign_keys=ON'))
+            db.session.commit()
+
+        current_app.logger.info(f"Successfully cleared {existing_count} existing events from database")
 
         # Now insert all fresh events
         created_count = 0
@@ -134,24 +159,33 @@ def refresh_database():
                 if sales_tools and len(sales_tools) > 0 and isinstance(sales_tools, list):
                     sales_tools_url = sales_tools[0].get('salesToolURL') if isinstance(sales_tools[0], dict) else None
 
-                new_event = Event(
-                    external_id=str(mplan_id),
-                    project_name=event_record.get('name', ''),
-                    project_ref_num=int(mplan_id) if str(mplan_id).isdigit() else 0,
-                    location_mvid=event_record.get('storeID', ''),
-                    store_name=event_record.get('storeName', ''),
-                    start_datetime=start_date or datetime.utcnow(),  # Scheduling window start
-                    due_datetime=end_date or datetime.utcnow(),  # Scheduling window end/due
-                    is_scheduled=is_event_scheduled,
-                    condition=condition,  # Store the actual condition
-                    sales_tools_url=sales_tools_url,  # Store SalesToolURL
-                    last_synced=datetime.utcnow(),
-                    sync_status='synced'
-                )
-                # Detect event type based on project name
-                new_event.event_type = new_event.detect_event_type()
-                db.session.add(new_event)
-                created_count += 1
+                try:
+                    # Log types before creating event
+                    current_app.logger.debug(f"Event {mplan_id}: Creating event with datetime types - start_date: {type(start_date)}, end_date: {type(end_date)}")
+
+                    new_event = Event(
+                        external_id=str(mplan_id),
+                        project_name=event_record.get('name', ''),
+                        project_ref_num=int(mplan_id) if str(mplan_id).isdigit() else 0,
+                        location_mvid=event_record.get('storeID', ''),
+                        store_name=event_record.get('storeName', ''),
+                        start_datetime=start_date or datetime.utcnow(),  # Scheduling window start
+                        due_datetime=end_date or datetime.utcnow(),  # Scheduling window end/due
+                        is_scheduled=is_event_scheduled,
+                        condition=condition,  # Store the actual condition
+                        sales_tools_url=sales_tools_url,  # Store SalesToolURL
+                        last_synced=datetime.utcnow(),
+                        sync_status='synced'
+                    )
+                    # Detect event type based on project name
+                    new_event.event_type = new_event.detect_event_type()
+                    db.session.add(new_event)
+                    created_count += 1
+                except Exception as event_error:
+                    import traceback
+                    current_app.logger.error(f"Event {mplan_id}: Failed to create event: {str(event_error)}")
+                    current_app.logger.error(f"Event {mplan_id}: Event creation traceback: {traceback.format_exc()}")
+                    raise
 
                 # Log if SalesToolURL was found for this event
                 if sales_tools_url:
@@ -160,13 +194,22 @@ def refresh_database():
                     current_app.logger.warning(f"Event {mplan_id} ({event_record.get('name', 'Unknown')}): No SalesToolURL found in salesTools array")
 
                 # If event has a schedule date, create a Schedule record
+                if not schedule_date:
+                    current_app.logger.info(f"Event {mplan_id}: No schedule_date found (raw: {event_record.get('scheduleDate', 'N/A')})")
+                if not is_event_scheduled:
+                    current_app.logger.info(f"Event {mplan_id}: Not scheduled (condition: {condition})")
+
                 if schedule_date and is_event_scheduled:
                     # Get the assigned employee from the API data
                     staffed_reps = event_record.get('staffedReps', '')
                     schedule_rep_id = event_record.get('scheduleRepID', '')
 
-                    # Try to find the employee by name or ID
+                    # Log what we're seeing
+                    current_app.logger.info(f"Event {mplan_id}: schedule_date={schedule_date}, staffed_reps={staffed_reps}, schedule_rep_id={schedule_rep_id}")
+
+                    # Try to find the employee by name or RepID (external_id)
                     employee_id = None
+                    employee = None
 
                     if staffed_reps:
                         # Get the first staffed rep name
@@ -176,30 +219,47 @@ def refresh_database():
                         employee = Employee.query.filter_by(name=first_rep_name).first()
                         if employee:
                             employee_id = employee.id
-                        else:
-                            # If not found by exact name, use the schedule rep ID if available
-                            if schedule_rep_id:
-                                employee_id = f"US{schedule_rep_id}" if not str(schedule_rep_id).startswith('US') else str(schedule_rep_id)
-                            else:
-                                # Last resort - store the name and we'll need to handle it in queries
-                                employee_id = first_rep_name
+                            current_app.logger.info(f"Event {mplan_id}: Found employee by name: {first_rep_name} -> {employee_id}")
 
-                    elif schedule_rep_id:
-                        # Use the schedule rep ID if available
-                        employee_id = f"US{schedule_rep_id}" if not str(schedule_rep_id).startswith('US') else str(schedule_rep_id)
+                    # If not found by name and we have a RepID, try to find by external_id
+                    if not employee and schedule_rep_id:
+                        employee = Employee.query.filter_by(external_id=str(schedule_rep_id)).first()
+                        if employee:
+                            employee_id = employee.id
+                            current_app.logger.info(f"Event {mplan_id}: Found employee by RepID {schedule_rep_id}: {employee.name} -> {employee_id}")
+                        else:
+                            current_app.logger.warning(f"Event {mplan_id}: No employee found with RepID {schedule_rep_id} or name '{staffed_reps}'")
+
+                    # Fallback: try RepID lookup if we still don't have an employee
+                    if not employee and schedule_rep_id:
+                        current_app.logger.warning(f"Event {mplan_id}: Could not find employee for RepID {schedule_rep_id}, skipping schedule creation")
 
                     if employee_id:
-                        schedule = Schedule(
-                            event_ref_num=int(mplan_id) if str(mplan_id).isdigit() else 0,
-                            employee_id=employee_id,
-                            schedule_datetime=schedule_date,
-                            external_id=f"{mplan_id}_schedule",
-                            last_synced=datetime.utcnow()
-                        )
-                        db.session.add(schedule)
+                        try:
+                            # Log types before creating schedule
+                            current_app.logger.info(f"Event {mplan_id}: Creating schedule with types - schedule_date type: {type(schedule_date)}, value: {schedule_date}")
+
+                            schedule = Schedule(
+                                event_ref_num=int(mplan_id) if str(mplan_id).isdigit() else 0,
+                                employee_id=employee_id,
+                                schedule_datetime=schedule_date,
+                                external_id=f"{mplan_id}_schedule",
+                                last_synced=datetime.utcnow()
+                            )
+                            db.session.add(schedule)
+                            current_app.logger.info(f"Created schedule for event {mplan_id} with employee {employee_id} on {schedule_date}")
+                        except Exception as schedule_error:
+                            import traceback
+                            current_app.logger.error(f"Event {mplan_id}: Failed to create schedule: {str(schedule_error)}")
+                            current_app.logger.error(f"Event {mplan_id}: Schedule creation traceback: {traceback.format_exc()}")
+                            raise
+                    else:
+                        current_app.logger.warning(f"Event {mplan_id} is scheduled but has no employee assignment")
 
             except Exception as e:
+                import traceback
                 current_app.logger.error(f"Error processing event {event_record.get('mPlanID', 'unknown')}: {str(e)}")
+                current_app.logger.error(f"Traceback: {traceback.format_exc()}")
                 continue
 
         # Commit all new events
@@ -308,7 +368,7 @@ def delete_event(event_id):
 def sync_health():
     """Check sync system health and API connectivity"""
     try:
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
         health_status = external_api.health_check()
         return jsonify({
@@ -702,8 +762,19 @@ def test_request():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+# DEPRECATED: Use extract_event_number from utils.event_helpers instead
+# Kept for backward compatibility
 def extract_event_number(project_name):
-    """Extract the first 6 digits from a Core event's project name"""
+    """
+    Extract the first 6 digits from a Core event's project name
+
+    DEPRECATED: Import from utils.event_helpers instead
+    """
+    from utils.event_helpers import extract_event_number as _extract_event_number
+    return _extract_event_number(project_name)
+
+def _extract_event_number_legacy(project_name):
+    """Legacy implementation - DO NOT USE"""
     if not project_name:
         return None
 
@@ -719,6 +790,188 @@ def extract_event_number(project_name):
 
     return None
 
+
+def _generate_daily_schedule_pdf(events, target_date, output_path, Schedule, Employee):
+    """Generate daily schedule PDF section"""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    c = pdf_canvas.Canvas(output_path, pagesize=letter)
+    width, height = letter
+
+    # Title
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(width/2, height - 50, f"Daily Schedule - {target_date.strftime('%B %d, %Y')}")
+
+    # Table headers
+    y = height - 100
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "Time")
+    c.drawString(150, y, "Employee")
+    c.drawString(300, y, "Event")
+
+    # Draw header line
+    c.line(50, y-5, width-50, y-5)
+
+    y -= 25
+    c.setFont("Helvetica", 11)
+
+    for event in events:
+        schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).all()
+        for schedule in schedules:
+            employee = Employee.query.get(schedule.employee_id)
+            if employee:
+                time_str = schedule.schedule_datetime.strftime('%I:%M %p')
+                c.drawString(50, y, time_str)
+                c.drawString(150, y, employee.name)
+
+                # Truncate long event names
+                event_name = event.project_name[:40] + '...' if len(event.project_name) > 40 else event.project_name
+                c.drawString(300, y, event_name)
+
+                y -= 20
+
+                # Start new page if needed
+                if y < 100:
+                    c.showPage()
+                    c.setFont("Helvetica", 11)
+                    y = height - 50
+
+    c.save()
+
+
+def _generate_item_numbers_layout_pdf(all_items, output_path):
+    """Generate item numbers layout PDF from EDR data with instructional text"""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_LEFT
+
+    doc = SimpleDocTemplate(output_path, pagesize=letter, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Title
+    title = Paragraph("<b>Master Item Numbers List - All Core Events</b>", styles['Title'])
+    story.append(title)
+    story.append(Spacer(1, 15))
+
+    # Instructional Text Box
+    instruction_style = ParagraphStyle(
+        'InstructionBox',
+        parent=styles['Normal'],
+        fontSize=11,
+        leading=14,
+        leftIndent=10,
+        rightIndent=10,
+        spaceBefore=10,
+        spaceAfter=10,
+        borderColor=colors.HexColor('#2E4C73'),
+        borderWidth=2,
+        borderPadding=10,
+        backColor=colors.HexColor('#F0F4F8')
+    )
+
+    instruction_text = """
+    <b>INSTRUCTIONS:</b><br/>
+    <br/>
+    <b>Use this list to:</b><br/>
+    • Collect all needed items from the warehouse/stockroom before events begin<br/>
+    • Print item signs/labels for each product using the GTIN or Item Number<br/>
+    • Verify all items are available and in stock<br/>
+    • Cross-reference with EDR reports for each individual event<br/>
+    <br/>
+    <b>Note:</b> Each event's specific items are listed with their event number. Gather all items for the day's events to ensure smooth execution.
+    """
+
+    instruction_para = Paragraph(instruction_text, instruction_style)
+    story.append(instruction_para)
+    story.append(Spacer(1, 20))
+
+    # Create table data
+    table_data = [['Event #', 'Item Number', 'GTIN', 'Description', 'Vendor']]
+
+    for event_num, items in sorted(all_items.items()):
+        for item in items:
+            table_data.append([
+                str(event_num),
+                str(item.get('itemNbr', '')),
+                str(item.get('gtin', '')),
+                str(item.get('itemDesc', ''))[:35],  # Truncate description
+                str(item.get('vendorNbr', ''))
+            ])
+
+    # Create table
+    table = Table(table_data, colWidths=[0.8*inch, 1*inch, 1.3*inch, 2.4*inch, 0.8*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4C73')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('TOPPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+    ]))
+
+    story.append(table)
+    doc.build(story)
+
+
+def _generate_edr_pdf_from_html(edr_gen, edr_data, assigned_employee, output_path):
+    """Generate EDR PDF from HTML using xhtml2pdf"""
+    from xhtml2pdf import pisa
+
+    # Generate HTML using EDRReportGenerator
+    html_content = edr_gen.generate_html_report(edr_data)
+
+    # Convert HTML to PDF
+    with open(output_path, 'wb') as pdf_file:
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_file)
+
+    if pisa_status.err:
+        raise Exception(f"Failed to generate EDR PDF: {pisa_status.err}")
+
+
+def _download_pdf_from_url(url, output_path):
+    """Download PDF from URL"""
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+
+        # Check if response is actually a PDF
+        content_type = response.headers.get('Content-Type', '')
+        if 'pdf' not in content_type.lower():
+            current_app.logger.warning(f"URL {url} did not return PDF (Content-Type: {content_type})")
+            return False
+
+        with open(output_path, 'wb') as f:
+            f.write(response.content)
+
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Failed to download PDF from {url}: {str(e)}")
+        return False
+
+
+def get_sales_tool_doc(salestool_url, output_path):
+    """
+    Download sales tool document from URL
+
+    Args:
+        salestool_url: URL to the sales tool PDF
+        output_path: Where to save the downloaded PDF
+
+    Returns:
+        True if successful, False otherwise
+    """
+    return _download_pdf_from_url(salestool_url, output_path)
+
 def generate_edr_documents(event_numbers, credentials=None):
     """Generate EDR documents using the product-connections-implementation"""
     from reportlab.pdfgen import canvas
@@ -726,7 +979,7 @@ def generate_edr_documents(event_numbers, credentials=None):
 
     # Import EDR reporting functionality
     try:
-        from product_connections_implementation.edr_printer import EDRReportGenerator
+        from edr import EDRReportGenerator
         edr_available = True
     except ImportError:
         edr_available = False
@@ -824,7 +1077,7 @@ def edr_request_code():
     This must be called BEFORE showing the MFA popup
     """
     try:
-        from scheduler_app.services.edr_generator import EDRGenerator
+        from edr import EDRReportGenerator
         from flask import session as flask_session
 
         # Clear any existing EDR session data
@@ -837,7 +1090,7 @@ def edr_request_code():
 
         # Create EDR generator with credentials from settings (with config fallback)
         username, password, mfa_credential_id = _get_edr_credentials()
-        edr_gen = EDRGenerator(
+        edr_gen = EDRReportGenerator(
             username=username,
             password=password,
             mfa_credential_id=mfa_credential_id
@@ -845,19 +1098,37 @@ def edr_request_code():
 
         # Request MFA code (steps 1 & 2: submit password, request code)
         if edr_gen.request_mfa_code():
-            # Instead of storing ALL cookies (too large for session),
-            # we'll just mark that MFA was requested
-            # The user will need to re-authenticate from scratch with the MFA code
+            # Store ALL session cookies in a server-side cache file (avoid 4KB session limit)
+            # Use user's session ID as the cache key
+            import pickle
+            import tempfile
+
+            session_id = flask_session.get('user_id') or 'default'
+            cache_file = os.path.join(tempfile.gettempdir(), f'edr_session_{session_id}.pkl')
+
+            # Serialize all cookies
+            session_data = {}
+            for cookie in edr_gen.session.cookies:
+                session_data[cookie.name] = cookie.value
+
+            # Save to file
+            with open(cache_file, 'wb') as f:
+                pickle.dump(session_data, f)
+
+            # Store only a small marker in Flask session
             flask_session['edr_mfa_requested'] = True
             flask_session['edr_mfa_timestamp'] = datetime.utcnow().isoformat()
+            flask_session['edr_cache_file'] = cache_file
 
-            current_app.logger.info("MFA code requested successfully")
+            current_app.logger.info(f"MFA code requested successfully. Cached {len(session_data)} cookies to {cache_file}")
             return jsonify({'success': True, 'message': 'MFA code sent to your phone'})
         else:
-            return jsonify({'success': False, 'message': 'Failed to request MFA code'}), 500
+            current_app.logger.error("Failed to request MFA code - check credentials")
+            return jsonify({'success': False, 'message': 'Failed to request MFA code. Please check your credentials in Settings.'}), 500
 
     except Exception as e:
-        current_app.logger.error(f"MFA code request error: {str(e)}")
+        error_msg = str(e).encode('ascii', errors='ignore').decode('ascii')
+        current_app.logger.error(f"MFA code request error: {error_msg}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @admin_bp.route('/api/edr/authenticate', methods=['POST'])
@@ -868,7 +1139,7 @@ def edr_authenticate():
     Does a complete authentication flow from scratch with the MFA code
     """
     try:
-        from scheduler_app.services.edr_generator import EDRGenerator
+        from edr import EDRReportGenerator
         from flask import session as flask_session
 
         data = request.get_json()
@@ -881,32 +1152,62 @@ def edr_authenticate():
         if not flask_session.get('edr_mfa_requested'):
             return jsonify({'success': False, 'message': 'Please request MFA code first'}), 400
 
-        # Create EDR generator with credentials from settings (with config fallback)
+        # Load session cookies from cache file
+        cache_file = flask_session.get('edr_cache_file')
+        if not cache_file or not os.path.exists(cache_file):
+            return jsonify({'success': False, 'message': 'Session expired. Please request MFA code again.'}), 400
+
+        try:
+            with open(cache_file, 'rb') as f:
+                session_cookies = pickle.load(f)
+            current_app.logger.info(f"Loaded {len(session_cookies)} cookies from cache file")
+        except Exception as e:
+            current_app.logger.error(f"Failed to load session cache: {str(e)}")
+            return jsonify({'success': False, 'message': 'Session expired. Please request MFA code again.'}), 400
+
+        # Create EDR generator with credentials
         username, password, mfa_credential_id = _get_edr_credentials()
-        edr_gen = EDRGenerator(
+        edr_gen = EDRReportGenerator(
             username=username,
             password=password,
             mfa_credential_id=mfa_credential_id
         )
 
-        # Do complete authentication flow with MFA code
-        # Step 1: Submit password (this also sets initial cookies)
-        if not edr_gen._step1_submit_password():
-            return jsonify({'success': False, 'message': 'Password submission failed'}), 500
+        # Restore the EXACT session state from request_code
+        # Do NOT clear or reset - just restore the saved cookies
+        edr_gen.session.cookies.clear()
+        for name, value in session_cookies.items():
+            edr_gen.session.cookies.set(name, value)
 
-        # Step 2: Note - MFA code was already sent by request_code endpoint
-        # We skip step 2 since the code is already sent and valid
+        current_app.logger.info(f"Restored {len(session_cookies)} cookies from request_code session")
 
-        # Step 3: Validate MFA code
-        if not edr_gen._step3_validate_mfa_code(mfa_code):
-            return jsonify({'success': False, 'message': 'Invalid MFA code'}), 401
+        # Step 3: Validate MFA code (steps 1 & 2 were already done in request_code)
+        if not edr_gen.step3_validate_mfa_code(mfa_code):
+            current_app.logger.error("MFA code validation failed")
+            return jsonify({'success': False, 'message': 'Invalid MFA code. Please try again.'}), 401
 
-        # Steps 4-6: Complete authentication
-        edr_gen._step4_register_page_access()
-        edr_gen._step5_navigate_to_event_management()
+        current_app.logger.info("MFA code validated successfully")
 
-        if not edr_gen._step6_authenticate_event_management():
-            return jsonify({'success': False, 'message': 'Event Management authentication failed'}), 500
+        # Steps 4-6: Complete authentication (following exact pattern from edr_report_generator.py)
+        current_app.logger.info("Step 4: Registering page access...")
+        edr_gen.step4_register_page_access()
+
+        current_app.logger.info("Step 5: Navigating to Event Management...")
+        edr_gen.step5_navigate_to_event_management()
+
+        current_app.logger.info("Step 6: Authenticating with Event Management API...")
+
+        # Use the edr_printer's step6 method
+        if not edr_gen.step6_authenticate_event_management():
+            current_app.logger.error("Step 6 failed - could not extract auth token")
+
+            # Log cookies for debugging
+            cookie_names = [c.name for c in edr_gen.session.cookies]
+            current_app.logger.error(f"Available cookies: {cookie_names}")
+
+            return jsonify({'success': False, 'message': 'Failed to extract auth token from Event Management API. Session may have expired.'}), 500
+
+        current_app.logger.info(f"Authentication complete! Auth token: {edr_gen.auth_token[:50]}...")
 
         # Store auth token in session for reuse
         flask_session['edr_auth_token'] = edr_gen.auth_token
@@ -921,11 +1222,21 @@ def edr_authenticate():
 
         flask_session['edr_session_cookies'] = essential_cookies
 
-        # Clear MFA request flag
+        # Clean up cache file
+        try:
+            if cache_file and os.path.exists(cache_file):
+                os.remove(cache_file)
+                current_app.logger.info(f"Cleaned up cache file: {cache_file}")
+        except Exception as e:
+            current_app.logger.warning(f"Failed to clean up cache file: {str(e)}")
+
+        # Clear MFA request flag and cache reference
         if 'edr_mfa_requested' in flask_session:
             del flask_session['edr_mfa_requested']
         if 'edr_mfa_timestamp' in flask_session:
             del flask_session['edr_mfa_timestamp']
+        if 'edr_cache_file' in flask_session:
+            del flask_session['edr_cache_file']
 
         current_app.logger.info(f"EDR authentication successful. Stored {len(essential_cookies)} essential cookies")
         return jsonify({'success': True, 'message': 'EDR authentication successful'})
@@ -952,14 +1263,26 @@ def print_paperwork(paperwork_type):
     # Call refactored internal function with calculated date
     return print_paperwork_internal(paperwork_type, target_date)
 def print_paperwork_internal(paperwork_type, target_date_override=None):
-    """Internal function to generate paperwork PDF with optional target date override"""
+    """
+    Internal function to generate comprehensive paperwork PDF with:
+    - Daily schedule
+    - Item numbers layout from EDR data
+    - EDR reports for all Core events
+    - Sales Tools URL documents
+    - Daily Task Checkoff Sheet
+    - Event Table Activity Log
+    """
     try:
         from PyPDF2 import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
-        from xhtml2pdf import pisa
-        from scheduler_app.services.edr_generator import EDRGenerator
-        import os
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from edr import EDRReportGenerator
+        from flask import session as flask_session
 
         db = current_app.extensions['sqlalchemy']
         Event = current_app.config['Event']
@@ -978,50 +1301,267 @@ def print_paperwork_internal(paperwork_type, target_date_override=None):
 
         # Query Core events for target date
         events = Event.query.filter(
-            Event.event_date == target_date,
+            func.date(Event.start_datetime) == target_date,
             Event.event_type == 'Core'
-        ).all()
+        ).order_by(Event.start_datetime).all()
 
         if not events:
             return jsonify({'message': f'No Core events found for {target_date}'}), 404
 
-        # Generate simple PDF (simplified version)
-        from reportlab.lib.pagesizes import letter
-        from reportlab.pdfgen import canvas
-        from io import BytesIO
+        # Create temporary directory for PDF components
+        temp_dir = tempfile.mkdtemp()
+        pdf_components = []
 
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        
-        # Title page
-        p.setFont("Helvetica-Bold", 16)
-        p.drawString(100, 750, f"Core Events Paperwork - {target_date.strftime('%B %d, %Y')}")
-        
-        # Event list
-        y = 700
-        p.setFont("Helvetica", 12)
-        for event in events:
-            schedules = Schedule.query.filter_by(event_id=event.id).all()
-            employee_names = [Employee.query.get(s.employee_id).name for s in schedules if Employee.query.get(s.employee_id)]
-            
-            p.drawString(100, y, f"{event.project_name} - {', '.join(employee_names) if employee_names else 'Unassigned'}")
-            y -= 20
-            if y < 100:
-                p.showPage()
-                y = 750
+        try:
+            # ===== 1. Generate Daily Schedule PDF =====
+            current_app.logger.info("Generating daily schedule section...")
+            schedule_pdf_path = os.path.join(temp_dir, "01_daily_schedule.pdf")
+            _generate_daily_schedule_pdf(events, target_date, schedule_pdf_path, Schedule, Employee)
+            pdf_components.append(schedule_pdf_path)
 
-        p.save()
-        buffer.seek(0)
+            # ===== 2. Prepare EDR data and item numbers =====
+            current_app.logger.info("Fetching EDR data for all events...")
 
-        response = make_response(buffer.getvalue())
-        response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="Paperwork_{target_date.strftime("%Y%m%d")}.pdf"'
-        
-        return response
+            edr_gen = None
+            events_with_edr = []  # List of (event, event_num, edr_data)
+            all_items = {}  # event_number -> list of items
+
+            # Check if we have EDR authentication
+            if flask_session.get('edr_auth_token'):
+                # Get EDR credentials
+                username, password, mfa_credential_id = _get_edr_credentials()
+                edr_gen = EDRReportGenerator(username, password, mfa_credential_id)
+
+                # Restore session from flask session
+                if flask_session.get('edr_session_cookies'):
+                    current_app.logger.info(f"Restoring {len(flask_session['edr_session_cookies'])} cookies to EDR session")
+                    for name, value in flask_session['edr_session_cookies'].items():
+                        edr_gen.session.cookies.set(name, value)
+                        current_app.logger.debug(f"  Restored cookie: {name}")
+
+                edr_gen.auth_token = flask_session['edr_auth_token']
+                current_app.logger.info(f"Restored auth token: {edr_gen.auth_token[:50]}...")
+
+                # Fetch EDR data for all events
+                for event in events:
+                    event_num = extract_event_number(event.project_name)
+                    if event_num:
+                        try:
+                            current_app.logger.info(f"Fetching EDR data for event {event_num}")
+                            edr_data = edr_gen.get_edr_report(event_num)
+                            if edr_data:
+                                events_with_edr.append((event, event_num, edr_data))
+                                # Extract items
+                                items = edr_data.get('itemDetails', [])
+                                if items:
+                                    all_items[event_num] = items
+                        except Exception as e:
+                            current_app.logger.error(f"Failed to fetch EDR for event {event_num}: {str(e)}")
+            else:
+                current_app.logger.warning("No EDR authentication - skipping EDR reports and item layout")
+
+            # ===== 3. Generate Item Numbers Layout (Master List) =====
+            if all_items:
+                current_app.logger.info("Generating master item numbers list...")
+                item_layout_pdf_path = os.path.join(temp_dir, "02_item_numbers_master.pdf")
+                _generate_item_numbers_layout_pdf(all_items, item_layout_pdf_path)
+                pdf_components.append(item_layout_pdf_path)
+
+            # ===== 4. Generate Event Packets (EDR + Sales Tool + Activity Log + Checklist per event) =====
+            current_app.logger.info("Generating event packets...")
+
+            # Get static PDF paths
+            checkoff_path = os.path.join(current_app.root_path, 'docs', 'Daily Task Checkoff Sheet.pdf')
+            activity_log_path = os.path.join(current_app.root_path, 'docs', 'Event Table Activity Log.pdf')
+
+            for event, event_num, edr_data in events_with_edr:
+                current_app.logger.info(f"Creating packet for event {event_num}...")
+
+                # Find assigned employee for this event
+                assigned_employee = "N/A"
+                schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).all()
+                if schedules:
+                    emp = Employee.query.get(schedules[0].employee_id)
+                    if emp:
+                        assigned_employee = emp.name
+
+                # 4a. EDR Report
+                edr_pdf_path = os.path.join(temp_dir, f"event_{event_num}_1_edr.pdf")
+                _generate_edr_pdf_from_html(edr_gen, edr_data, assigned_employee, edr_pdf_path)
+                pdf_components.append(edr_pdf_path)
+
+                # 4b. Sales Tool Document
+                if event.sales_tools_url:
+                    try:
+                        sales_tool_pdf_path = os.path.join(temp_dir, f"event_{event_num}_2_salestool.pdf")
+                        if _download_pdf_from_url(event.sales_tools_url, sales_tool_pdf_path):
+                            pdf_components.append(sales_tool_pdf_path)
+                        else:
+                            current_app.logger.warning(f"Failed to download Sales Tool for event {event_num}")
+                    except Exception as e:
+                        current_app.logger.error(f"Error downloading Sales Tool for event {event_num}: {str(e)}")
+
+                # 4c. Event Table Activity Log
+                if os.path.exists(activity_log_path):
+                    pdf_components.append(activity_log_path)
+
+                # 4d. Daily Task Checkoff Sheet
+                if os.path.exists(checkoff_path):
+                    pdf_components.append(checkoff_path)
+
+            # ===== 5. Merge all PDFs =====
+            current_app.logger.info(f"Merging {len(pdf_components)} PDF components...")
+            final_pdf_buffer = BytesIO()
+            pdf_writer = PdfWriter()
+
+            for pdf_path in pdf_components:
+                try:
+                    with open(pdf_path, 'rb') as pdf_file:
+                        pdf_reader = PdfReader(pdf_file)
+                        for page in pdf_reader.pages:
+                            pdf_writer.add_page(page)
+                except Exception as e:
+                    current_app.logger.error(f"Failed to add PDF component {pdf_path}: {str(e)}")
+
+            pdf_writer.write(final_pdf_buffer)
+            final_pdf_buffer.seek(0)
+
+            # Clean up temp directory
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+            # Return the merged PDF
+            response = make_response(final_pdf_buffer.getvalue())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename="Sales_Tools_{paperwork_type}_{target_date.strftime("%Y-%m-%d")}.pdf"'
+
+            return response
+
+        except Exception as e:
+            # Clean up on error
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
 
     except Exception as e:
         current_app.logger.error(f"Error generating paperwork: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'error': f'Failed to generate paperwork: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/print_paperwork_by_date/<date_str>')
+@require_authentication()
+def print_paperwork_by_date(date_str):
+    """
+    Print paperwork for Core events on a specific date
+    date_str: Date in YYYY-MM-DD format
+    """
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    return print_paperwork_internal('custom', target_date)
+
+
+@admin_bp.route('/api/print_salestools_by_date/<date_str>')
+@require_authentication()
+def print_salestools_by_date(date_str):
+    """
+    Download and merge sales tool PDFs for all Core events on a specific date
+    date_str: Date in YYYY-MM-DD format
+    """
+    try:
+        from PyPDF2 import PdfWriter, PdfReader
+
+        db = current_app.extensions['sqlalchemy']
+        Event = current_app.config['Event']
+        Schedule = current_app.config['Schedule']
+
+        # Parse date
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+        # Get all CORE events scheduled for this date
+        core_events = db.session.query(Event).join(
+            Schedule, Schedule.event_ref_num == Event.project_ref_num
+        ).filter(
+            func.date(Schedule.schedule_datetime) == target_date,
+            Event.event_type == 'Core',
+            Event.sales_tools_url.isnot(None),
+            Event.sales_tools_url != ''
+        ).distinct().all()
+
+        if not core_events:
+            return jsonify({'error': f'No Core events with SalesTools found for {target_date}'}), 404
+
+        current_app.logger.info(f"Found {len(core_events)} Core events with SalesTools URLs for {target_date}")
+
+        # Create temp directory for downloaded PDFs
+        temp_dir = tempfile.mkdtemp()
+        downloaded_pdfs = []
+
+        try:
+            # Download each sales tool PDF
+            for i, event in enumerate(core_events):
+                salestool_url = event.sales_tools_url
+                current_app.logger.info(f"Downloading SalesTool {i+1}/{len(core_events)}: {salestool_url}")
+
+                output_path = os.path.join(temp_dir, f'salestool_{i}_{event.project_ref_num}.pdf')
+
+                if get_sales_tool_doc(salestool_url, output_path):
+                    downloaded_pdfs.append(output_path)
+                    current_app.logger.info(f"✓ Downloaded SalesTool for event {event.project_ref_num}")
+                else:
+                    current_app.logger.warning(f"✗ Failed to download SalesTool for event {event.project_ref_num}")
+
+            if not downloaded_pdfs:
+                return jsonify({'error': 'Failed to download any SalesTools PDFs'}), 500
+
+            current_app.logger.info(f"Successfully downloaded {len(downloaded_pdfs)} SalesTools PDFs, merging...")
+
+            # Merge all PDFs
+            pdf_writer = PdfWriter()
+
+            for pdf_path in downloaded_pdfs:
+                try:
+                    with open(pdf_path, 'rb') as pdf_file:
+                        pdf_reader = PdfReader(pdf_file)
+                        for page in pdf_reader.pages:
+                            pdf_writer.add_page(page)
+                except Exception as e:
+                    current_app.logger.error(f"Failed to add PDF {pdf_path}: {str(e)}")
+
+            # Write merged PDF to buffer
+            output_buffer = BytesIO()
+            pdf_writer.write(output_buffer)
+            output_buffer.seek(0)
+
+            # Clean up temp directory
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+            # Return merged PDF
+            response = make_response(output_buffer.getvalue())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename="SalesTools_{target_date.strftime("%Y-%m-%d")}.pdf"'
+
+            return response
+
+        except Exception as e:
+            # Clean up on error
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
+
+    except Exception as e:
+        current_app.logger.error(f"Error generating SalesTools PDF: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': f'Failed to generate SalesTools PDF: {str(e)}'}), 500
 
 
 @admin_bp.route('/api/print_event_paperwork/<int:event_id>')
@@ -1044,20 +1584,20 @@ def print_event_paperwork(event_id):
             return jsonify({'error': f'Event {event_id} not found'}), 404
 
         # Get schedules for this event
-        schedules = Schedule.query.filter_by(event_id=event.id).all()
+        schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).all()
         if not schedules:
             return jsonify({'error': f'Event {event_id} is not scheduled'}), 404
 
         # Generate simple PDF for single event
         buffer = BytesIO()
         p = canvas.Canvas(buffer, pagesize=letter)
-        
+
         # Title
         p.setFont("Helvetica-Bold", 16)
         p.drawString(100, 750, f"Event Paperwork - {event.project_name}")
         p.setFont("Helvetica", 12)
         p.drawString(100, 730, f"Event ID: {event.id}")
-        p.drawString(100, 710, f"Date: {event.event_date}")
+        p.drawString(100, 710, f"Date: {event.start_datetime.strftime('%Y-%m-%d %I:%M %p')}")
         p.drawString(100, 690, f"Type: {event.event_type}")
         
         # Employees assigned
@@ -1109,7 +1649,7 @@ def auto_schedule_event(event_id):
             return jsonify({'error': f'Event {event_id} is already scheduled'}), 400
 
         # Initialize SchedulingEngine
-        from scheduler_app.services.scheduling_engine import SchedulingEngine
+        from services.scheduling_engine import SchedulingEngine
         models = {k: current_app.config[k] for k in [
             'Employee', 'Event', 'Schedule', 'SchedulerRunHistory',
             'PendingSchedule', 'RotationAssignment', 'ScheduleException',
@@ -1119,7 +1659,7 @@ def auto_schedule_event(event_id):
 
         # Create run history
         run = SchedulerRunHistory(
-            run_type='single_event',
+            run_type='manual',
             total_events_processed=1,
             events_scheduled=0,
             events_requiring_swaps=0,
@@ -1257,7 +1797,7 @@ def print_weekly_summary(week_start_str):
         ).join(
             Schedule, Employee.id == Schedule.employee_id
         ).join(
-            Event, Schedule.event_id == Event.id
+            Event, Schedule.event_ref_num == Event.project_ref_num
         ).filter(
             func.date(Schedule.schedule_datetime) >= week_start,
             func.date(Schedule.schedule_datetime) <= week_end,
@@ -1273,6 +1813,12 @@ def print_weekly_summary(week_start_str):
             time_str = schedule_dt.strftime('%I:%M %p')
             employee_schedules[name][day_name].append(time_str)
 
+        # Calculate dates for each day of the week
+        day_dates = []
+        for i in range(7):
+            day_date = week_start + timedelta(days=i)
+            day_dates.append(day_date)
+
         # Generate HTML
         html = f"""
         <!DOCTYPE html>
@@ -1285,6 +1831,8 @@ def print_weekly_summary(week_start_str):
                 .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2E4C73; padding-bottom: 10px; }}
                 table {{ width: 100%; border-collapse: collapse; }}
                 th {{ background: #2E4C73; color: white; padding: 8px; text-align: left; font-size: 9pt; }}
+                .day-header {{ font-weight: bold; }}
+                .date-header {{ font-size: 8pt; font-weight: normal; }}
                 td {{ padding: 6px 8px; border: 1px solid #ddd; font-size: 9pt; }}
                 tr:nth-child(even) {{ background: #f9f9f9; }}
             </style>
@@ -1298,13 +1846,13 @@ def print_weekly_summary(week_start_str):
                 <thead>
                     <tr>
                         <th style="width: 20%;">Employee</th>
-                        <th style="width: 11.4%;">Sun</th>
-                        <th style="width: 11.4%;">Mon</th>
-                        <th style="width: 11.4%;">Tue</th>
-                        <th style="width: 11.4%;">Wed</th>
-                        <th style="width: 11.4%;">Thu</th>
-                        <th style="width: 11.4%;">Fri</th>
-                        <th style="width: 11.4%;">Sat</th>
+                        <th style="width: 11.4%;"><div class="day-header">Sun</div><div class="date-header">{day_dates[0].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Mon</div><div class="date-header">{day_dates[1].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Tue</div><div class="date-header">{day_dates[2].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Wed</div><div class="date-header">{day_dates[3].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Thu</div><div class="date-header">{day_dates[4].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Fri</div><div class="date-header">{day_dates[5].strftime('%b %d')}</div></th>
+                        <th style="width: 11.4%;"><div class="day-header">Sat</div><div class="date-header">{day_dates[6].strftime('%b %d')}</div></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1376,7 +1924,7 @@ def print_employee_schedule(employee_id, week_start_str):
             Event.project_name,
             Event.event_type
         ).join(
-            Event, Schedule.event_id == Event.id
+            Event, Schedule.event_ref_num == Event.project_ref_num
         ).filter(
             Schedule.employee_id == employee_id,
             func.date(Schedule.schedule_datetime) >= week_start,
@@ -1493,3 +2041,516 @@ def print_employee_schedule(employee_id, week_start_str):
     except Exception as e:
         current_app.logger.error(f"Error generating employee schedule: {str(e)}")
         return jsonify({'error': f'Failed to generate schedule: {str(e)}'}), 500
+
+
+@admin_bp.route('/settings')
+@require_authentication()
+def settings_page():
+    """Display settings page for Retail Link credentials and other configuration"""
+    SystemSetting = current_app.config.get('SystemSetting')
+
+    # Get current settings
+    settings = {}
+    if SystemSetting:
+        settings['edr_username'] = SystemSetting.get_setting('edr_username') or ''
+        settings['edr_password'] = '***' if SystemSetting.get_setting('edr_password') else ''
+        settings['edr_mfa_credential_id'] = SystemSetting.get_setting('edr_mfa_credential_id') or ''
+    else:
+        settings['edr_username'] = current_app.config.get('WALMART_EDR_USERNAME', '')
+        settings['edr_password'] = '***' if current_app.config.get('WALMART_EDR_PASSWORD') else ''
+        settings['edr_mfa_credential_id'] = current_app.config.get('WALMART_EDR_MFA_CREDENTIAL_ID', '')
+
+    return render_template('settings.html', settings=settings)
+
+
+@admin_bp.route('/api/settings/edr', methods=['POST'])
+@require_authentication()
+def save_edr_settings():
+    """Save Retail Link EDR credentials to database"""
+    try:
+        from flask import session as flask_session
+        SystemSetting = current_app.config.get('SystemSetting')
+
+        if not SystemSetting:
+            return jsonify({'success': False, 'message': 'SystemSetting model not available'}), 500
+
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        mfa_credential_id = data.get('mfa_credential_id', '').strip()
+
+        if not username or not password or not mfa_credential_id:
+            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+
+        # Save to database
+        SystemSetting.set_setting('edr_username', username)
+        SystemSetting.set_setting('edr_password', password)
+        SystemSetting.set_setting('edr_mfa_credential_id', mfa_credential_id)
+
+        # Clear any existing EDR session
+        if 'edr_auth_token' in flask_session:
+            del flask_session['edr_auth_token']
+        if 'edr_session_cookies' in flask_session:
+            del flask_session['edr_session_cookies']
+
+        current_app.logger.info("Retail Link EDR credentials updated successfully")
+        return jsonify({'success': True, 'message': 'Credentials saved successfully'})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save EDR settings: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/sync/employees', methods=['POST'])
+@require_authentication()
+def sync_employees_from_api():
+    """
+    Sync employee data from Crossmark API
+    Uses getQualifiedRepsForScheduling to fetch current employee RepIDs and info
+    """
+    try:
+        db = current_app.extensions['sqlalchemy']
+        Employee = current_app.config['Employee']
+        Event = current_app.config['Event']
+        from session_api_service import session_api as external_api
+
+        # Ensure authenticated
+        if not external_api.ensure_authenticated():
+            return jsonify({'success': False, 'error': 'Failed to authenticate with Crossmark API'}), 401
+
+        # Get a sample event to fetch qualified reps
+        sample_event = Event.query.filter(Event.location_mvid.isnot(None)).first()
+        if not sample_event:
+            return jsonify({'success': False, 'error': 'No events found to fetch qualified reps'}), 404
+
+        current_app.logger.info(f"Fetching qualified reps using event {sample_event.external_id} at location {sample_event.location_mvid}")
+
+        # Fetch qualified reps from API
+        reps_data = external_api.get_qualified_reps_for_scheduling(
+            mplan_id=sample_event.external_id,
+            store_id=sample_event.location_mvid
+        )
+
+        if not reps_data or 'data' not in reps_data:
+            return jsonify({'success': False, 'error': 'No qualified reps data returned from API'}), 500
+
+        current_app.logger.info(f"Fetched {len(reps_data.get('data', []))} qualified reps from API")
+
+        # Update employees with correct RepIDs
+        updated_count = 0
+        not_found = []
+
+        for rep in reps_data.get('data', []):
+            rep_id = rep.get('ID') or rep.get('RepID')
+            first_name = rep.get('FirstName', '').strip()
+            last_name = rep.get('LastName', '').strip()
+            full_name = f"{first_name} {last_name}".upper()
+
+            if not rep_id:
+                continue
+
+            # Try to find employee by name
+            employee = Employee.query.filter(
+                db.func.upper(Employee.name) == full_name
+            ).first()
+
+            if employee:
+                # Update external_id with correct RepID
+                old_rep_id = employee.external_id
+                employee.external_id = str(rep_id)
+                employee.last_synced = datetime.utcnow()
+                updated_count += 1
+                current_app.logger.info(f"Updated {employee.name}: RepID {old_rep_id} -> {rep_id}")
+            else:
+                not_found.append(full_name)
+                current_app.logger.warning(f"Employee not found in database: {full_name} (RepID: {rep_id})")
+
+        # Commit changes
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'updated': updated_count,
+            'not_found': not_found,
+            'total_reps_fetched': len(reps_data.get('data', []))
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error syncing employees: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/api/daily_paperwork/request_mfa', methods=['POST'])
+@require_authentication()
+def request_daily_paperwork_mfa():
+    """
+    Request MFA code for daily paperwork generation
+
+    DEPRECATED: Use /api/admin/edr/request-code instead.
+    This route redirects to the unified EDR authentication endpoint.
+    """
+    # Redirect to unified EDR authentication
+    return edr_request_code()
+
+
+@admin_bp.route('/api/edr_reports/request_mfa', methods=['POST'])
+@require_authentication()
+def request_edr_reports_mfa():
+    """
+    Request MFA code for EDR reports generation
+    Uses the unified EDR authentication endpoint
+    """
+    return edr_request_code()
+
+
+@admin_bp.route('/api/edr_reports/generate_by_date', methods=['POST'])
+@require_authentication()
+def generate_edr_reports_by_date():
+    """
+    Generate EDR reports for all CORE events on a specific date
+    Extracts event numbers from CORE events and generates individual EDR reports
+    Returns a consolidated PDF
+    """
+    try:
+        from flask import session as flask_session
+        from edr import EDRReportGenerator
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, PageBreak
+        from reportlab.lib.units import inch
+        import pickle
+        import re
+        from io import BytesIO
+
+        data = request.get_json()
+        date_str = data.get('date')  # Format: YYYY-MM-DD
+        mfa_code = data.get('mfa_code')
+
+        if not date_str:
+            return jsonify({'error': 'Date required'}), 400
+
+        # Parse date
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Authenticate with MFA code if provided and not already authenticated
+        if mfa_code and not flask_session.get('edr_auth_token'):
+            current_app.logger.info("Completing EDR authentication with provided MFA code...")
+
+            # Check if MFA was requested
+            if not flask_session.get('edr_mfa_requested'):
+                return jsonify({'error': 'No MFA request found. Please request MFA code first.'}), 400
+
+            cache_file = flask_session.get('edr_cache_file')
+            if not cache_file or not os.path.exists(cache_file):
+                return jsonify({'error': 'Session expired. Please request MFA code again.'}), 400
+
+            # Load cached cookies
+            with open(cache_file, 'rb') as f:
+                cached_cookies = pickle.load(f)
+
+            # Get credentials and create EDR generator
+            username, password, mfa_credential_id = _get_edr_credentials()
+            edr_gen = EDRReportGenerator(username, password, mfa_credential_id)
+
+            # Restore cookies
+            edr_gen.session.cookies.clear()
+            for name, value in cached_cookies.items():
+                edr_gen.session.cookies.set(name, value)
+
+            # Validate MFA code (step 3)
+            if not edr_gen.step3_validate_mfa_code(mfa_code):
+                return jsonify({'error': 'Invalid MFA code'}), 401
+
+            # Complete authentication (steps 4-6)
+            edr_gen.step4_register_page_access()
+            edr_gen.step5_navigate_to_event_management()
+
+            if not edr_gen.step6_authenticate_event_management():
+                return jsonify({'error': 'Authentication failed at step 6'}), 500
+
+            # Store auth token and cookies in Flask session
+            flask_session['edr_auth_token'] = edr_gen.auth_token
+
+            essential_cookies = {}
+            for cookie in edr_gen.session.cookies:
+                if cookie.name in ['_auth', '_refreshAuth', 'RLSESSION', 'RETAILLINKSESSION',
+                                   'TS0111a950', 'TS01b1e5a6', 'TS04fe286f027']:
+                    essential_cookies[cookie.name] = cookie.value
+
+            flask_session['edr_session_cookies'] = essential_cookies
+
+            # Cleanup temp files
+            if cache_file and os.path.exists(cache_file):
+                os.remove(cache_file)
+
+            current_app.logger.info(f"[OK] Authentication complete! Auth token: {edr_gen.auth_token[:50]}...")
+
+        # Get database and models
+        db = current_app.extensions['sqlalchemy']
+        Event = current_app.config['Event']
+        Schedule = current_app.config['Schedule']
+
+        # Get all CORE events scheduled for the target date
+        core_events = db.session.query(Event, Schedule).join(
+            Schedule, Event.project_ref_num == Schedule.event_ref_num
+        ).filter(
+            db.func.date(Schedule.schedule_datetime) == target_date,
+            Event.event_type == 'Core'
+        ).all()
+
+        if not core_events:
+            return jsonify({'error': f'No CORE events found for {date_str}'}), 404
+
+        current_app.logger.info(f"Found {len(core_events)} CORE events for {date_str}")
+
+        # Extract event numbers (first 6 digits from project_name)
+        event_numbers = []
+        for event, schedule in core_events:
+            # Extract first 6 digits from project_name
+            match = re.match(r'^(\d{6})', event.project_name)
+            if match:
+                event_number = match.group(1)
+                event_numbers.append(event_number)
+                current_app.logger.info(f"Extracted event number {event_number} from {event.project_name}")
+            else:
+                current_app.logger.warning(f"Could not extract event number from {event.project_name}")
+
+        if not event_numbers:
+            return jsonify({'error': 'No valid event numbers found in CORE events'}), 404
+
+        current_app.logger.info(f"Processing {len(event_numbers)} event numbers: {event_numbers}")
+
+        # Restore EDR generator from Flask session if authenticated
+        if not flask_session.get('edr_auth_token'):
+            return jsonify({'error': 'EDR authentication required'}), 401
+
+        username, password, mfa_credential_id = _get_edr_credentials()
+        edr_gen = EDRReportGenerator(username, password, mfa_credential_id)
+
+        # Restore session cookies
+        if flask_session.get('edr_session_cookies'):
+            for name, value in flask_session['edr_session_cookies'].items():
+                edr_gen.session.cookies.set(name, value)
+
+        # Restore auth token
+        edr_gen.auth_token = flask_session['edr_auth_token']
+
+        # Generate EDR reports for each event number
+        html_reports = []
+        for event_number in event_numbers:
+            try:
+                current_app.logger.info(f"Generating EDR report for event {event_number}")
+                edr_data = edr_gen.get_edr_report(event_number)
+                if edr_data:
+                    html_report = edr_gen.generate_html_report(edr_data)
+                    html_reports.append((event_number, html_report))
+                else:
+                    current_app.logger.warning(f"No EDR data returned for event {event_number}")
+            except Exception as e:
+                current_app.logger.error(f"Error generating EDR for event {event_number}: {str(e)}")
+
+        if not html_reports:
+            return jsonify({'error': 'Failed to generate any EDR reports'}), 500
+
+        # Create consolidated PDF using weasyprint or return HTML files
+        try:
+            from weasyprint import HTML
+
+            # Create a temporary PDF for each report and merge them
+            pdf_buffer = BytesIO()
+
+            # For the first HTML report, write to buffer
+            HTML(string=html_reports[0][1]).write_pdf(pdf_buffer)
+
+            # For subsequent reports, we need to merge PDFs
+            if len(html_reports) > 1:
+                from PyPDF2 import PdfMerger
+                merger = PdfMerger()
+
+                # Add first PDF
+                pdf_buffer.seek(0)
+                merger.append(pdf_buffer)
+
+                # Add remaining PDFs
+                for event_num, html in html_reports[1:]:
+                    temp_buffer = BytesIO()
+                    HTML(string=html).write_pdf(temp_buffer)
+                    temp_buffer.seek(0)
+                    merger.append(temp_buffer)
+
+                # Write merged PDF to final buffer
+                final_buffer = BytesIO()
+                merger.write(final_buffer)
+                merger.close()
+                pdf_data = final_buffer.getvalue()
+            else:
+                pdf_data = pdf_buffer.getvalue()
+
+        except ImportError:
+            # Fallback: Return first HTML report as attachment
+            current_app.logger.warning("WeasyPrint not available, returning HTML instead of PDF")
+            response = make_response(html_reports[0][1])
+            response.headers['Content-Type'] = 'text/html'
+            response.headers['Content-Disposition'] = f'attachment; filename="EDR_Report_{date_str}.html"'
+            return response
+
+        # Return PDF
+        response = make_response(pdf_data)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="EDR_Reports_{date_str}.pdf"'
+
+        return response
+
+    except Exception as e:
+        current_app.logger.error(f"Error generating EDR reports: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/api/daily_paperwork/generate', methods=['POST'])
+@require_authentication()
+def generate_daily_paperwork():
+    """
+    Generate daily paperwork using authenticated EDR session
+
+    Supports two authentication flows:
+    1. NEW: Uses unified EDR authentication from Flask session (preferred)
+    2. LEGACY: Accepts mfa_code in request body for backward compatibility
+    """
+    try:
+        from flask import session as flask_session
+        from services.daily_paperwork_generator import DailyPaperworkGenerator
+        from edr import EDRReportGenerator
+        import pickle
+
+        data = request.get_json()
+        date_str = data.get('date')  # Format: YYYY-MM-DD
+        mfa_code = data.get('mfa_code')  # Legacy parameter
+
+        if not date_str:
+            return jsonify({'error': 'Date required'}), 400
+
+        # Parse date
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # LEGACY FLOW: If mfa_code provided and not already authenticated
+        if mfa_code and not flask_session.get('edr_auth_token'):
+            current_app.logger.info("Completing EDR authentication with provided MFA code...")
+
+            # Check if MFA was requested
+            if not flask_session.get('edr_mfa_requested'):
+                return jsonify({'error': 'No MFA request found. Please request MFA code first.'}), 400
+
+            cache_file = flask_session.get('edr_cache_file')
+            if not cache_file or not os.path.exists(cache_file):
+                return jsonify({'error': 'Session expired. Please request MFA code again.'}), 400
+
+            # Load cached cookies
+            with open(cache_file, 'rb') as f:
+                cached_cookies = pickle.load(f)
+
+            # Get credentials and create EDR generator
+            username, password, mfa_credential_id = _get_edr_credentials()
+            edr_gen = EDRReportGenerator(username, password, mfa_credential_id)
+
+            # Restore cookies
+            edr_gen.session.cookies.clear()
+            for name, value in cached_cookies.items():
+                edr_gen.session.cookies.set(name, value)
+
+            # Validate MFA code (step 3)
+            if not edr_gen.step3_validate_mfa_code(mfa_code):
+                return jsonify({'error': 'Invalid MFA code'}), 401
+
+            # Complete authentication (steps 4-6)
+            edr_gen.step4_register_page_access()
+            edr_gen.step5_navigate_to_event_management()
+
+            if not edr_gen.step6_authenticate_event_management():
+                return jsonify({'error': 'Authentication failed at step 6'}), 500
+
+            # Store auth token and cookies in Flask session
+            flask_session['edr_auth_token'] = edr_gen.auth_token
+
+            essential_cookies = {}
+            for cookie in edr_gen.session.cookies:
+                if cookie.name in ['_auth', '_refreshAuth', 'RLSESSION', 'RETAILLINKSESSION',
+                                   'TS0111a950', 'TS01b1e5a6', 'TS04fe286f027']:
+                    essential_cookies[cookie.name] = cookie.value
+
+            flask_session['edr_session_cookies'] = essential_cookies
+
+            # Cleanup temp files
+            if cache_file and os.path.exists(cache_file):
+                os.remove(cache_file)
+
+            current_app.logger.info(f"[OK] Authentication complete! Auth token: {edr_gen.auth_token[:50]}...")
+            current_app.logger.info(f"Stored {len(essential_cookies)} essential cookies in session")
+
+        # Get database and models
+        db = current_app.extensions['sqlalchemy']
+        models_dict = {
+            'Event': current_app.config['Event'],
+            'Schedule': current_app.config['Schedule'],
+            'Employee': current_app.config['Employee']
+        }
+
+        # Get authenticated SessionAPIService for downloading SalesTools
+        session_api_service = current_app.config.get('SESSION_API_SERVICE')
+
+        # Restore EDR generator from Flask session if authenticated
+        edr_gen = None
+        if flask_session.get('edr_auth_token'):
+            current_app.logger.info("Restoring EDR authentication from Flask session...")
+
+            # Get EDR credentials
+            username, password, mfa_credential_id = _get_edr_credentials()
+            edr_gen = EDRReportGenerator(username, password, mfa_credential_id)
+
+            # Restore session cookies
+            if flask_session.get('edr_session_cookies'):
+                current_app.logger.info(f"Restoring {len(flask_session['edr_session_cookies'])} cookies to EDR session")
+                for name, value in flask_session['edr_session_cookies'].items():
+                    edr_gen.session.cookies.set(name, value)
+
+            # Restore auth token
+            edr_gen.auth_token = flask_session['edr_auth_token']
+            current_app.logger.info(f"Restored EDR auth token: {edr_gen.auth_token[:50]}...")
+        else:
+            current_app.logger.warning("No EDR authentication found - paperwork will be generated without EDRs")
+
+        # Create generator with authenticated EDR instance
+        generator = DailyPaperworkGenerator(
+            db.session,
+            models_dict,
+            session_api_service,
+            edr_generator=edr_gen  # Inject authenticated instance
+        )
+
+        # Generate paperwork
+        pdf_path = generator.generate_complete_daily_paperwork(target_date)
+
+        if not pdf_path:
+            return jsonify({'error': 'Failed to generate daily paperwork'}), 500
+
+        # Read PDF and return as response
+        with open(pdf_path, 'rb') as f:
+            pdf_data = f.read()
+
+        # Cleanup
+        generator.cleanup()
+
+        # Return PDF
+        response = make_response(pdf_data)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="Paperwork_{date_str}.pdf"'
+
+        return response
+
+    except Exception as e:
+        current_app.logger.error(f"Error generating daily paperwork: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500

@@ -5,8 +5,8 @@ import pytest
 import os
 import tempfile
 from cryptography.fernet import Fernet
-from scheduler_app.app import app, db
-from scheduler_app.utils.encryption import encrypt_value, decrypt_value, get_encryption_key
+from app import app, db
+from utils.encryption import encrypt_value, decrypt_value, get_encryption_key
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def client():
 def auth_client(client):
     """Client with authenticated session"""
     # Mock authentication in session_store (custom session implementation)
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -296,7 +296,7 @@ class TestEDRCredentialsIntegration:
             SystemSetting.set_setting('edr_mfa_credential_id', 'mfa_test', 'string')
 
             # Import _get_edr_credentials helper
-            from scheduler_app.routes.admin import _get_edr_credentials
+            from routes.admin import _get_edr_credentials
 
             username, password, mfa_id = _get_edr_credentials()
 
@@ -311,7 +311,7 @@ class TestEDRCredentialsIntegration:
             app.config['WALMART_EDR_USERNAME'] = 'config_user'
             app.config['WALMART_EDR_PASSWORD'] = 'config_pass'
 
-            from scheduler_app.routes.admin import _get_edr_credentials
+            from routes.admin import _get_edr_credentials
 
             username, password, mfa_id = _get_edr_credentials()
 

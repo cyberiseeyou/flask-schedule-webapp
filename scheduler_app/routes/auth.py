@@ -65,9 +65,14 @@ def login_page():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """Handle login form submission and authenticate with Crossmark API"""
-    from scheduler_app.session_api_service import session_api as external_api
+    from session_api_service import session_api as external_api
 
     try:
+        # Debug logging
+        current_app.logger.info(f"Login attempt - Content-Type: {request.content_type}")
+        current_app.logger.info(f"Login attempt - Form data: {request.form}")
+        current_app.logger.info(f"Login attempt - Raw data: {request.get_data(as_text=True)[:200]}")
+
         # Get credentials from form
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
@@ -95,7 +100,20 @@ def login():
         try:
             # Attempt authentication with Crossmark API
             current_app.logger.info(f"Attempting authentication for user: {username}")
-            auth_success = external_api.login()
+
+            # Development mode bypass - allow login with any credentials
+            is_dev_mode = (
+                current_app.config.get('DEBUG', False) or
+                current_app.config.get('ENV') == 'development' or
+                current_app.config.get('FLASK_ENV') == 'development' or
+                current_app.config.get('TESTING', False)
+            )
+
+            if is_dev_mode:
+                current_app.logger.info("Development mode: bypassing external API authentication")
+                auth_success = True
+            else:
+                auth_success = external_api.login()
 
             if auth_success:
                 # Get user information
@@ -180,7 +198,7 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Handle user logout"""
-    from scheduler_app.session_api_service import session_api as external_api
+    from session_api_service import session_api as external_api
 
     session_id = request.cookies.get('session_id')
 

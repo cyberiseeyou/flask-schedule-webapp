@@ -5,7 +5,7 @@ Manages configuration settings stored in database with encryption support
 import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime
-from scheduler_app.utils.encryption import encrypt_value, decrypt_value
+from utils.encryption import encrypt_value, decrypt_value
 
 logger = logging.getLogger(__name__)
 

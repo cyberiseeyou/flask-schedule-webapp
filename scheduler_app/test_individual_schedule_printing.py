@@ -3,7 +3,7 @@ Tests for Individual Schedule Printing (Story 1.12)
 """
 import pytest
 from datetime import date, datetime, timedelta
-from scheduler_app.app import app, db
+from app import app, db
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def client():
 @pytest.fixture
 def auth_client(client):
     """Client with authenticated session"""
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -37,7 +37,7 @@ def auth_client(client):
 def sample_employee_schedule(auth_client):
     """Create employee with schedules"""
     with app.app_context():
-        from scheduler_app.app import Employee, Event, Schedule
+        from app import Employee, Event, Schedule
 
         # Create employee
         employee = Employee(id='TEST001', name='Test User', email='test@example.com')
@@ -126,7 +126,7 @@ class TestRowspanFormatting:
     def test_multiple_events_per_day(self, auth_client):
         """Test rowspan formatting with multiple events same day"""
         with app.app_context():
-            from scheduler_app.app import Employee, Event, Schedule
+            from app import Employee, Event, Schedule
 
             employee = Employee(id='TEST002', name='Multi User', email='multi@example.com')
             db.session.add(employee)
@@ -165,7 +165,7 @@ class TestEmptySchedule:
     def test_employee_with_no_events(self, auth_client):
         """Test employee with no events displays appropriate message"""
         with app.app_context():
-            from scheduler_app.app import Employee
+            from app import Employee
 
             employee = Employee(id='EMPTY', name='Empty User', email='empty@example.com')
             db.session.add(employee)

@@ -21,12 +21,15 @@ from edr import EDRReportGenerator
 try:
     from PyPDF2 import PdfMerger, PdfReader, PdfWriter
     from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image as ReportLabImage
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER
     from xhtml2pdf import pisa
+    import barcode
+    from barcode.writer import ImageWriter
+    from PIL import Image as PILImage
     PDF_LIBRARIES_AVAILABLE = True
 except ImportError:
     PDF_LIBRARIES_AVAILABLE = False
@@ -83,6 +86,81 @@ class DailyPaperworkGenerator:
         if not self.edr_generator:
             return False
         return self.edr_generator.complete_authentication_with_mfa_code(mfa_code)
+
+    def generate_barcode_image(self, item_number: str) -> Optional[str]:
+        """
+        Generate a barcode image for an item number
+
+        Args:
+            item_number: Item number to generate barcode for
+
+        Returns:
+            Path to generated barcode image or None if failed
+        """
+        try:
+            # Clean the item number (remove any non-digits)
+            clean_number = ''.join(filter(str.isdigit, str(item_number)))
+
+            if not clean_number:
+                return None
+
+            # Pad to 12 digits for UPC-A if needed (standard retail UPC)
+            if len(clean_number) < 12:
+                clean_number = clean_number.zfill(12)
+            elif len(clean_number) > 12:
+                # For numbers longer than 12 digits, use Code128 which is more flexible
+                barcode_class = barcode.get_barcode_class('code128')
+            else:
+                # Use UPC-A for 12-digit numbers
+                try:
+                    barcode_class = barcode.get_barcode_class('upca')
+                except:
+                    # Fallback to Code128 if UPC-A fails
+                    barcode_class = barcode.get_barcode_class('code128')
+
+            # For UPC-A, we need exactly 11 digits (12th is check digit)
+            if len(clean_number) == 12:
+                try:
+                    barcode_class = barcode.get_barcode_class('upca')
+                    # UPC-A needs 11 digits, check digit is auto-calculated
+                    clean_number = clean_number[:11]
+                except:
+                    barcode_class = barcode.get_barcode_class('code128')
+                    clean_number = item_number  # Use original for Code128
+            else:
+                barcode_class = barcode.get_barcode_class('code128')
+                clean_number = str(item_number)
+
+            # Generate barcode image
+            output_path = os.path.join(tempfile.gettempdir(), f'barcode_{item_number}_{datetime.now().strftime("%Y%m%d%H%M%S%f")}.png')
+
+            # Create barcode with custom options for smaller size
+            barcode_instance = barcode_class(clean_number, writer=ImageWriter())
+
+            # Save with custom options for better PDF integration
+            options = {
+                'module_width': 0.2,  # Width of bars
+                'module_height': 8.0,  # Height of bars in mm
+                'quiet_zone': 2.0,    # Quiet zone in mm
+                'font_size': 8,       # Font size for text
+                'text_distance': 2.0, # Distance between bars and text
+                'write_text': True,   # Show the number below barcode
+            }
+
+            barcode_instance.save(output_path.replace('.png', ''), options=options)
+
+            # The library adds .png automatically
+            final_path = output_path.replace('.png', '') + '.png'
+
+            if os.path.exists(final_path):
+                self.temp_files.append(final_path)
+                return final_path
+
+            return None
+
+        except Exception as e:
+            print(f"⚠️ Failed to generate barcode for {item_number}: {e}")
+            return None
 
     def get_events_for_date(self, target_date: datetime.date) -> List[Any]:
         """Get all scheduled Core events for a specific date"""
@@ -198,8 +276,7 @@ class DailyPaperworkGenerator:
                     <tr>
                         <th style="width: 15%;">Time</th>
                         <th style="width: 35%;">Employee</th>
-                        <th style="width: 40%;">Event</th>
-                        <th style="width: 10%;">Type</th>
+                        <th style="width: 50%;">Event</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -212,7 +289,6 @@ class DailyPaperworkGenerator:
                         <td>{time_str}</td>
                         <td class="employee-name">{employee.name}</td>
                         <td>{event.project_name}</td>
-                        <td>{event.event_type}</td>
                     </tr>
             """
 
@@ -262,10 +338,18 @@ class DailyPaperworkGenerator:
 
             for item in item_details:
                 item_nbr = str(item.get('itemNbr', ''))
+                upc_nbr = str(item.get('upcNbr', ''))  # UPC number for barcode generation
                 item_desc = str(item.get('itemDesc', ''))
 
                 if item_nbr and item_nbr != 'N/A' and item_nbr not in seen_items:
-                    items_list.append((item_nbr, item_desc))
+                    # Use upcNbr if available, otherwise fall back to itemNbr
+                    barcode_number = upc_nbr if upc_nbr and upc_nbr not in ['', 'N/A', 'None'] else item_nbr
+
+                    # Debug logging for first few items
+                    if len(items_list) < 3:
+                        print(f"DEBUG: Item {item_nbr}: upcNbr='{upc_nbr}', using '{barcode_number}' for barcode")
+
+                    items_list.append((item_nbr, barcode_number, item_desc))
                     seen_items.add(item_nbr)
 
         # Create PDF
@@ -279,49 +363,99 @@ class DailyPaperworkGenerator:
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=18,
+            fontSize=24,
             spaceAfter=12,
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+            fontName='Helvetica-Bold',
+            textColor=colors.HexColor('#2E4C73')
         )
         story.append(Paragraph("Daily Item Numbers", title_style))
         story.append(Spacer(1, 12))
 
         # Date
         date_str = target_date.strftime('%A, %B %d, %Y')
-        story.append(Paragraph(f"<b>{date_str}</b>", styles['Normal']))
+        date_style = ParagraphStyle(
+            'DateStyle',
+            parent=styles['Normal'],
+            fontSize=14,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666')
+        )
+        story.append(Paragraph(date_str, date_style))
         story.append(Spacer(1, 12))
 
         # Help text
         help_text = "Use this list for getting the next day's product and printing price signs."
-        story.append(Paragraph(help_text, styles['Normal']))
+        help_style = ParagraphStyle(
+            'HelpStyle',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666')
+        )
+        story.append(Paragraph(help_text, help_style))
         story.append(Spacer(1, 20))
 
         # Table
         if items_list:
-            table_data = [['Item Number', 'Description']]
-            # Maintain the order items appear in the events (no sorting)
-            for item_num, desc in items_list:
-                table_data.append([str(item_num), str(desc)])
+            # Generate barcodes for each item
+            table_data = [['Item Number', 'Barcode', 'Description']]
 
-            item_table = Table(table_data, colWidths=[1.5*inch, 5*inch])
+            # Maintain the order items appear in the events (no sorting)
+            for item_num, barcode_num, desc in items_list:
+                # Generate barcode image based on the UPC number (primary item number)
+                barcode_path = self.generate_barcode_image(barcode_num)
+
+                if barcode_path:
+                    # Create ReportLab Image object for the barcode
+                    # Scale to fit nicely in the table (1.2 inches wide, 0.5 inches tall)
+                    barcode_img = ReportLabImage(barcode_path, width=1.2*inch, height=0.5*inch)
+                    # Keep item number visible in first column, barcode in second column
+                    table_data.append([str(item_num), barcode_img, str(desc)])
+                else:
+                    # If barcode generation fails, just show the item number
+                    table_data.append([str(item_num), 'N/A', str(desc)])
+
+            item_table = Table(table_data, colWidths=[1.2*inch, 1.5*inch, 3.8*inch])
             item_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                # Header row - match the daily schedule theme
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4C73')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                # Data rows
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                # Alternating row colors
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+                # Borders and alignment
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),    # Item Number column - left align
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),  # Barcode column - center align
+                ('ALIGN', (2, 0), (2, -1), 'LEFT'),    # Description column - left align
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#DDDDDD')),
+                # Padding - extra for barcode rows
+                ('TOPPADDING', (0, 0), (-1, 0), 10),    # Header
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 1), (-1, -1), 8),    # Data rows - tighter for barcodes
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
             ]))
             story.append(item_table)
 
             # Add summary
             story.append(Spacer(1, 20))
-            summary_text = f"<b>Total Items: {len(items_list)}</b>"
-            story.append(Paragraph(summary_text, styles['Normal']))
+            summary_style = ParagraphStyle(
+                'SummaryStyle',
+                parent=styles['Normal'],
+                fontSize=12,
+                textColor=colors.HexColor('#2E4C73'),
+                fontName='Helvetica-Bold'
+            )
+            summary_text = f"Total Items: {len(items_list)}"
+            story.append(Paragraph(summary_text, summary_style))
         else:
             story.append(Paragraph("No items found for today's events.", styles['Normal']))
 

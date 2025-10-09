@@ -7,7 +7,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from scheduler_app.services.validation_types import (
+from services.validation_types import (
     ValidationResult,
     ConstraintViolation,
     ConstraintType,

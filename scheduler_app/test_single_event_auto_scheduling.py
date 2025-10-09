@@ -3,7 +3,7 @@ Tests for Single-Event Auto-Scheduling (Story 1.9)
 """
 import pytest
 from datetime import date, datetime, timedelta
-from scheduler_app.app import app, db
+from app import app, db
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def client():
 @pytest.fixture
 def auth_client(client):
     """Client with authenticated session"""
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -37,7 +37,7 @@ def auth_client(client):
 def sample_employee(auth_client):
     """Create sample employee"""
     with app.app_context():
-        from scheduler_app.app import Employee
+        from app import Employee
 
         employee = Employee(
             id='TEST001',
@@ -53,7 +53,7 @@ def sample_employee(auth_client):
 def sample_unscheduled_event(auth_client):
     """Create unscheduled event for testing"""
     with app.app_context():
-        from scheduler_app.app import Event
+        from app import Event
 
         event = Event(
             project_name='Event 12345',
@@ -84,7 +84,7 @@ class TestAutoScheduleRoute:
     def test_already_scheduled_event_returns_400(self, auth_client, sample_employee):
         """Test route with already scheduled event returns 400"""
         with app.app_context():
-            from scheduler_app.app import Event
+            from app import Event
 
             # Create already scheduled event
             event = Event(
@@ -119,7 +119,7 @@ class TestSchedulerRunHistory:
 
         if response.status_code == 200:
             with app.app_context():
-                from scheduler_app.app import SchedulerRunHistory
+                from app import SchedulerRunHistory
 
                 run = SchedulerRunHistory.query.filter_by(run_type='single_event').first()
                 # Should create run history (may not exist if auto-scheduler not fully implemented)
@@ -134,7 +134,7 @@ class TestApprovalWorkflow:
     def test_approval_required_creates_pending_schedule(self, auth_client, sample_unscheduled_event, sample_employee):
         """Test when approval required, creates pending_schedule"""
         with app.app_context():
-            from scheduler_app.app import SystemSetting
+            from app import SystemSetting
 
             # Set approval required
             SystemSetting.set_setting('auto_scheduler_require_approval', True, 'boolean')
@@ -148,7 +148,7 @@ class TestApprovalWorkflow:
     def test_auto_approved_submits_to_api(self, auth_client, sample_unscheduled_event, sample_employee):
         """Test when auto-approved, submits to Crossmark API"""
         with app.app_context():
-            from scheduler_app.app import SystemSetting
+            from app import SystemSetting
 
             # Disable approval requirement
             SystemSetting.set_setting('auto_scheduler_require_approval', False, 'boolean')
@@ -165,7 +165,7 @@ class TestErrorHandling:
     def test_scheduling_engine_failure_handled(self, auth_client):
         """Test SchedulingEngine failure is handled gracefully"""
         with app.app_context():
-            from scheduler_app.app import Event
+            from app import Event
 
             # Create event with no eligible employees (should fail scheduling)
             event = Event(

@@ -185,10 +185,14 @@ class LoginManager {
             localStorage.removeItem('rememberedUsername');
         }
 
+        // Convert FormData to URLSearchParams for proper form encoding
+        const params = new URLSearchParams(formData);
+
         const response = await fetch(this.form.action, {
             method: 'POST',
-            body: formData,
+            body: params,
             headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'
             },

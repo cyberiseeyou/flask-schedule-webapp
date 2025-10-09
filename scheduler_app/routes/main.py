@@ -3,8 +3,8 @@ Main application routes blueprint
 Handles dashboard, events list, and calendar views
 """
 from flask import Blueprint, render_template, request, jsonify, current_app
-from scheduler_app.routes.auth import require_authentication
-from scheduler_app.models import init_models
+from routes.auth import require_authentication
+from models import init_models
 from datetime import datetime, date, timedelta
 
 # Create blueprint
@@ -216,6 +216,10 @@ def unscheduled_events():
     ).all()
 
     # Calculate priority for each event (for visual coding)
+    # Also fetch schedule/employee info for scheduled events
+    Schedule = current_app.config['Schedule']
+    Employee = current_app.config['Employee']
+
     today = date.today()
     events_with_priority = []
     for event in events:
@@ -234,6 +238,27 @@ def unscheduled_events():
         event.priority = priority
         event.priority_color = priority_color
         event.days_remaining = days_remaining
+
+        # For scheduled events, fetch schedule and employee information
+        if condition_filter in ['scheduled', 'submitted', 'reissued']:
+            schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).all()
+            if schedules:
+                # Get employee names and times for all schedules
+                schedule_info = []
+                for schedule in schedules:
+                    employee = Employee.query.get(schedule.employee_id)
+                    if employee:
+                        schedule_info.append({
+                            'employee_name': employee.name,
+                            'schedule_datetime': schedule.schedule_datetime,
+                            'schedule_time': schedule.schedule_datetime.strftime('%I:%M %p') if schedule.schedule_datetime else 'N/A'
+                        })
+                event.schedule_info = schedule_info
+            else:
+                event.schedule_info = []
+        else:
+            event.schedule_info = []
+
         events_with_priority.append(event)
 
     # Get all distinct event types for the filter dropdown
@@ -342,6 +367,55 @@ def calendar_day_view(date):
             'datetime': schedule.schedule_datetime.isoformat(),
             'store_name': event.store_name,
             'estimated_time': event.estimated_time
+        })
+
+    return jsonify({
+        'date': selected_date.strftime('%Y-%m-%d'),
+        'formatted_date': selected_date.strftime('%A, %B %d, %Y'),
+        'events': events_data
+    })
+
+
+@main_bp.route('/api/schedule/print/<date>')
+@require_authentication()
+def print_schedule_by_date(date):
+    """Get schedule data for printing for a specific date"""
+    from flask import current_app
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    # Get Core and Juicer Production events for the specific day
+    scheduled_events = db.session.query(Schedule, Event, Employee).join(
+        Event, Schedule.event_ref_num == Event.project_ref_num
+    ).join(
+        Employee, Schedule.employee_id == Employee.id
+    ).filter(
+        db.func.date(Schedule.schedule_datetime) == selected_date,
+        db.or_(
+            Event.event_type == 'Core',
+            db.and_(
+                Event.event_type == 'Juicer',
+                Event.project_name.contains('Production'),
+                ~Event.project_name.contains('Survey')
+            )
+        )
+    ).order_by(Schedule.schedule_datetime).all()
+
+    events_data = []
+    for schedule, event, employee in scheduled_events:
+        events_data.append({
+            'employee_name': employee.name,
+            'time': schedule.schedule_datetime.strftime('%I:%M %p'),
+            'event_name': event.project_name,
+            'event_type': event.event_type,
+            'minutes': schedule.schedule_datetime.hour * 60 + schedule.schedule_datetime.minute
         })
 
     return jsonify({

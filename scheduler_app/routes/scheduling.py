@@ -3,7 +3,7 @@ Scheduling routes blueprint
 Handles event scheduling, rescheduling, and schedule management operations
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort
-from scheduler_app.routes.auth import require_authentication
+from routes.auth import require_authentication
 from datetime import datetime, timedelta
 
 # Create blueprint
@@ -335,11 +335,33 @@ def auto_schedule_supervisor_event(db, Event, Schedule, Employee, core_project_r
         Tuple: (success: bool, supervisor_event_name: str or None)
     """
     try:
-        # Find corresponding Supervisor event with same project ref number
-        supervisor_event = Event.query.filter_by(
-            project_ref_num=core_project_ref_num,
-            event_type='Supervisor'
-        ).first()
+        # Get the CORE event to extract its 6-digit event number
+        from utils.event_helpers import extract_event_number
+
+        core_event = Event.query.filter_by(project_ref_num=core_project_ref_num).first()
+        if not core_event:
+            return False, None
+
+        # Extract the 6-digit event number from the CORE event name
+        event_number = extract_event_number(core_event.project_name)
+        if not event_number:
+            # Can't extract event number, can't find supervisor event
+            return False, None
+
+        # Find Supervisor event with the same 6-digit event number
+        # Search for event names that start with the event number and contain "Supervisor"
+        supervisor_events = Event.query.filter(
+            Event.event_type == 'Supervisor',
+            Event.project_name.like(f'{event_number}%')
+        ).all()
+
+        # Filter to get the one that actually matches (in case of partial matches)
+        supervisor_event = None
+        for event in supervisor_events:
+            event_num = extract_event_number(event.project_name)
+            if event_num == event_number:
+                supervisor_event = event
+                break
 
         if not supervisor_event:
             # No corresponding supervisor event found
@@ -355,51 +377,41 @@ def auto_schedule_supervisor_event(db, Event, Schedule, Employee, core_project_r
             return False, None
 
         # Determine who to assign the supervisor event to
-        day_of_week = core_date.weekday()  # 0=Monday, 1=Tuesday, ..., 6=Sunday
-
-        # Tuesday through Saturday (1-5) -> assign to Club Supervisor
-        # Monday (0) or Sunday (6) -> assign to the Lead who has a core event that day
+        # Priority: Lead with CORE event that day > Club Supervisor
+        # This ensures Leads only get Supervisor events if they have a CORE event (full day's work)
 
         assigned_employee_id = None
 
-        if 1 <= day_of_week <= 5:  # Tuesday through Saturday
-            # Find Club Supervisor
-            club_supervisor = Employee.query.filter_by(
-                job_title='Club Supervisor',
-                is_active=True
+        # First, check if the employee assigned to the CORE event is a Lead
+        core_employee = db.session.get(Employee, core_employee_id)
+        if core_employee and core_employee.job_title == 'Lead Event Specialist':
+            # The CORE event is assigned to a Lead, so assign the Supervisor to them too
+            assigned_employee_id = core_employee.id
+        else:
+            # The CORE event is not assigned to a Lead
+            # Check if any other Lead has a CORE event scheduled on this date
+            lead_with_core = db.session.query(Employee).join(
+                Schedule, Employee.id == Schedule.employee_id
+            ).join(
+                Event, Schedule.event_ref_num == Event.project_ref_num
+            ).filter(
+                Employee.job_title == 'Lead Event Specialist',
+                Employee.is_active == True,
+                db.func.date(Schedule.schedule_datetime) == core_date,
+                Event.event_type == 'Core'
             ).first()
 
-            if club_supervisor:
-                assigned_employee_id = club_supervisor.id
-        else:  # Monday or Sunday
-            # Find a Lead (Lead Event Specialist) who has a core event that day
-            # First, get the Lead assigned to this specific core event
-            core_employee = db.session.get(Employee, core_employee_id)
-            if core_employee and core_employee.job_title == 'Lead Event Specialist':
-                assigned_employee_id = core_employee.id
+            if lead_with_core:
+                # Found a Lead with a CORE event that day, assign to them
+                assigned_employee_id = lead_with_core.id
             else:
-                # If the core employee isn't a Lead, find any Lead with a core event that day
-                lead_with_core = db.session.query(Employee).join(
-                    Schedule, Employee.id == Schedule.employee_id
-                ).join(
-                    Event, Schedule.event_ref_num == Event.project_ref_num
-                ).filter(
-                    Employee.job_title == 'Lead Event Specialist',
-                    Employee.is_active == True,
-                    db.func.date(Schedule.schedule_datetime) == core_date,
-                    Event.event_type == 'Core'
+                # No Lead has a CORE event that day, fallback to Club Supervisor
+                club_supervisor = Employee.query.filter_by(
+                    job_title='Club Supervisor',
+                    is_active=True
                 ).first()
-
-                if lead_with_core:
-                    assigned_employee_id = lead_with_core.id
-                else:
-                    # Fallback: assign to Club Supervisor if no Lead found
-                    club_supervisor = Employee.query.filter_by(
-                        job_title='Club Supervisor',
-                        is_active=True
-                    ).first()
-                    if club_supervisor:
-                        assigned_employee_id = club_supervisor.id
+                if club_supervisor:
+                    assigned_employee_id = club_supervisor.id
 
         if not assigned_employee_id:
             # No suitable employee found
@@ -527,11 +539,10 @@ def save_schedule():
                 return redirect(url_for('scheduling.schedule_event', event_id=event_id))
 
         # Submit to Crossmark API BEFORE creating local record
-        from scheduler_app.session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
-        # Calculate end datetime
-        estimated_minutes = event.estimated_time or 60
-        end_datetime = schedule_datetime + timedelta(minutes=estimated_minutes)
+        # Calculate end datetime using event's default duration if not set
+        end_datetime = event.calculate_end_datetime(schedule_datetime)
 
         # Prepare API data
         rep_id = str(employee.external_id) if employee.external_id else None

@@ -4,7 +4,7 @@ Tests for Per-Event Paperwork Printing (Story 1.8)
 import pytest
 from datetime import date, datetime, timedelta
 from io import BytesIO
-from scheduler_app.app import app, db
+from app import app, db
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def client():
 @pytest.fixture
 def auth_client(client):
     """Client with authenticated session"""
-    from scheduler_app.routes import session_store
+    from routes import session_store
     session_store['test_session'] = {
         'authenticated': True,
         'user': {'username': 'test_user', 'employee_id': 1}
@@ -38,7 +38,7 @@ def auth_client(client):
 def sample_event(auth_client):
     """Create sample event with schedule for testing"""
     with app.app_context():
-        from scheduler_app.app import Employee, Event, Schedule
+        from app import Employee, Event, Schedule
 
         # Create employee
         employee = Employee(
@@ -99,7 +99,7 @@ class TestPrintEventPaperwork:
     def test_unscheduled_event_returns_404(self, auth_client):
         """Test route with unscheduled event returns 404 or error"""
         with app.app_context():
-            from scheduler_app.app import Event
+            from app import Event
 
             # Create event without schedule
             event = Event(
@@ -174,7 +174,7 @@ class TestErrorHandling:
     def test_missing_sales_tool_url_handled_gracefully(self, auth_client):
         """Test event with missing sales_tools_url doesn't crash"""
         with app.app_context():
-            from scheduler_app.app import Employee, Event, Schedule
+            from app import Employee, Event, Schedule
 
             employee = Employee(
                 id='TEST002',
@@ -212,7 +212,7 @@ class TestErrorHandling:
     def test_invalid_sales_tool_url_handled(self, auth_client):
         """Test event with invalid sales_tools_url doesn't crash"""
         with app.app_context():
-            from scheduler_app.app import Employee, Event, Schedule
+            from app import Employee, Event, Schedule
 
             employee = Employee(
                 id='TEST003',

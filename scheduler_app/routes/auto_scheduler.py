@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, jsonify, current_app
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
-from scheduler_app.services import SchedulingEngine
+from services import SchedulingEngine
 
 auto_scheduler_bp = Blueprint('auto_scheduler', __name__, url_prefix='/auto-schedule')
 
@@ -218,7 +218,7 @@ def edit_pending_schedule(pending_id):
 @auto_scheduler_bp.route('/approve', methods=['POST'])
 def approve_schedule():
     """Approve proposed schedule and submit to Crossmark API"""
-    from scheduler_app.session_api_service import session_api as external_api
+    from session_api_service import session_api as external_api
 
     db = current_app.extensions['sqlalchemy']
 
@@ -370,6 +370,21 @@ def approve_schedule():
                         f"Successfully scheduled event {event.project_ref_num} ({event.project_name}) "
                         f"to {employee.name} at {start_datetime}"
                     )
+
+                    # AUTO-SCHEDULE SUPERVISOR EVENT if this is a Core event
+                    if event.event_type == 'Core':
+                        from routes.scheduling import auto_schedule_supervisor_event
+                        scheduled_date = start_datetime.date()
+                        supervisor_scheduled, supervisor_event_name = auto_schedule_supervisor_event(
+                            db, models['Event'], models['Schedule'], models['Employee'],
+                            event.project_ref_num,
+                            scheduled_date,
+                            pending.employee_id
+                        )
+                        if supervisor_scheduled:
+                            current_app.logger.info(
+                                f"Auto-scheduled supervisor event: {supervisor_event_name}"
+                            )
                 else:
                     # API submission failed
                     error_message = api_result.get('message', 'Unknown API error')

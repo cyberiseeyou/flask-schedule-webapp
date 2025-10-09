@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
-from scheduler_app.session_api_service import session_api as external_api, SessionError as APIError
+from session_api_service import session_api as external_api, SessionError as APIError
 
 
 class SyncEngine:
@@ -444,6 +444,9 @@ class SyncEngine:
             # Auto-detect event type
             new_event.event_type = new_event.detect_event_type()
 
+            # Set default duration if estimated_time is not set
+            new_event.set_default_duration()
+
             db.session.add(new_event)
             db.session.commit()
             return True
@@ -495,10 +498,9 @@ class SyncEngine:
             if not event or not employee:
                 raise Exception(f"Missing related data for schedule {local_schedule.id}")
 
-            # Calculate end datetime (start + estimated time)
+            # Calculate end datetime using event's default duration if not set
             start_datetime = local_schedule.schedule_datetime
-            estimated_minutes = event.estimated_time or 60  # Default 1 hour
-            end_datetime = start_datetime + timedelta(minutes=estimated_minutes)
+            end_datetime = event.calculate_end_datetime(start_datetime)
 
             # Prepare Crossmark scheduling data
             schedule_data = {

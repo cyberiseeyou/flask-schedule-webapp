@@ -8,10 +8,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from flask import current_app
 
-from scheduler_app.services.rotation_manager import RotationManager
-from scheduler_app.services.constraint_validator import ConstraintValidator
-from scheduler_app.services.conflict_resolver import ConflictResolver
-from scheduler_app.services.validation_types import SchedulingDecision
+from services.rotation_manager import RotationManager
+from services.constraint_validator import ConstraintValidator
+from services.conflict_resolver import ConflictResolver
+from services.validation_types import SchedulingDecision
 
 
 class SchedulingEngine:
@@ -823,7 +823,7 @@ class SchedulingEngine:
 
             if club_supervisor:
                 # Only check time-off and weekly availability, NOT schedule conflicts
-                from scheduler_app.services.validation_types import ValidationResult
+                from services.validation_types import ValidationResult
                 day_available = True
 
                 # Check time off
