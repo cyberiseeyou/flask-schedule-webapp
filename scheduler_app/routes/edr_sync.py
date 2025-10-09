@@ -94,46 +94,35 @@ def sync_retaillink():
         generator.password = password_setting.setting_value
         generator.mfa_credential_id = mfa_id_setting.setting_value
 
-        # Override MFA code input
-        original_input = __builtins__.input
-        def mock_input(prompt):
-            return mfa_code
-        __builtins__.input = mock_input
+        # Authenticate with Retail Link using provided MFA code
+        auth_success = generator.authenticate(mfa_code=mfa_code)
 
-        try:
-            # Authenticate with Retail Link
-            auth_success = generator.authenticate()
-
-            if not auth_success:
-                return jsonify({
-                    'success': False,
-                    'message': 'Authentication failed',
-                    'details': 'Could not authenticate with Retail Link. Please check your credentials and MFA code.'
-                }), 401
-
-            # Fetch and cache events (defaults to 1 month before/after)
-            events_data = generator.browse_events_with_cache(force_refresh=True)
-
-            if not events_data:
-                return jsonify({
-                    'success': False,
-                    'message': 'No events found',
-                    'details': 'Successfully authenticated but no events were returned from the API'
-                }), 200
-
-            # Get cache statistics
-            cache_stats = generator.get_cache_stats()
-
+        if not auth_success:
             return jsonify({
-                'success': True,
-                'message': f'Successfully synced {len(events_data)} event items',
-                'details': f"Cache updated: {cache_stats.get('unique_events', 0)} unique events from {cache_stats.get('earliest_event_date')} to {cache_stats.get('latest_event_date')}",
-                'cache_stats': cache_stats
+                'success': False,
+                'message': 'Authentication failed',
+                'details': 'Could not authenticate with Retail Link. Please check your credentials and MFA code.'
+            }), 401
+
+        # Fetch and cache events (defaults to 1 month before/after)
+        events_data = generator.browse_events_with_cache(force_refresh=True)
+
+        if not events_data:
+            return jsonify({
+                'success': False,
+                'message': 'No events found',
+                'details': 'Successfully authenticated but no events were returned from the API'
             }), 200
 
-        finally:
-            # Restore original input function
-            __builtins__.input = original_input
+        # Get cache statistics
+        cache_stats = generator.get_cache_stats()
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully synced {len(events_data)} event items',
+            'details': f"Cache updated: {cache_stats.get('unique_events', 0)} unique events from {cache_stats.get('earliest_event_date')} to {cache_stats.get('latest_event_date')}",
+            'cache_stats': cache_stats
+        }), 200
 
     except Exception as e:
         # Log the full error

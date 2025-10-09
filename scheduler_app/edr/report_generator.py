@@ -318,13 +318,17 @@ class EDRReportGenerator:
             print(f"❌ Authentication API call failed: {e}")
             return False
 
-    def authenticate(self) -> bool:
+    def authenticate(self, mfa_code: Optional[str] = None) -> bool:
         """
         Complete authentication flow.
+
+        Args:
+            mfa_code: Optional MFA code. If not provided, will prompt for input.
+
         Returns True if successful, False otherwise.
         """
         print("🔐 Starting Retail Link authentication...")
-        
+
         # Step 1: Submit password
         if not self.step1_submit_password():
             return False
@@ -333,8 +337,13 @@ class EDRReportGenerator:
         if not self.step2_request_mfa_code():
             return False
 
-        # Step 3: Get MFA code from user and validate
-        mfa_code = input("📱 Please enter the MFA code you received: ").strip()
+        # Step 3: Get MFA code from user or parameter
+        if mfa_code is None:
+            mfa_code = input("📱 Please enter the MFA code you received: ").strip()
+        else:
+            print(f"📱 Using provided MFA code: {mfa_code[:2]}****")
+            mfa_code = mfa_code.strip()
+
         if not self.step3_validate_mfa_code(mfa_code):
             return False
         
