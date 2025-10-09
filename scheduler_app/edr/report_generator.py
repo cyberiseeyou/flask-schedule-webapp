@@ -271,34 +271,38 @@ class EDRReportGenerator:
         """Step 6: Authenticate with Event Management API and extract auth token."""
         auth_url = f"{self.base_url}/api/authenticate"
         headers = self._get_standard_headers(referer=f"{self.base_url}/")
-        
+
         print("➡️ Step 6: Authenticating with Event Management API...")
         try:
             response = self.session.get(auth_url, headers=headers)
             if response.status_code == 200:
+                print("✅ Event Management authentication successful!")
+
+                # Extract auth token from cookies (regardless of response body)
+                for cookie in self.session.cookies:
+                    if cookie.name == 'auth-token' and cookie.value:
+                        # Parse the URL-encoded cookie value
+                        cookie_data = urllib.parse.unquote(cookie.value)
+                        try:
+                            token_data = json.loads(cookie_data)
+                            self.auth_token = token_data.get('token')
+                            print(f"🔑 Auth token extracted: {self.auth_token[:50]}...")
+                            return True
+                        except json.JSONDecodeError:
+                            print("⚠️ Could not parse auth-token cookie")
+
+                # If no auth-token cookie, try to extract from response body
                 try:
                     auth_data = response.json()
-                    print("✅ Event Management authentication successful!")
-                    
-                    # Extract auth token from cookies (based on cURL command)
-                    for cookie in self.session.cookies:
-                        if cookie.name == 'auth-token' and cookie.value:
-                            # Parse the URL-encoded cookie value
-                            cookie_data = urllib.parse.unquote(cookie.value)
-                            try:
-                                token_data = json.loads(cookie_data)
-                                self.auth_token = token_data.get('token')
-                                print(f"🔑 Auth token extracted: {self.auth_token[:50]}...")
-                                return True
-                            except json.JSONDecodeError:
-                                print("⚠️ Could not parse auth-token cookie")
-                    
-                    print("⚠️ auth-token cookie not found")
-                    return False
-                    
+                    if 'token' in auth_data:
+                        self.auth_token = auth_data['token']
+                        print(f"🔑 Auth token extracted from response: {self.auth_token[:50]}...")
+                        return True
                 except json.JSONDecodeError:
-                    print("⚠️ Authentication response not JSON but status OK")
-                    return True
+                    pass
+
+                print("⚠️ auth-token not found in cookies or response")
+                return False
             else:
                 print(f"❌ Authentication failed: {response.status_code}")
                 return False
