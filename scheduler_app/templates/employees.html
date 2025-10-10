@@ -396,6 +396,81 @@
         40% { content: '..'; }
         60%, 100% { content: '...'; }
     }
+
+    /* Employee Statistics */
+    .employee-stats {
+        margin-top: 40px;
+        padding: 25px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        border: 2px solid var(--pc-light-blue);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .stats-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin: 0 0 20px 0;
+        text-align: center;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--pc-blue);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+    }
+
+    .stat-item {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+
+    .stat-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-color: var(--secondary-color);
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        font-weight: 500;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: var(--primary-color);
+        line-height: 1;
+    }
+
+    /* Responsive stats */
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -432,6 +507,33 @@
     <!-- Employees Grid -->
     <div id="employees-grid" class="employee-grid">
         <div class="loading">Loading employees</div>
+    </div>
+
+    <!-- Employee Statistics -->
+    <div class="employee-stats">
+        <h3 class="stats-title">Employee Summary</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-label">Total Employees</div>
+                <div class="stat-value" id="stat-total">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Juicer Baristas</div>
+                <div class="stat-value" id="stat-juicers">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Event Specialists</div>
+                <div class="stat-value" id="stat-es">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Lead Event Specialists</div>
+                <div class="stat-value" id="stat-leads">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">AB Trained</div>
+                <div class="stat-value" id="stat-ab">0</div>
+            </div>
+        </div>
     </div>
 
     <!-- Add Employee Modal -->

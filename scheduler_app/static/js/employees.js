@@ -29,10 +29,28 @@ function renderEmployees(employees) {
 
     if (employees.length === 0) {
         grid.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 40px;">No employees found. Click "Add Employee" to get started.</p>';
+        updateStatistics(employees);
         return;
     }
 
     grid.innerHTML = employees.map(emp => createEmployeeCard(emp)).join('');
+    updateStatistics(employees);
+}
+
+function updateStatistics(employees) {
+    // Calculate statistics
+    const totalEmployees = employees.length;
+    const juicers = employees.filter(emp => emp.job_title === 'Juicer Barista').length;
+    const eventSpecialists = employees.filter(emp => emp.job_title === 'Event Specialist').length;
+    const leadSpecialists = employees.filter(emp => emp.job_title === 'Lead Event Specialist').length;
+    const abTrained = employees.filter(emp => emp.adult_beverage_trained).length;
+
+    // Update DOM
+    document.getElementById('stat-total').textContent = totalEmployees;
+    document.getElementById('stat-juicers').textContent = juicers;
+    document.getElementById('stat-es').textContent = eventSpecialists;
+    document.getElementById('stat-leads').textContent = leadSpecialists;
+    document.getElementById('stat-ab').textContent = abTrained;
 }
 
 function getJobTitleBadgeClass(jobTitle) {
