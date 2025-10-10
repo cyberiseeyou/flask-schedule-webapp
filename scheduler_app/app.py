@@ -146,6 +146,10 @@ app.register_blueprint(walmart_bp)
 from routes.edr_sync import edr_sync_bp
 app.register_blueprint(edr_sync_bp)
 
+# Import and register Help blueprint
+from routes.help import help_bp
+app.register_blueprint(help_bp)
+
 # Configure CSRF exemptions for specific routes (after blueprint registration)
 # Only 2 routes are exempt with justified reasons:
 # 1. /login (auth.login) - Cannot have CSRF token before authentication session exists
