@@ -276,7 +276,8 @@ def approve_schedule():
 
             # Calculate end datetime (start + estimated_time)
             start_datetime = pending.schedule_datetime
-            estimated_minutes = event.estimated_time or 60  # Default to 1 hour if not set
+            # Use event's estimated_time, or fall back to the event type's default duration
+            estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
             end_datetime = start_datetime + timedelta(minutes=estimated_minutes)
 
             # Prepare data for Crossmark API

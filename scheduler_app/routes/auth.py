@@ -63,6 +63,7 @@ def login_page():
 
 
 @auth_bp.route('/login', methods=['POST'])
+# Note: CSRF exemption applied in app.py - cannot have token before authentication session exists
 def login():
     """Handle login form submission and authenticate with Crossmark API"""
     from session_api_service import session_api as external_api

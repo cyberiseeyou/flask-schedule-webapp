@@ -33,9 +33,10 @@ class Config:
     LOG_FILE = config('LOG_FILE', default='scheduler.log')
 
     # Walmart Retail Link EDR settings
-    WALMART_EDR_USERNAME = config('WALMART_EDR_USERNAME', default='mat.conder@productconnections.com')
-    WALMART_EDR_PASSWORD = config('WALMART_EDR_PASSWORD', default='Demos812Th$')
-    WALMART_EDR_MFA_CREDENTIAL_ID = config('WALMART_EDR_MFA_CREDENTIAL_ID', default='18122365202')
+    # SECURITY: No default values - must be set in environment variables
+    WALMART_EDR_USERNAME = config('WALMART_EDR_USERNAME', default='')
+    WALMART_EDR_PASSWORD = config('WALMART_EDR_PASSWORD', default='')
+    WALMART_EDR_MFA_CREDENTIAL_ID = config('WALMART_EDR_MFA_CREDENTIAL_ID', default='')
 
     # Settings encryption key (should be set in environment for production)
     SETTINGS_ENCRYPTION_KEY = config('SETTINGS_ENCRYPTION_KEY', default=None)
@@ -75,7 +76,37 @@ config_mapping = {
 
 
 def get_config(config_name=None):
-    """Get configuration class based on environment"""
+    """
+    Get configuration class based on environment.
+
+    Validates that required environment variables are set for non-testing environments.
+
+    Args:
+        config_name: Environment name ('development', 'testing', 'production')
+
+    Returns:
+        Config class for the specified environment
+
+    Raises:
+        ValueError: If required environment variables are missing
+    """
     if config_name is None:
         config_name = config('FLASK_ENV', default='development')
+
+    # Validate critical credentials are set (except for testing environment)
+    if config_name != 'testing':
+        required_vars = {
+            'WALMART_EDR_USERNAME': config('WALMART_EDR_USERNAME', default=''),
+            'WALMART_EDR_PASSWORD': config('WALMART_EDR_PASSWORD', default=''),
+            'WALMART_EDR_MFA_CREDENTIAL_ID': config('WALMART_EDR_MFA_CREDENTIAL_ID', default='')
+        }
+
+        missing = [var for var, value in required_vars.items() if not value]
+        if missing:
+            raise ValueError(
+                f"Missing required environment variables: {', '.join(missing)}. "
+                f"Please set these in your .env file or environment. "
+                f"See .env.example for reference."
+            )
+
     return config_mapping.get(config_name, DevelopmentConfig)

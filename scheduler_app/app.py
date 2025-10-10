@@ -1,7 +1,7 @@
 from flask import Flask, render_template, abort, jsonify, request, redirect, url_for, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from datetime import datetime, time, date, timedelta
 import os
 import csv
@@ -106,9 +106,6 @@ from routes import (
 # Register blueprints
 app.register_blueprint(auth_bp)
 
-# Exempt auth blueprint from CSRF (login uses session-based auth)
-csrf.exempt(auth_bp)
-
 # Import and register main blueprint
 from routes.main import main_bp
 app.register_blueprint(main_bp)
@@ -117,64 +114,50 @@ app.register_blueprint(main_bp)
 from routes.scheduling import scheduling_bp
 app.register_blueprint(scheduling_bp)
 
-# Exempt scheduling blueprint from CSRF (uses AJAX with JSON)
-csrf.exempt(scheduling_bp)
-
 # Import and register employees blueprint
 from routes.employees import employees_bp
 app.register_blueprint(employees_bp)
-
-# Exempt employees blueprint from CSRF (uses AJAX with JSON)
-csrf.exempt(employees_bp)
 
 # Import and register API blueprint
 from routes.api import api_bp
 app.register_blueprint(api_bp)
 
-# Exempt API blueprint from CSRF (API endpoints use session-based auth)
-csrf.exempt(api_bp)
-
 # Import and register rotations blueprint
 from routes.rotations import rotations_bp
 app.register_blueprint(rotations_bp)
-
-# Exempt rotations blueprint from CSRF (uses AJAX with JSON)
-csrf.exempt(rotations_bp)
 
 # Import and register auto-scheduler blueprint
 from routes.auto_scheduler import auto_scheduler_bp
 app.register_blueprint(auto_scheduler_bp)
 
-# Exempt auto-scheduler blueprint from CSRF (uses AJAX with JSON)
-csrf.exempt(auto_scheduler_bp)
-
 # Import and register admin blueprint
 from routes.admin import admin_bp
 app.register_blueprint(admin_bp)
-
-# Exempt admin blueprint from CSRF (admin endpoints use session-based auth)
-csrf.exempt(admin_bp)
 
 # Import and register printing blueprint
 from routes.printing import printing_bp
 app.register_blueprint(printing_bp)
 
-# Exempt printing blueprint from CSRF (printing endpoints use session-based auth)
-csrf.exempt(printing_bp)
-
 # Import and register Walmart API blueprint
 from walmart_api import walmart_bp
 app.register_blueprint(walmart_bp)
-
-# Exempt Walmart API blueprint from CSRF (API endpoints use session-based auth)
-csrf.exempt(walmart_bp)
 
 # Import and register EDR Sync blueprint
 from routes.edr_sync import edr_sync_bp
 app.register_blueprint(edr_sync_bp)
 
-# Exempt EDR Sync blueprint from CSRF (API endpoints use session-based auth)
-csrf.exempt(edr_sync_bp)
+# Configure CSRF exemptions for specific routes (after blueprint registration)
+# Only 2 routes are exempt with justified reasons:
+# 1. /login (auth.login) - Cannot have CSRF token before authentication session exists
+# 2. /api/webhook/schedule_update (admin.webhook_schedule_update) - External webhook (TODO: implement HMAC validation)
+
+# After blueprint registration, view functions are in app.view_functions with 'blueprint.function' naming
+# Apply exemptions to the registered view functions
+if 'auth.login' in app.view_functions:
+    csrf.exempt(app.view_functions['auth.login'])
+
+if 'admin.webhook_schedule_update' in app.view_functions:
+    csrf.exempt(app.view_functions['admin.webhook_schedule_update'])
 
 # Setup Walmart API session cleanup
 from walmart_api import session_manager
@@ -194,6 +177,26 @@ cleanup_walmart_sessions()
 def inject_user():
     """Make get_current_user available in templates"""
     return dict(get_current_user=get_current_user)
+
+@app.after_request
+def add_csrf_token_cookie(response):
+    """
+    Add CSRF token to cookie for AJAX requests.
+
+    This allows JavaScript to read the token and include it in AJAX request headers.
+    The token is validated on the server side for all POST/PUT/DELETE requests.
+    """
+    if request.endpoint and not request.endpoint.startswith('static'):
+        # Generate and set CSRF token in cookie
+        csrf_token = generate_csrf()
+        response.set_cookie(
+            'csrf_token',
+            csrf_token,
+            secure=app.config.get('SESSION_COOKIE_SECURE', False),  # HTTPS only in production
+            httponly=False,  # Must be readable by JavaScript
+            samesite='Lax'  # Provides CSRF protection while allowing normal navigation
+        )
+    return response
 
 def init_db():
     db_path = os.path.join(basedir, "instance", "scheduler.db")

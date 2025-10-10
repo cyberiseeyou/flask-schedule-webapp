@@ -58,6 +58,9 @@
         </div>
     </footer>
 
+    <!-- CSRF Protection (CRITICAL-02) -->
+    <script src="{{ url_for('static', filename='js/csrf_helper.js') }}"></script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

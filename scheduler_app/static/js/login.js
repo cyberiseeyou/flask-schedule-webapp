@@ -250,6 +250,15 @@ class LoginManager {
         }
     }
 
+    getCsrfToken() {
+        // Extract CSRF token from cookie
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_token='))
+            ?.split('=')[1];
+        return cookieValue || '';
+    }
+
     async triggerDatabaseRefresh(onComplete) {
         try {
             // Progress indicator already shown by caller
@@ -257,7 +266,8 @@ class LoginManager {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': this.getCsrfToken()
                 },
                 credentials: 'same-origin'
             });
@@ -302,7 +312,8 @@ class LoginManager {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest'
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': this.getCsrfToken()
                             },
                             credentials: 'same-origin'
                         });

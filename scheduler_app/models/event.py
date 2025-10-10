@@ -24,7 +24,7 @@ def create_event_model(db):
             'Juicer': 540,      # 9 hours
             'Supervisor': 5,    # 5 minutes
             'Digitals': 15,     # 15 minutes
-            'Freeosk': 5,       # 5 minutes
+            'Freeosk': 15,      # 15 minutes
             'Other': 15         # 15 minutes
         }
 

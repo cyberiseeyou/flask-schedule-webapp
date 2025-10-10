@@ -514,6 +514,84 @@ class EDRReportGenerator:
 
         return event_items
 
+    def get_event_data_smart(self, event_id: int, mfa_code: Optional[str] = None,
+                              auto_authenticate: bool = True) -> List[Dict[str, Any]]:
+        """
+        Smart cache-first method: Get event data from cache, or fetch from API if missing.
+
+        This is the PRIMARY method that printing operations should use.
+
+        Workflow:
+        1. Check cache for event data
+        2. If found with items, return immediately
+        3. If not found or no items:
+           - Authenticate if needed (requires MFA code)
+           - Fetch bulk data using browse_events()
+           - Update database cache
+           - Return event data from cache
+
+        Args:
+            event_id: The event ID to retrieve
+            mfa_code: Optional MFA code for authentication if needed
+            auto_authenticate: If True, will attempt to authenticate if not already authenticated
+
+        Returns:
+            List of event item dictionaries, or empty list if failed
+        """
+        if not self.enable_caching or not self.db:
+            print("❌ Caching is not enabled - cannot use smart fetch")
+            return []
+
+        print(f"🔍 Smart fetch for event {event_id}...")
+
+        # Step 1: Try cache first
+        event_items = self.get_event_from_cache(event_id)
+
+        if event_items:
+            print(f"✅ Using cached data for event {event_id}")
+            return event_items
+
+        # Step 2: Cache miss - need to fetch from API
+        print(f"⚠️ Event {event_id} not in cache - will fetch from API")
+
+        # Check if we need authentication
+        if not self.auth_token:
+            if not auto_authenticate:
+                print("❌ Not authenticated and auto_authenticate=False")
+                return []
+
+            if not mfa_code:
+                print("❌ Not authenticated and no MFA code provided")
+                print("💡 Provide mfa_code parameter to enable automatic authentication")
+                return []
+
+            print("🔐 Authenticating to fetch missing data...")
+            auth_success = self.authenticate(mfa_code=mfa_code)
+
+            if not auth_success:
+                print("❌ Authentication failed - cannot fetch data")
+                return []
+
+        # Step 3: Fetch bulk data using browse_events()
+        print("📥 Fetching bulk event data from API...")
+        events_data = self.browse_events()  # Uses default date range (±30 days)
+
+        if not events_data:
+            print("❌ No events data returned from API")
+            return []
+
+        print(f"✅ Fetched and cached {len(events_data)} event items")
+
+        # Step 4: Get the specific event from cache (now it should be there)
+        event_items = self.get_event_from_cache(event_id)
+
+        if event_items:
+            print(f"✅ Event {event_id} now available in cache with {len(event_items)} items")
+            return event_items
+        else:
+            print(f"⚠️ Event {event_id} still not in cache after fetch - may be outside date range")
+            return []
+
     def refresh_cache(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
                      store_number: Optional[str] = None) -> bool:
         """
@@ -569,6 +647,57 @@ class EDRReportGenerator:
         print(f"🗑️ Cleared {events_deleted} old event records and {metadata_deleted} metadata records")
         return (events_deleted, metadata_deleted)
 
+    def convert_cached_items_to_edr_format(self, cached_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Convert browse_events cached format to get_edr_report format
+        for compatibility with existing code.
+
+        Args:
+            cached_items: List of item dictionaries from cache (one event can have multiple items)
+
+        Returns:
+            EDR data dictionary in get_edr_report format
+        """
+        if not cached_items:
+            return {}
+
+        first_item = cached_items[0]
+
+        # Clean up event type and status - the cache stores full descriptive text
+        # like "Event Type Supplier" or "Status APPROVED", but we need just the value
+        event_type = first_item.get('eventType', '')
+        event_status = first_item.get('eventStatus', '')
+
+        # Remove "Event Type " prefix if present
+        if event_type and event_type.startswith('Event Type '):
+            event_type = event_type.replace('Event Type ', '', 1)
+
+        # Remove "Status " prefix if present
+        if event_status and event_status.startswith('Status '):
+            event_status = event_status.replace('Status ', '', 1)
+
+        return {
+            'demoId': first_item.get('eventId'),
+            'demoName': first_item.get('eventName'),
+            'demoDate': first_item.get('eventDate'),
+            'demoClassCode': event_type,  # Cleaned value
+            'demoStatusCode': event_status,  # Cleaned value
+            'demoLockInd': first_item.get('lockDate', 'false'),
+            'itemDetails': [
+                {
+                    'itemNbr': item.get('itemNbr'),
+                    'gtin': item.get('upcNbr'),  # UPC number
+                    'itemDesc': item.get('itemDesc'),
+                    'vendorNbr': item.get('vendorBilledNbr'),
+                    'vendorDesc': item.get('vendorBilledDesc'),
+                    'deptNbr': item.get('deptNbr'),
+                    'deptDesc': item.get('deptDesc'),
+                    'featuredItemInd': item.get('featuredItemInd', 'N')
+                }
+                for item in cached_items
+            ]
+        }
+
     def generate_html_report_from_cache(self, event_id: int) -> str:
         """
         Generate HTML report from cached event data (bypasses get_edr_report API call).
@@ -598,13 +727,9 @@ class EDRReportGenerator:
         event_status = first_item.get('eventStatus', 'N/A')
         event_date = first_item.get('eventDate', 'N/A')
         event_name = first_item.get('eventName', 'N/A')
-        event_locked = first_item.get('lockDate', 'N/A')
+        event_locked = first_item.get('lockDate', 'false')
 
-        # For cached data, we don't have instructions - use placeholder
-        event_prep = "N/A - Check event management system for preparation instructions"
-        event_portion = "N/A - Check event management system for portion instructions"
-
-        # Generate table rows for items
+        # Generate table rows for items (3 columns only: Item Number, Description, Category)
         item_rows = ""
         for item in event_items:
             # Mark featured items with a star
@@ -613,14 +738,12 @@ class EDRReportGenerator:
             item_rows += f"""
                 <tr class="edr-wrapper">
                     <td class="report-table-content">{item.get('itemNbr', '')}</td>
-                    <td class="report-table-content">{item.get('upcNbr', '')}</td>
                     <td class="report-table-content">{featured}{item.get('itemDesc', '')}</td>
-                    <td class="report-table-content">{item.get('vendorBilledNbr', '')} - {item.get('vendorBilledDesc', '')}</td>
-                    <td class="report-table-content">{item.get('deptNbr', '')} - {item.get('deptDesc', '')}</td>
+                    <td class="report-table-content">{item.get('deptDesc', '')}</td>
                 </tr>
             """
 
-        # Complete HTML template
+        # Complete HTML template (no instructions section)
         html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -659,13 +782,6 @@ class EDRReportGenerator:
             width: calc(80% - 230px);
             border-bottom: 1px solid black;
             margin-left: 10px;
-        }}
-
-        .instruction-heading {{
-            margin-top: 10px;
-            margin-bottom: 10px;
-            font-size: 18px;
-            font-weight: 500;
         }}
 
         .report-footer div {{
@@ -755,23 +871,11 @@ class EDRReportGenerator:
             margin: 10px 0;
         }}
 
-        .cache-notice {{
-            background-color: #e3f2fd;
-            border: 1px solid #2196f3;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            font-size: 12px;
-        }}
-
         @media print {{
             body {{
                 padding: 10px;
             }}
             .print-button {{
-                display: none;
-            }}
-            .cache-notice {{
                 display: none;
             }}
         }}
@@ -780,10 +884,6 @@ class EDRReportGenerator:
 <body>
     <div id="reportDdr_pdf">
         <div class="detail-header">EVENT DETAIL REPORT</div>
-
-        <div class="cache-notice">
-            ℹ️ This report was generated from cached data. For the most up-to-date information including instructions, please verify in the Event Management System.
-        </div>
 
         <div class="elememnt-padding font-weight-bold">
             <span>RUN ON </span>
@@ -850,9 +950,7 @@ class EDRReportGenerator:
                 <thead>
                     <tr class="demo-table-header">
                         <th>Item Number</th>
-                        <th>UPC Number</th>
                         <th>Description</th>
-                        <th>Vendor</th>
                         <th>Category</th>
                     </tr>
                 </thead>
@@ -860,19 +958,6 @@ class EDRReportGenerator:
                     {item_rows}
                 </tbody>
             </table>
-        </div>
-
-        <h4 class="instruction-heading">Instructions:</h4>
-
-        <div>
-            <span class="input-label" title="Event Preparation">
-                Event Preparation: <span class="demo-text">{event_prep}</span>
-            </span>
-            <div>
-                <span class="input-label" title="Event Portion">
-                    Event Portion: <span class="demo-text">{event_portion}</span>
-                </span>
-            </div>
         </div>
 
         <div class="report-footer">

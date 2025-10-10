@@ -148,9 +148,12 @@ def refresh_database():
                 # Get the condition from the event record
                 condition = event_record.get('condition', 'Unstaffed')
 
-                # Determine if event is scheduled based on new logic
-                # Only Unstaffed is truly unscheduled
-                is_event_scheduled = condition != 'Unstaffed'
+                # Determine if event is scheduled based on comprehensive logic
+                # An event is scheduled if:
+                # 1. condition is not 'Unstaffed' (API marked as staffed/scheduled), OR
+                # 2. scheduleDate exists (manually scheduled on Crossmark website)
+                # This handles cases where Crossmark's API sets scheduleDate without updating condition
+                is_event_scheduled = (condition != 'Unstaffed') or (schedule_date is not None)
 
                 # Extract SalesToolURL from the event record
                 # It's nested under salesTools array: salesTools[0].salesToolURL
@@ -465,8 +468,14 @@ def sync_status():
         return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/api/webhook/schedule_update', methods=['POST'])
+# Note: CSRF exemption applied in app.py - external webhook cannot include CSRF token
 def webhook_schedule_update():
-    """Receive webhook notifications from external API"""
+    """
+    Receive webhook notifications from external API.
+
+    Security: This route is CSRF-exempt because it's called by external systems.
+    TODO: Implement HMAC signature validation to verify webhook authenticity.
+    """
     try:
         db = current_app.extensions['sqlalchemy']
         Schedule = current_app.config['Schedule']
@@ -1244,6 +1253,137 @@ def edr_authenticate():
     except Exception as e:
         current_app.logger.error(f"EDR authentication error: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/edr/sync-cache', methods=['POST'])
+@require_authentication()
+def edr_sync_cache():
+    """
+    Sync EDR cache using browse_events() API
+    This fetches bulk data for ±30 days and caches it locally
+    Requires prior authentication via /api/edr/authenticate
+    """
+    try:
+        from flask import session as flask_session
+        from edr import EDRReportGenerator
+
+        # Check if authenticated
+        if not flask_session.get('edr_auth_token'):
+            return jsonify({
+                'success': False,
+                'message': 'Not authenticated. Please authenticate first.'
+            }), 401
+
+        # Get EDR settings from database
+        username_setting = SystemSetting.query.filter_by(setting_key='retaillink_username').first()
+        password_setting = SystemSetting.query.filter_by(setting_key='retaillink_password').first()
+        mfa_setting = SystemSetting.query.filter_by(setting_key='retaillink_mfa_credential_id').first()
+
+        if not all([username_setting, password_setting, mfa_setting]):
+            return jsonify({
+                'success': False,
+                'message': 'EDR credentials not configured. Please configure in Settings.'
+            }), 400
+
+        # Create EDR generator with caching enabled
+        edr_gen = EDRReportGenerator(
+            username=username_setting.setting_value,
+            password=password_setting.setting_value,
+            mfa_credential_id=mfa_setting.setting_value,
+            enable_caching=True
+        )
+
+        # Restore auth token from session
+        edr_gen.auth_token = flask_session.get('edr_auth_token')
+
+        # Restore session cookies
+        session_cookies = flask_session.get('edr_session_cookies', {})
+        edr_gen.session.cookies.clear()
+        for name, value in session_cookies.items():
+            edr_gen.session.cookies.set(name, value)
+
+        current_app.logger.info("Starting EDR cache sync using browse_events()...")
+
+        # Call browse_events() to sync cache (±30 days by default)
+        events = edr_gen.browse_events()
+
+        if not events:
+            return jsonify({
+                'success': False,
+                'message': 'No events returned from browse_events(). Authentication may have expired.'
+            }), 500
+
+        # Get cache stats
+        stats = edr_gen.get_cache_stats()
+
+        current_app.logger.info(f"EDR cache sync complete: {len(events)} events cached")
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully cached {len(events)} event items',
+            'events_cached': len(events),
+            'unique_events': stats.get('unique_events', 0),
+            'date_range': f"{stats.get('earliest_event_date', 'N/A')} to {stats.get('latest_event_date', 'N/A')}"
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"EDR cache sync error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/edr/cache-status', methods=['GET'])
+@require_authentication()
+def edr_cache_status():
+    """
+    Get current EDR cache status
+    Returns cache age, event count, date range, etc.
+    """
+    try:
+        from edr import EDRReportGenerator
+
+        # Create EDR generator to check cache
+        edr_gen = EDRReportGenerator(enable_caching=True)
+
+        # Get cache stats
+        stats = edr_gen.get_cache_stats()
+
+        # Determine if sync is recommended
+        cache_age_hours = stats.get('cache_age_hours')
+        is_fresh = cache_age_hours is not None and cache_age_hours < 24
+        sync_recommended = not is_fresh or stats.get('unique_events', 0) == 0
+
+        # Create user-friendly message
+        if cache_age_hours is None:
+            message = "Cache is empty. Sync required."
+        elif cache_age_hours < 12:
+            message = f"Cache is fresh ({cache_age_hours:.1f} hours old)"
+        elif cache_age_hours < 24:
+            message = f"Cache is acceptable ({cache_age_hours:.1f} hours old)"
+        elif cache_age_hours < 48:
+            message = f"Cache is stale ({cache_age_hours:.1f} hours old). Sync recommended."
+        else:
+            days = cache_age_hours / 24
+            message = f"Cache is very stale ({days:.1f} days old). Sync required."
+
+        return jsonify({
+            'success': True,
+            'is_fresh': is_fresh,
+            'sync_recommended': sync_recommended,
+            'message': message,
+            'cache_age_hours': cache_age_hours,
+            'unique_events': stats.get('unique_events', 0),
+            'total_event_items': stats.get('total_event_items', 0),
+            'earliest_event_date': stats.get('earliest_event_date'),
+            'latest_event_date': stats.get('latest_event_date'),
+            'last_fetch_time': stats.get('last_fetch_time')
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"EDR cache status error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @admin_bp.route('/api/print_paperwork/<paperwork_type>')
 def print_paperwork(paperwork_type):

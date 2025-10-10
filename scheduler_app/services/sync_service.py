@@ -100,12 +100,16 @@ def sync_schedule_to_crossmark(self, schedule_id):
         logger.info(f"Using Crossmark RepID {rep_id} for employee {employee_name}")
 
         # Call Crossmark API to schedule the event
+        # Calculate end datetime based on event's estimated time or event type default
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+        end_datetime = schedule.schedule_datetime + timedelta(minutes=estimated_minutes)
+
         api_result = external_api.schedule_mplan_event(
             rep_id=rep_id,
             mplan_id=event.external_id,
             location_id=event.location_mvid or '157384',
             start_datetime=schedule.schedule_datetime,
-            end_datetime=schedule.schedule_datetime + timedelta(hours=4)
+            end_datetime=end_datetime
         )
 
         if api_result.get('success'):
@@ -210,12 +214,16 @@ def sync_schedule_update_to_crossmark(self, schedule_id, new_employee_id=None, n
         logger.info(f"Updating schedule in Crossmark: RepID {rep_id}, mPlanID {event.external_id}")
 
         # Call Crossmark API to update the scheduled event
+        # Calculate end datetime based on event's estimated time or event type default
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+        end_datetime = schedule_datetime + timedelta(minutes=estimated_minutes)
+
         api_result = external_api.schedule_mplan_event(
             rep_id=rep_id,
             mplan_id=event.external_id,
             location_id=event.location_mvid or '157384',
             start_datetime=schedule_datetime,
-            end_datetime=schedule_datetime + timedelta(hours=4)
+            end_datetime=end_datetime
         )
 
         if api_result.get('success'):

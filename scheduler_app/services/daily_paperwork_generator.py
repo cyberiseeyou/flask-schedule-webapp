@@ -338,11 +338,11 @@ class DailyPaperworkGenerator:
 
             for item in item_details:
                 item_nbr = str(item.get('itemNbr', ''))
-                upc_nbr = str(item.get('upcNbr', ''))  # UPC number for barcode generation
+                upc_nbr = str(item.get('gtin', ''))  # UPC number (gtin field) for barcode generation
                 item_desc = str(item.get('itemDesc', ''))
 
                 if item_nbr and item_nbr != 'N/A' and item_nbr not in seen_items:
-                    # Use upcNbr if available, otherwise fall back to itemNbr
+                    # Use gtin (UPC) if available, otherwise fall back to itemNbr
                     barcode_number = upc_nbr if upc_nbr and upc_nbr not in ['', 'N/A', 'None'] else item_nbr
 
                     # Debug logging for first few items
@@ -399,22 +399,22 @@ class DailyPaperworkGenerator:
         # Table
         if items_list:
             # Generate barcodes for each item
-            table_data = [['Item Number', 'Barcode', 'Description']]
+            table_data = [['UPC Number', 'Barcode', 'Description']]
 
             # Maintain the order items appear in the events (no sorting)
             for item_num, barcode_num, desc in items_list:
-                # Generate barcode image based on the UPC number (primary item number)
+                # Generate barcode image based on the UPC number
                 barcode_path = self.generate_barcode_image(barcode_num)
 
                 if barcode_path:
                     # Create ReportLab Image object for the barcode
                     # Scale to fit nicely in the table (1.2 inches wide, 0.5 inches tall)
                     barcode_img = ReportLabImage(barcode_path, width=1.2*inch, height=0.5*inch)
-                    # Keep item number visible in first column, barcode in second column
-                    table_data.append([str(item_num), barcode_img, str(desc)])
+                    # Display UPC number in first column, barcode in second column
+                    table_data.append([str(barcode_num), barcode_img, str(desc)])
                 else:
-                    # If barcode generation fails, just show the item number
-                    table_data.append([str(item_num), 'N/A', str(desc)])
+                    # If barcode generation fails, just show the UPC number
+                    table_data.append([str(barcode_num), 'N/A', str(desc)])
 
             item_table = Table(table_data, colWidths=[1.2*inch, 1.5*inch, 3.8*inch])
             item_table.setStyle(TableStyle([
@@ -642,25 +642,62 @@ class DailyPaperworkGenerator:
         schedule_pdf = self.generate_daily_schedule_pdf(target_date, schedules)
         all_pdfs.append(schedule_pdf)
 
-        # 2. Fetch all EDR data first (we'll use this for both item list and individual EDRs)
-        print("📄 Fetching EDR data for all events...")
+        # 2. Fetch all EDR data - cache first, auto-sync if needed
+        print("📄 Fetching EDR data (cache-first with auto-sync)...")
         edr_data_cache = {}  # Cache: event_number -> edr_data
         edr_data_list = []
+        needs_sync = False
 
         if self.edr_generator:
             from utils.event_helpers import extract_event_number
+
+            # First pass: Check which events are missing from cache
+            missing_events = []
             for schedule, event, employee in schedules:
                 if event.event_type == 'Core':
                     event_num = extract_event_number(event.project_name)
                     if event_num:
-                        print(f"   Fetching EDR for event {event_num}...")
-                        edr_data = self.edr_generator.get_edr_report(event_num)
-                        if edr_data:
+                        print(f"   Checking cache for event {event_num}...")
+                        cached_items = self.edr_generator.get_event_from_cache(int(event_num))
+                        if cached_items:
+                            # Convert to EDR format for compatibility
+                            edr_data = self.edr_generator.convert_cached_items_to_edr_format(cached_items)
                             edr_data_cache[event_num] = edr_data
                             edr_data_list.append(edr_data)
-                            print(f"   ✅ EDR data retrieved for event {event_num}")
+                            print(f"   ✅ Event {event_num} found in cache")
                         else:
-                            print(f"   ⚠️ No EDR data for event {event_num}")
+                            missing_events.append(event_num)
+                            print(f"   ⚠️ Event {event_num} not in cache")
+                            needs_sync = True
+
+            # Second pass: If any events are missing, sync the cache
+            if needs_sync:
+                print(f"⚠️ {len(missing_events)} events not in cache - triggering sync...")
+
+                # Check if we need to authenticate
+                if not self.edr_generator.auth_token:
+                    print("❌ Not authenticated - cannot sync cache")
+                    print("💡 Please authenticate via the printing interface first")
+                else:
+                    # Sync cache by calling browse_events (stores to database automatically)
+                    print("📥 Syncing cache from Walmart API...")
+                    events_data = self.edr_generator.browse_events()
+
+                    if events_data:
+                        print(f"✅ Cache sync complete - fetched {len(events_data)} event items")
+
+                        # Now retry fetching the missing events from cache
+                        for event_num in missing_events:
+                            cached_items = self.edr_generator.get_event_from_cache(int(event_num))
+                            if cached_items:
+                                edr_data = self.edr_generator.convert_cached_items_to_edr_format(cached_items)
+                                edr_data_cache[event_num] = edr_data
+                                edr_data_list.append(edr_data)
+                                print(f"   ✅ Event {event_num} now available after sync")
+                            else:
+                                print(f"   ⚠️ Event {event_num} still not in cache (may be outside date range)")
+                    else:
+                        print("❌ Cache sync failed - no data returned from API")
 
         # 3. Generate Daily Item Numbers from EDR data
         print("📄 Generating daily item numbers...")

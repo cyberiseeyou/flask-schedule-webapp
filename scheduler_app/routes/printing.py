@@ -682,6 +682,206 @@ def get_complete_paperwork():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@printing_bp.route('/event-paperwork', methods=['POST'])
+@require_authentication()
+def get_event_paperwork():
+    """
+    Get complete paperwork package for a single event.
+
+    Generates a consolidated PDF containing:
+    1. EDR (Event Detail Report)
+    2. Instructions (Sales Tool PDF)
+    3. Event Activity Log
+    4. Daily Task Checkoff Sheet
+
+    Request Body:
+        {
+            "event_number": "123456"  (6-digit event number)
+        }
+
+    Returns:
+        Merged PDF file
+    """
+    global edr_authenticator, edr_pdf_generator
+
+    logger.info("Single event paperwork request received")
+
+    if not edr_available:
+        logger.error("EDR modules not available - check import errors on startup")
+        return jsonify({'success': False, 'error': 'EDR modules not available'}), 500
+
+    if not edr_authenticator or not edr_authenticator.auth_token:
+        logger.error("Not authenticated - auth_token missing")
+        return jsonify({'success': False, 'error': 'Not authenticated. Please authenticate first.'}), 401
+
+    try:
+        data = request.get_json()
+        event_number = data.get('event_number', '').strip()
+
+        if not event_number:
+            return jsonify({'success': False, 'error': 'Event number is required'}), 400
+
+        # Validate event number format (6 digits)
+        if not re.match(r'^\d{6}$', event_number):
+            return jsonify({'success': False, 'error': 'Event number must be exactly 6 digits'}), 400
+
+        # Get database models
+        db = current_app.extensions['sqlalchemy']
+        Event = current_app.config['Event']
+        Schedule = current_app.config['Schedule']
+        Employee = current_app.config['Employee']
+
+        # Find event by first 6 digits of project_name
+        event = db.session.query(Event).filter(
+            db.func.substr(Event.project_name, 1, 6) == event_number
+        ).first()
+
+        if not event:
+            return jsonify({
+                'success': False,
+                'error': f'Event starting with "{event_number}" not found in the system'
+            }), 404
+
+        logger.info(f"Found event: {event.project_name}")
+
+        # Look up employee assigned to this event (most recent schedule)
+        schedule = db.session.query(Schedule).filter(
+            Schedule.event_ref_num == event.project_ref_num
+        ).order_by(Schedule.schedule_datetime.desc()).first()
+
+        employee_name = 'N/A'
+        if schedule:
+            employee = db.session.query(Employee).filter_by(id=schedule.employee_id).first()
+            employee_name = employee.name if employee else schedule.employee_id
+
+        # List to hold all PDF paths for merging
+        pdf_buffers = []
+        temp_files = []
+
+        # 1. Get EDR PDF
+        logger.info(f"Fetching EDR for event {event_number}...")
+        try:
+            edr_data = edr_authenticator.get_edr_report(event_number)
+            if edr_data:
+                # Generate EDR PDF
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w+b', suffix='.pdf', delete=False) as tmp_file:
+                    edr_temp_path = tmp_file.name
+
+                if edr_pdf_generator.generate_pdf(edr_data, edr_temp_path, employee_name):
+                    with open(edr_temp_path, 'rb') as f:
+                        edr_buffer = BytesIO(f.read())
+                        pdf_buffers.append(edr_buffer)
+                    logger.info("✅ EDR PDF added")
+                else:
+                    logger.warning("⚠️ Failed to generate EDR PDF")
+
+                temp_files.append(edr_temp_path)
+            else:
+                logger.warning("⚠️ No EDR data retrieved")
+        except Exception as e:
+            logger.error(f"Error fetching EDR: {str(e)}")
+            # Continue without EDR - don't fail entire request
+
+        # 2. Get Instructions PDF (Sales Tool)
+        if event.sales_tools_url and event.sales_tools_url.strip():
+            logger.info(f"Downloading instructions from: {event.sales_tools_url}")
+            try:
+                response = requests.get(event.sales_tools_url, timeout=30)
+                response.raise_for_status()
+
+                # Verify it's a PDF
+                if b'%PDF' in response.content[:4]:
+                    instructions_buffer = BytesIO(response.content)
+                    pdf_buffers.append(instructions_buffer)
+                    logger.info("✅ Instructions PDF added")
+                else:
+                    logger.warning("⚠️ Instructions URL did not return a valid PDF")
+            except Exception as e:
+                logger.error(f"Error downloading instructions: {str(e)}")
+                # Continue without instructions
+
+        # 3. Add Activity Log (static PDF)
+        docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs')
+        activity_log_path = os.path.join(docs_dir, 'Event Table Activity Log.pdf')
+
+        if os.path.exists(activity_log_path):
+            logger.info("Adding Activity Log...")
+            try:
+                with open(activity_log_path, 'rb') as f:
+                    activity_log_buffer = BytesIO(f.read())
+                    pdf_buffers.append(activity_log_buffer)
+                logger.info("✅ Activity Log added")
+            except Exception as e:
+                logger.error(f"Error reading Activity Log: {str(e)}")
+
+        # 4. Add Daily Task Checkoff (static PDF)
+        checkoff_path = os.path.join(docs_dir, 'Daily Task Checkoff Sheet.pdf')
+
+        if os.path.exists(checkoff_path):
+            logger.info("Adding Daily Task Checkoff...")
+            try:
+                with open(checkoff_path, 'rb') as f:
+                    checkoff_buffer = BytesIO(f.read())
+                    pdf_buffers.append(checkoff_buffer)
+                logger.info("✅ Daily Task Checkoff added")
+            except Exception as e:
+                logger.error(f"Error reading Daily Task Checkoff: {str(e)}")
+
+        # Check if we have at least one PDF
+        if not pdf_buffers:
+            logger.error("No PDFs could be generated or found")
+            return jsonify({
+                'success': False,
+                'error': 'Could not generate any paperwork components. Please ensure EDR authentication is valid and try again.'
+            }), 500
+
+        # Merge all PDFs
+        logger.info(f"Merging {len(pdf_buffers)} PDFs...")
+        pdf_writer = PdfWriter()
+
+        for pdf_buffer in pdf_buffers:
+            try:
+                pdf_buffer.seek(0)
+                pdf_reader = PdfReader(pdf_buffer)
+                for page in pdf_reader.pages:
+                    pdf_writer.add_page(page)
+            except Exception as e:
+                logger.error(f"Error adding PDF to merger: {str(e)}")
+
+        # Write merged PDF to output buffer
+        output = BytesIO()
+        pdf_writer.write(output)
+        output.seek(0)
+
+        # Clean up temp files
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.unlink(temp_file)
+            except:
+                pass
+
+        # Generate filename
+        safe_event_name = re.sub(r'[<>:"/\\|?*]', '_', event.project_name)
+        filename = f'Event_Paperwork_{event_number}_{safe_event_name}.pdf'
+
+        logger.info(f"✅ Successfully generated event paperwork ({output.tell()} bytes)")
+
+        return send_file(
+            output,
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=filename
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate event paperwork: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ========================================
 # EDR (Event Detail Report) Endpoints
 # ========================================

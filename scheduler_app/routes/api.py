@@ -340,7 +340,7 @@ def reschedule():
         from session_api_service import session_api as external_api
 
         # Calculate end datetime
-        estimated_minutes = event.estimated_time or 60
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
         end_datetime = new_datetime + timedelta(minutes=estimated_minutes)
 
         # Prepare API data
@@ -473,7 +473,7 @@ def reschedule_event():
         from session_api_service import session_api as external_api
 
         # Calculate end datetime
-        estimated_minutes = event.estimated_time or 60
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
         end_datetime = new_datetime + timedelta(minutes=estimated_minutes)
 
         # Prepare API data
@@ -653,10 +653,10 @@ def trade_events():
         # Submit both trades to external API
         try:
             # Calculate end datetimes
-            estimated_minutes_1 = event1.estimated_time or 60
+            estimated_minutes_1 = event1.estimated_time or event1.get_default_duration(event1.event_type)
             end_datetime_1 = schedule1_datetime + timedelta(minutes=estimated_minutes_1)
 
-            estimated_minutes_2 = event2.estimated_time or 60
+            estimated_minutes_2 = event2.estimated_time or event2.get_default_duration(event2.event_type)
             end_datetime_2 = schedule2_datetime + timedelta(minutes=estimated_minutes_2)
 
             current_app.logger.info(
@@ -773,7 +773,7 @@ def change_employee():
         from session_api_service import session_api as external_api
 
         # Calculate end datetime
-        estimated_minutes = event.estimated_time or 60
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
         end_datetime = schedule.schedule_datetime + timedelta(minutes=estimated_minutes)
 
         # Prepare API data
