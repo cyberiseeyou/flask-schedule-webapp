@@ -35,7 +35,6 @@
                 <a href="{{ url_for('employees.employees') }}" class="nav-link {% if request.endpoint == 'employees.employees' %}active{% endif %}">Employee Management</a>
                 <a href="{{ url_for('admin.employee_analytics') }}" class="nav-link {% if request.endpoint == 'admin.employee_analytics' %}active{% endif %}">Analytics</a>
                 <a href="{{ url_for('printing.printing_home') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('printing.') %}active{% endif %}">Printing</a>
-                <a href="{{ url_for('help.help_home') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('help.') %}active{% endif %}">Help</a>
                 <div class="nav-user-section">
                     <div class="user-dropdown">
                         <button class="user-dropdown-toggle" id="userDropdownToggle" aria-haspopup="true" aria-expanded="false">
@@ -43,6 +42,10 @@
                             <span class="dropdown-arrow">▼</span>
                         </button>
                         <div class="user-dropdown-menu" id="userDropdownMenu" hidden>
+                            <a href="{{ url_for('help.help_home') }}" class="dropdown-item">
+                                <span class="dropdown-icon">❓</span>
+                                Help
+                            </a>
                             <a href="{{ url_for('admin.settings_page') }}" class="dropdown-item">
                                 <span class="dropdown-icon">⚙️</span>
                                 Settings
