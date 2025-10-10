@@ -445,3 +445,199 @@ def delete_time_off(time_off_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@employees_bp.route('/api/get_available_reps', methods=['GET'])
+def get_available_reps():
+    """Get available representatives from MVRetail/Crossmark API"""
+    from session_api_service import session_api as external_api
+
+    try:
+        # Get available representatives from the API
+        reps_data = external_api.get_available_representatives()
+
+        if not reps_data:
+            return jsonify({'error': 'Failed to fetch representatives from MVRetail'}), 500
+
+        # Parse the response - structure may vary
+        representatives = []
+
+        # Handle different possible response structures
+        if isinstance(reps_data, dict):
+            if 'representatives' in reps_data:
+                representatives = reps_data['representatives']
+            elif 'data' in reps_data:
+                representatives = reps_data['data']
+            elif 'records' in reps_data:
+                representatives = reps_data['records']
+            else:
+                # If the response is a dict with items, try to extract them
+                representatives = list(reps_data.values()) if reps_data else []
+        elif isinstance(reps_data, list):
+            representatives = reps_data
+
+        # Format the response
+        formatted_reps = []
+        for rep in representatives:
+            if isinstance(rep, dict):
+                formatted_reps.append({
+                    'id': rep.get('repId') or rep.get('id') or rep.get('RepID'),
+                    'name': rep.get('name') or rep.get('Name') or f"{rep.get('FirstName', '')} {rep.get('LastName', '')}".strip(),
+                    'email': rep.get('email') or rep.get('Email'),
+                    'phone': rep.get('phone') or rep.get('Phone'),
+                })
+
+        current_app.logger.info(f"Retrieved {len(formatted_reps)} representatives from MVRetail")
+
+        return jsonify({
+            'success': True,
+            'representatives': formatted_reps
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting available reps: {str(e)}")
+        return jsonify({'error': f'Error fetching representatives: {str(e)}'}), 500
+
+
+@employees_bp.route('/api/lookup_employee_id', methods=['POST'])
+def lookup_employee_id():
+    """
+    Lookup employee's external_id (numeric ID for scheduling) from MVRetail API
+    This is called after saving an employee to get their scheduling ID
+    """
+    from session_api_service import session_api as external_api
+
+    data = request.get_json()
+    employee_name = data.get('name')
+    employee_id = data.get('employee_id')  # The US###### ID
+
+    if not employee_name:
+        return jsonify({'error': 'Employee name is required'}), 400
+
+    try:
+        # Get available representatives
+        reps_data = external_api.get_available_representatives()
+
+        if not reps_data:
+            return jsonify({
+                'found': False,
+                'message': 'Unable to connect to MVRetail'
+            })
+
+        # Parse representatives
+        representatives = []
+        if isinstance(reps_data, dict):
+            if 'representatives' in reps_data:
+                representatives = reps_data['representatives']
+            elif 'data' in reps_data:
+                representatives = reps_data['data']
+            elif 'records' in reps_data:
+                representatives = reps_data['records']
+        elif isinstance(reps_data, list):
+            representatives = reps_data
+
+        # Search for the employee by name or employee_id
+        for rep in representatives:
+            if isinstance(rep, dict):
+                rep_name = rep.get('name') or rep.get('Name') or f"{rep.get('FirstName', '')} {rep.get('LastName', '')}".strip()
+                rep_id_field = rep.get('RepID') or rep.get('EmployeeID') or rep.get('employeeId')
+
+                # Match by name (case-insensitive) or employee ID
+                name_match = rep_name.lower() == employee_name.lower()
+                id_match = employee_id and str(rep_id_field) == str(employee_id)
+
+                if name_match or id_match:
+                    external_id = rep.get('repId') or rep.get('id') or rep.get('RepID')
+
+                    return jsonify({
+                        'found': True,
+                        'external_id': external_id,
+                        'name': rep_name,
+                        'email': rep.get('email') or rep.get('Email'),
+                        'phone': rep.get('phone') or rep.get('Phone')
+                    })
+
+        # Employee not found
+        return jsonify({
+            'found': False,
+            'message': f'Employee "{employee_name}" not found in MVRetail system'
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error looking up employee ID: {str(e)}")
+        return jsonify({
+            'found': False,
+            'message': f'Error looking up employee: {str(e)}'
+        })
+
+
+@employees_bp.route('/api/import_employees', methods=['POST'])
+def import_employees():
+    """
+    Import selected employees from MVRetail
+    Only updates external_id for existing employees, creates new ones otherwise
+    """
+    db = current_app.extensions['sqlalchemy']
+    Employee = current_app.config['Employee']
+
+    data = request.get_json()
+    selected_employees = data.get('employees', [])
+
+    if not selected_employees:
+        return jsonify({'error': 'No employees selected'}), 400
+
+    try:
+        imported_count = 0
+        updated_count = 0
+        errors = []
+
+        for emp_data in selected_employees:
+            employee_id_input = emp_data.get('employee_id')  # US###### ID if provided
+            external_id = emp_data.get('id')  # Numeric scheduling ID
+            name = emp_data.get('name')
+
+            if not name or not external_id:
+                errors.append(f'Missing required fields for employee: {name or "Unknown"}')
+                continue
+
+            # Generate employee_id if not provided
+            if not employee_id_input:
+                employee_id_input = name.upper().replace(' ', '_')
+
+            # Check if employee already exists
+            employee = Employee.query.filter_by(id=employee_id_input).first()
+
+            if employee:
+                # Update only the external_id, don't modify other fields
+                employee.external_id = external_id
+                updated_count += 1
+                current_app.logger.info(f"Updated external_id for existing employee: {name}")
+            else:
+                # Create new employee
+                employee = Employee(
+                    id=employee_id_input,
+                    name=name,
+                    email=emp_data.get('email'),
+                    phone=emp_data.get('phone'),
+                    external_id=external_id,
+                    is_active=True,
+                    job_title='Event Specialist'  # Default
+                )
+                db.session.add(employee)
+                imported_count += 1
+                current_app.logger.info(f"Created new employee: {name}")
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Imported {imported_count} new employees, updated {updated_count} existing employees',
+            'imported': imported_count,
+            'updated': updated_count,
+            'errors': errors
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error importing employees: {str(e)}")
+        return jsonify({'error': f'Error importing employees: {str(e)}'}), 500
