@@ -91,6 +91,11 @@ class DailyPaperworkGenerator:
         """
         Generate a barcode image for an item number
 
+        UPC-A Logic:
+        - If UPC is 11 digits, pass it directly to the library (library calculates check digit)
+        - If UPC is NOT 11 digits, pad with leading zeros to make it 11 digits
+        - Example: 333832507 (9 digits) -> 00333832507 (11 digits) -> library adds check digit
+
         Args:
             item_number: Item number to generate barcode for
 
@@ -104,30 +109,21 @@ class DailyPaperworkGenerator:
             if not clean_number:
                 return None
 
-            # Pad to 12 digits for UPC-A if needed (standard retail UPC)
-            if len(clean_number) < 12:
-                clean_number = clean_number.zfill(12)
-            elif len(clean_number) > 12:
-                # For numbers longer than 12 digits, use Code128 which is more flexible
-                barcode_class = barcode.get_barcode_class('code128')
-            else:
-                # Use UPC-A for 12-digit numbers
+            # UPC-A barcode logic
+            if len(clean_number) <= 12:
+                # Pad to 11 digits with leading zeros
+                # The library will automatically calculate the 12th digit (check digit)
+                upc_base = clean_number.zfill(11)
+
                 try:
                     barcode_class = barcode.get_barcode_class('upca')
+                    clean_number = upc_base  # Use the 11-digit base
                 except:
                     # Fallback to Code128 if UPC-A fails
                     barcode_class = barcode.get_barcode_class('code128')
-
-            # For UPC-A, we need exactly 11 digits (12th is check digit)
-            if len(clean_number) == 12:
-                try:
-                    barcode_class = barcode.get_barcode_class('upca')
-                    # UPC-A needs 11 digits, check digit is auto-calculated
-                    clean_number = clean_number[:11]
-                except:
-                    barcode_class = barcode.get_barcode_class('code128')
-                    clean_number = item_number  # Use original for Code128
+                    clean_number = str(item_number)
             else:
+                # For numbers longer than 12 digits, use Code128 which is more flexible
                 barcode_class = barcode.get_barcode_class('code128')
                 clean_number = str(item_number)
 
