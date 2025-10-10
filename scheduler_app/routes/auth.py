@@ -126,6 +126,35 @@ def login():
                         'authenticated': True
                     }
 
+                # Extract first and last name from API response or parse from username
+                first_name = user_info.get('firstName') or user_info.get('first_name')
+                last_name = user_info.get('lastName') or user_info.get('last_name')
+
+                # Fallback: try to parse from 'name' field if exists
+                if not (first_name and last_name) and 'name' in user_info:
+                    name_parts = user_info['name'].split(' ', 1)
+                    if len(name_parts) == 2:
+                        first_name, last_name = name_parts
+                    elif len(name_parts) == 1:
+                        first_name = name_parts[0]
+                        last_name = ''
+
+                # Fallback: parse from username if still not found
+                if not (first_name and last_name):
+                    # Try to parse "firstname.lastname" or "firstname lastname" format
+                    username_parts = username.replace('.', ' ').split(' ', 1)
+                    if len(username_parts) >= 1:
+                        first_name = username_parts[0].capitalize()
+                    if len(username_parts) >= 2:
+                        last_name = username_parts[1].capitalize()
+                    else:
+                        last_name = ''
+
+                # Add name fields to user_info
+                user_info['first_name'] = first_name or 'User'
+                user_info['last_name'] = last_name or ''
+                user_info['full_name'] = f"{first_name} {last_name}".strip() if (first_name and last_name) else (first_name or username)
+
                 # Create session
                 session_id = secrets.token_urlsafe(32)
                 session_data = {

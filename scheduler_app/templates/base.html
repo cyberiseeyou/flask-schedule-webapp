@@ -35,10 +35,24 @@
                 <a href="{{ url_for('employees.employees') }}" class="nav-link {% if request.endpoint == 'employees.employees' %}active{% endif %}">Employee Management</a>
                 <a href="{{ url_for('admin.employee_analytics') }}" class="nav-link {% if request.endpoint == 'admin.employee_analytics' %}active{% endif %}">Analytics</a>
                 <a href="{{ url_for('printing.printing_home') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('printing.') %}active{% endif %}">Printing</a>
-                <a href="{{ url_for('admin.settings_page') }}" class="nav-link {% if request.endpoint == 'admin.settings_page' %}active{% endif %}">Settings</a>
                 <div class="nav-user-section">
-                    <span class="nav-user-info">Welcome, {{ get_current_user().get('username', 'User') if get_current_user() else 'User' }}</span>
-                    <a href="{{ url_for('auth.logout') }}" class="nav-link logout-link">Logout</a>
+                    <div class="user-dropdown">
+                        <button class="user-dropdown-toggle" id="userDropdownToggle" aria-haspopup="true" aria-expanded="false">
+                            <span class="user-name">{{ get_current_user().get('full_name', get_current_user().get('username', 'User')) if get_current_user() else 'User' }}</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="user-dropdown-menu" id="userDropdownMenu" hidden>
+                            <a href="{{ url_for('admin.settings_page') }}" class="dropdown-item">
+                                <span class="dropdown-icon">⚙️</span>
+                                Settings
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="{{ url_for('auth.logout') }}" class="dropdown-item">
+                                <span class="dropdown-icon">🚪</span>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </nav>
         </div>
@@ -60,6 +74,9 @@
 
     <!-- CSRF Protection (CRITICAL-02) -->
     <script src="{{ url_for('static', filename='js/csrf_helper.js') }}"></script>
+
+    <!-- User Dropdown -->
+    <script src="{{ url_for('static', filename='js/user_dropdown.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>
