@@ -1,0 +1,3917 @@
+{
+  "demoId": 606962,
+  "demoClassCode": 7,
+  "demoStatusCode": 2,
+  "demoBillTypeCd": 16,
+  "demoDate": "2025-10-12",
+  "duratnHrQty": 7,
+  "demoFeeAmt": 0,
+  "lastChangeUserid": "DB2LOAD ",
+  "hoInstruction": "",
+  "clubInstruction": "1H: 250618523376",
+  "countryCode": "US",
+  "performByDate": "2025-10-19",
+  "demoLockInd": "N",
+  "demoName": "10-12-Tyson-JD Maple Cake                                                                           ",
+  "deptNbr": 44,
+  "targetTimeCode": 1,
+  "targetClubCnt": 590,
+  "manualBillInd": false,
+  "billToVendorId": 736363,
+  "demoCost": 0,
+  "demoInstructions": null,
+  "itemDetails": [
+    {
+      "demoId": 606962,
+      "itemNbr": 990339018,
+      "featuredItemInd": "Y",
+      "primaryItemNbr": 990339018,
+      "reportOnInd": "Y",
+      "demoCost": 0,
+      "billToVndrId": 736363,
+      "billToVndrDesc": "THE HILLSHIRE BRANDS COMPANY  ",
+      "gtin": 7790000267,
+      "deptDesc": "FROZEN FOODS",
+      "deptNbr": 44,
+      "itemDesc": "JD MAPLE CAKES",
+      "vendorDesc": "THE HILLSHIRE BRANDS COMPANY",
+      "vendorNbr": 736363,
+      "primaryItemCode": "Y"
+    }
+  ],
+  "clubDetails": [
+    {
+      "storeNbr": 4109,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4702,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4703,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4704,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4707,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4709,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4710,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4711,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4712,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4713,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4718,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4720,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4721,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4722,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4724,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4728,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4729,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4730,
+      "scheduledDate": "2025-10-18",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4731,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4732,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4735,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4736,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4738,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4739,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4740,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4741,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4742,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4743,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4745,
+      "scheduledDate": "2025-10-17",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4749,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4750,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4755,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4761,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4763,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4764,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4767,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4768,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4769,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4770,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4771,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4772,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4774,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4775,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4776,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4777,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4778,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4780,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4781,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4782,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4783,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4784,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4785,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4786,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4787,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4789,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4790,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4791,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4794,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4795,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4797,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4798,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4799,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4801,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4802,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4804,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4805,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4808,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4815,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4816,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4817,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4818,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4819,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4820,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4822,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4824,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4825,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4828,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4829,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4830,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4831,
+      "scheduledDate": "2025-10-13",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4836,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4837,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4839,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4840,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4843,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4846,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4847,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4850,
+      "scheduledDate": "2025-10-21",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4851,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4852,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4853,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4855,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4857,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4859,
+      "scheduledDate": "2025-10-20",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4860,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4861,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4870,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4871,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4872,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4873,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4874,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4875,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4876,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4878,
+      "scheduledDate": "2025-10-13",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4879,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4901,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4905,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4906,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4908,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4911,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4914,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4915,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4917,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4920,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4926,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4930,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4933,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4936,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4938,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4939,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4942,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4944,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4946,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4947,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4948,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4950,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4952,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4955,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4956,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4958,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4961,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4962,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4963,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4969,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4972,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4973,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4974,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4982,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4983,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4985,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4987,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4989,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4990,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4991,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4992,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4994,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4996,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4998,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 4999,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6181,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6188,
+      "scheduledDate": "2025-10-23",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6189,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6201,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6202,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6203,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6204,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6205,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6212,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6213,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6216,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6217,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6218,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6219,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6220,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6228,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6235,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6236,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6238,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6239,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6240,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6242,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6244,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6245,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6246,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6247,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6249,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6251,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6252,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6254,
+      "scheduledDate": "2025-10-22",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6255,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6256,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6257,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6259,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6260,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6261,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6262,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6265,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6267,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6269,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6275,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6302,
+      "scheduledDate": "2025-10-13",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6304,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6305,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6307,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6308,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6309,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6310,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6311,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6312,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6313,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6314,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6315,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6317,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6319,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6320,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6321,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6322,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6324,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6325,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6326,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6327,
+      "scheduledDate": "2025-10-15",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6328,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6329,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6330,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6331,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6332,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6333,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6334,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6335,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6336,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6338,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6339,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6341,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6342,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6343,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6344,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6345,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6347,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6348,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6349,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6350,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6351,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6352,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6353,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6354,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6355,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6356,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6357,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6358,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6359,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6360,
+      "scheduledDate": "2025-10-17",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6361,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6363,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6364,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6365,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6366,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6367,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6368,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6369,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6371,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6372,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6373,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6375,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6376,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6377,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6378,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6379,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6380,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6381,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6382,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6383,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6384,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6385,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6386,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6387,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6388,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6401,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6402,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6403,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6404,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6405,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6406,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6407,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6408,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6409,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6410,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6412,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6413,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6414,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6415,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6417,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6418,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6419,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6420,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6421,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6422,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6423,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6424,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6425,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6426,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6427,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6428,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6429,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6430,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6431,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6432,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6433,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6434,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6435,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6436,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6437,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6439,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6440,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6441,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6443,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6444,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6445,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6448,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6449,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6450,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6452,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6453,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6454,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6455,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6456,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6457,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6458,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6460,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6461,
+      "scheduledDate": "2025-10-20",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6462,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6463,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6464,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6471,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6472,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6474,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6479,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6482,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6485,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6487,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6489,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6501,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6502,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6503,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6505,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6506,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6507,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6509,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6510,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6512,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6514,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6517,
+      "scheduledDate": "2025-10-15",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6518,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6520,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6521,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6524,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6527,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6528,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6533,
+      "scheduledDate": "2025-10-19",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6535,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6536,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6539,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6540,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6547,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6549,
+      "scheduledDate": "2025-10-15",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6556,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6562,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6565,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6567,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6568,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6569,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6570,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6571,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6572,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6573,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6575,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6581,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6582,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6604,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6605,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6606,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6608,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6609,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6610,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6612,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6613,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6614,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6615,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6616,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6617,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6619,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6620,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6621,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6622,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6624,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6626,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6628,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6630,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6631,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6632,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6633,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6634,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6635,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6636,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6637,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6643,
+      "scheduledDate": "2025-10-13",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6644,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6646,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6650,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6651,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6652,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6653,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6655,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6657,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6658,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6659,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6660,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6661,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6662,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6663,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6664,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6666,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6667,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6670,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6671,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6672,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6673,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6674,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6675,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6676,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6677,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6678,
+      "scheduledDate": "2025-10-22",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6679,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6682,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6683,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6684,
+      "scheduledDate": "2025-10-22",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6685,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6686,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6692,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6693,
+      "scheduledDate": "2025-10-21",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6779,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6781,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6867,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6976,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 6979,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 7189,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 7658,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 7676,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8102,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8104,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8106,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8107,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8111,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8112,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8114,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8115,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8116,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8117,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8119,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8120,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8123,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8125,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8126,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8128,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8129,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8130,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8132,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8133,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8134,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8135,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8136,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8138,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8139,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8141,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8142,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8144,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8145,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8146,
+      "scheduledDate": "2025-10-20",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8147,
+      "scheduledDate": "2025-10-20",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8149,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8150,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8151,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8152,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8153,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8155,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8156,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8157,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8158,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8160,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8161,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8162,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8163,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8164,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8165,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8166,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8167,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8168,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8169,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8172,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8173,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8174,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8175,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8176,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8177,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8180,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8181,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8182,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8183,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8184,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8185,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8186,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8188,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8189,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8190,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8191,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8192,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8193,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8194,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8196,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8197,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8201,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8202,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8203,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8205,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8207,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8208,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8209,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8210,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8211,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8213,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8215,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8218,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8219,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8220,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8221,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8222,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8223,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8224,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8225,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8226,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8227,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8228,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8236,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8237,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8238,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8239,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8241,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8242,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8243,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8244,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8245,
+      "scheduledDate": "2025-10-16",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8246,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8247,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8248,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8250,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8251,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8252,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8253,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8254,
+      "scheduledDate": "2025-10-19",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8256,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8257,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8259,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8261,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8262,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8263,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8264,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8265,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8266,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8267,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8268,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8269,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8270,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8271,
+      "scheduledDate": "2025-10-14",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8272,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8273,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8274,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8275,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8276,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8277,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8278,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8279,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8280,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8281,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8282,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8283,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8284,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8285,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8286,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8287,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8288,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8289,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8290,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8291,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8292,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8293,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8294,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8295,
+      "scheduledDate": "2025-10-24",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8296,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8297,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8298,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    },
+    {
+      "storeNbr": 8299,
+      "scheduledDate": "2025-10-12",
+      "demoStatusCode": 2,
+      "demoStatusDesc": "APPROVED"
+    }
+  ],
+  "historyDetails": [
+    {
+      "activityTs": "2025-06-18T16:51:34.461182Z",
+      "actionText": "Event ID 606962 created",
+      "sectionText": "NEW DEMO CREATED",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:02.125632Z",
+      "actionText": "Item ID 990339018 added",
+      "sectionText": "Primary Item Added",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:04.29625Z",
+      "actionText": "Auto Bill Indicator Changed. Demo id = 606962",
+      "sectionText": "Auto Bill Indicator Changed",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:53.041081Z",
+      "actionText": "589 stores added",
+      "sectionText": "Club Inserted",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:57.346406Z",
+      "actionText": "REQUESTED",
+      "sectionText": "STATUS CHANGED",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:57.415504Z",
+      "actionText": "Auto Bill Indicator Changed. Demo id = 606962",
+      "sectionText": "Auto Bill Indicator Changed",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:52:57.460706Z",
+      "actionText": "Demo Cost Changed. Demo id = 606962",
+      "sectionText": "Demo Changed",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:53:25.860389Z",
+      "actionText": "APPROVED",
+      "sectionText": "STATUS CHANGED",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:53:25.860389Z",
+      "actionText": "7.0",
+      "sectionText": "DEMO DURATION HOURS CHANGED",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-06-18T16:53:25.930336Z",
+      "actionText": "Demo Cost Changed. Demo id = 606962",
+      "sectionText": "Demo Changed",
+      "userId": "vn58xyw"
+    },
+    {
+      "activityTs": "2025-07-31T15:28:28.536332Z",
+      "actionText": "1 stores added",
+      "sectionText": "Club Inserted",
+      "userId": "vn56psx"
+    },
+    {
+      "activityTs": "2025-07-31T15:28:29.668Z",
+      "actionText": "Demo Target Club Count Changed. Demo id = 606962",
+      "sectionText": "Demo Changed",
+      "userId": "vn56psx"
+    },
+    {
+      "activityTs": "2025-07-31T15:28:29.669579Z",
+      "actionText": "REQUESTED",
+      "sectionText": "STATUS CHANGED",
+      "userId": "vn56psx"
+    },
+    {
+      "activityTs": "2025-07-31T15:28:39.224693Z",
+      "actionText": "APPROVED",
+      "sectionText": "STATUS CHANGED",
+      "userId": "vn56psx"
+    },
+    {
+      "activityTs": "2025-09-14T21:48:43.127604Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8295",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ri0n62g"
+    },
+    {
+      "activityTs": "2025-09-16T14:28:43.728583Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8228",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ub110sr"
+    },
+    {
+      "activityTs": "2025-09-23T18:34:33.621197Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6369",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "8gx7tz7"
+    },
+    {
+      "activityTs": "2025-09-24T18:15:32.992685Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6643",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "yl0s7vr"
+    },
+    {
+      "activityTs": "2025-09-24T18:35:46.268866Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6636",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "tu7d33e"
+    },
+    {
+      "activityTs": "2025-09-24T19:06:43.634063Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4846",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "0f2l2je"
+    },
+    {
+      "activityTs": "2025-09-25T16:07:31.663088Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6573",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "a06yl7v"
+    },
+    {
+      "activityTs": "2025-09-26T16:08:18.756944Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4946",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "4lj3oh4"
+    },
+    {
+      "activityTs": "2025-09-26T16:18:00.594425Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6533",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "hv14rv0"
+    },
+    {
+      "activityTs": "2025-09-30T19:26:20.475754Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6549",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "fi3pm5e"
+    },
+    {
+      "activityTs": "2025-10-01T19:27:04.44913Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8146",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "h028z2g"
+    },
+    {
+      "activityTs": "2025-10-02T15:11:12.444093Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6517",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "i8et6hw"
+    },
+    {
+      "activityTs": "2025-10-02T21:55:18.996068Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6254",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "it1nx2e"
+    },
+    {
+      "activityTs": "2025-10-03T20:58:19.483956Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6302",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ag1zf45"
+    },
+    {
+      "activityTs": "2025-10-03T21:41:30.117346Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4878",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "02na3qv"
+    },
+    {
+      "activityTs": "2025-10-04T21:22:17.998606Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6310",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "py4vt6f"
+    },
+    {
+      "activityTs": "2025-10-07T14:36:38.16971Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4850",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "3at82o7"
+    },
+    {
+      "activityTs": "2025-10-07T16:39:36.291337Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8271",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "gs1uf7n"
+    },
+    {
+      "activityTs": "2025-10-07T16:55:55.568214Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6693",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "fm4n7ae"
+    },
+    {
+      "activityTs": "2025-10-07T18:30:26.473394Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4962",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ys3zx8o"
+    },
+    {
+      "activityTs": "2025-10-07T21:56:43.449955Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6360",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "40et1lx"
+    },
+    {
+      "activityTs": "2025-10-08T15:54:55.031779Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6327",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "by0cl5d"
+    },
+    {
+      "activityTs": "2025-10-09T00:25:07.107318Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6408",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "oz6tk6q"
+    },
+    {
+      "activityTs": "2025-10-09T16:54:17.202651Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6487",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "kn46xm0"
+    },
+    {
+      "activityTs": "2025-10-09T18:10:35.100602Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6684",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "j7xu2am"
+    },
+    {
+      "activityTs": "2025-10-09T19:27:22.651919Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8245",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "wl8dk3s"
+    },
+    {
+      "activityTs": "2025-10-09T19:34:00.304232Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4728",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "op51jo8"
+    },
+    {
+      "activityTs": "2025-10-09T21:47:44.234381Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6461",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "bk7gm35"
+    },
+    {
+      "activityTs": "2025-10-09T22:11:40.179234Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8107",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "vr1301z"
+    },
+    {
+      "activityTs": "2025-10-10T02:46:38.355321Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6660",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "l88p5xc"
+    },
+    {
+      "activityTs": "2025-10-10T14:49:37.704206Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6575",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "fn1ej38"
+    },
+    {
+      "activityTs": "2025-10-10T15:27:21.741908Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4859",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "zw8lp2o"
+    },
+    {
+      "activityTs": "2025-10-10T16:02:20.401166Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8254",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ge50id6"
+    },
+    {
+      "activityTs": "2025-10-10T17:31:50.357046Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6188",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "3vq7ab5"
+    },
+    {
+      "activityTs": "2025-10-10T17:38:38.319069Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6321",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "4yy8xf4"
+    },
+    {
+      "activityTs": "2025-10-10T17:41:01.146779Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4730",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "n7hu4pq"
+    },
+    {
+      "activityTs": "2025-10-10T18:14:11.83952Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6239",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "4rq08h3"
+    },
+    {
+      "activityTs": "2025-10-10T21:00:04.81464Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4745",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "hd4ei7k"
+    },
+    {
+      "activityTs": "2025-10-10T21:48:09.839479Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 8147",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "2vq40d7"
+    },
+    {
+      "activityTs": "2025-10-11T13:24:16.174065Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 4831",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "1mc7wf2"
+    },
+    {
+      "activityTs": "2025-10-11T14:05:21.617291Z",
+      "actionText": "Schedule date updated. Demo 606962 Club 6678",
+      "sectionText": "DEMO DATE CHANGED",
+      "userId": "ff6n1ki"
+    }
+  ],
+  "demoComment": []
+}

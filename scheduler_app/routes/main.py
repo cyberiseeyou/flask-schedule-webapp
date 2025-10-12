@@ -33,6 +33,37 @@ def dashboard():
     if supervisor:
         supervisor_first_name = supervisor.name.split()[0] if supervisor.name else None
 
+    # Get Primary Lead for today (Lead scheduled for any event today)
+    primary_lead_today = None
+    lead_schedule = db.session.query(
+        Employee
+    ).join(
+        Schedule, Schedule.employee_id == Employee.id
+    ).filter(
+        db.func.date(Schedule.schedule_datetime) == today,
+        Employee.job_title == 'Lead',
+        Employee.is_active == True
+    ).first()
+    if lead_schedule:
+        primary_lead_today = lead_schedule.name
+
+    # Get Juicer for today (Employee scheduled for Juicer Production)
+    juicer_today = None
+    juicer_schedule = db.session.query(
+        Employee, Event
+    ).join(
+        Schedule, Schedule.employee_id == Employee.id
+    ).join(
+        Event, Schedule.event_ref_num == Event.project_ref_num
+    ).filter(
+        db.func.date(Schedule.schedule_datetime) == today,
+        Event.event_type == 'Juicer',
+        Event.project_name.contains('Production'),
+        Employee.is_active == True
+    ).first()
+    if juicer_schedule:
+        juicer_today = juicer_schedule[0].name
+
     # Get today's Core events and Juicer Production events (scheduled)
     today_core_events = db.session.query(
         Schedule, Event, Employee
@@ -148,6 +179,8 @@ def dashboard():
 
     return render_template('index.html',
                          supervisor_first_name=supervisor_first_name,
+                         primary_lead_today=primary_lead_today,
+                         juicer_today=juicer_today,
                          today_core_events=today_core_events,
                          tomorrow_core_events=tomorrow_core_events,
                          unscheduled_events_2weeks=unscheduled_events_2weeks,
@@ -366,7 +399,9 @@ def calendar_day_view(date):
             'time': schedule.schedule_datetime.strftime('%I:%M %p'),
             'datetime': schedule.schedule_datetime.isoformat(),
             'store_name': event.store_name,
-            'estimated_time': event.estimated_time
+            'estimated_time': event.estimated_time,
+            'start_date': event.start_datetime.strftime('%m/%d/%Y'),
+            'due_date': event.due_datetime.strftime('%m/%d/%Y')
         })
 
     return jsonify({

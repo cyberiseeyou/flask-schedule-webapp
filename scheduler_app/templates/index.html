@@ -416,6 +416,22 @@
                 Welcome {% if supervisor_first_name %}{{ supervisor_first_name }}{% else %}Club Supervisor{% endif %}
             </h2>
             <p class="welcome-subtitle">{{ today.strftime('%A, %B %d, %Y') }}</p>
+
+            <!-- Primary Lead and Juicer for Today -->
+            <div style="display: flex; gap: 2rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap;">
+                <div style="text-align: center; padding: 1rem 2rem; background: rgba(46, 76, 115, 0.1); border-radius: 8px; border-left: 4px solid var(--pc-navy);">
+                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px;">Primary Lead</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--pc-navy);">
+                        {% if primary_lead_today %}{{ primary_lead_today }}{% else %}Not Scheduled{% endif %}
+                    </div>
+                </div>
+                <div style="text-align: center; padding: 1rem 2rem; background: rgba(27, 155, 216, 0.1); border-radius: 8px; border-left: 4px solid var(--pc-blue);">
+                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px;">Juicer</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--pc-blue);">
+                        {% if juicer_today %}{{ juicer_today }}{% else %}Not Scheduled{% endif %}
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -439,54 +455,6 @@
         </div>
     </div>
 
-    <!-- Auto-Scheduler Section -->
-    <div id="auto-scheduler-notification" style="display: none; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); animation: pulse 2s ease-in-out infinite;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div style="flex: 1;">
-                <h3 style="margin: 0 0 5px 0; font-size: 1.3rem;">⚠️ Pending Schedule Proposal</h3>
-                <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">A proposed schedule is ready for your review.</p>
-            </div>
-            <a href="{{ url_for('auto_scheduler.review') }}" class="btn" style="background: white; color: #e67e22; font-weight: bold; padding: 12px 24px; text-decoration: none; border-radius: 4px; transition: transform 0.2s;">
-                Review Now
-            </a>
-        </div>
-    </div>
-
-    <style>
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); }
-        50% { transform: scale(1.01); box-shadow: 0 6px 16px rgba(243, 156, 18, 0.4); }
-    }
-    </style>
-
-    <!-- Auto-Scheduler Controls -->
-    <div class="dashboard-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); border-left: 4px solid #27ae60;">
-        <div class="section-header">
-            <h3 class="section-title">🤖 Auto-Scheduler</h3>
-            <a href="{{ url_for('rotations.index') }}" class="btn btn-outline" style="font-size: 0.9em; padding: 0.5rem 1rem;">
-                Configure Rotations
-            </a>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: center;">
-            <div>
-                <p style="color: var(--text-secondary); margin-bottom: 15px; line-height: 1.6;">
-                    The auto-scheduler will analyze unscheduled events within the next 3 weeks and create
-                    assignment proposals based on weekly rotations, employee availability, and event priorities.
-                </p>
-                <div style="display: flex; gap: 12px; align-items: center;">
-                    <button onclick="runAutoScheduler()" id="auto-schedule-btn" class="btn btn-primary">
-                        Run Auto-Scheduler
-                    </button>
-                    <span id="auto-schedule-status" style="color: var(--text-muted); font-size: 0.9rem;"></span>
-                </div>
-            </div>
-            <div id="last-run-info" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 5px;">Last Run</div>
-                <div id="last-run-time" style="font-weight: 600; color: #2c3e50;">Never</div>
-            </div>
-        </div>
-    </div>
 
     <!-- Main Dashboard Sections -->
     <div class="dashboard-sections">
@@ -495,34 +463,70 @@
             <div class="section-header">
                 <h3 class="section-title">Today's Core Events</h3>
             </div>
-            
-            <!-- Core Time Slots Summary -->
+
+            <!-- Core Time Slots with Employee Names -->
             <div class="time-slot-grid">
                 <div class="time-slot">
                     <div class="time-slot-time">9:45 AM</div>
-                    <div class="time-slot-count">{{ core_time_slots['9:45'] }}</div>
+                    <div class="time-slot-employees">
+                        {% for schedule, event, employee in today_core_events %}
+                            {% if schedule.schedule_datetime.strftime('%H:%M') == '09:45' %}
+                                <div style="font-size: 0.9rem; color: var(--pc-navy); font-weight: 500; margin-bottom: 0.25rem;">{{ employee.name }}</div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if core_time_slots['9:45'] == 0 %}
+                            <div style="font-size: 0.9rem; color: var(--text-muted); font-style: italic;">None</div>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="time-slot">
                     <div class="time-slot-time">10:30 AM</div>
-                    <div class="time-slot-count">{{ core_time_slots['10:30'] }}</div>
+                    <div class="time-slot-employees">
+                        {% for schedule, event, employee in today_core_events %}
+                            {% if schedule.schedule_datetime.strftime('%H:%M') == '10:30' %}
+                                <div style="font-size: 0.9rem; color: var(--pc-navy); font-weight: 500; margin-bottom: 0.25rem;">{{ employee.name }}</div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if core_time_slots['10:30'] == 0 %}
+                            <div style="font-size: 0.9rem; color: var(--text-muted); font-style: italic;">None</div>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="time-slot">
                     <div class="time-slot-time">11:00 AM</div>
-                    <div class="time-slot-count">{{ core_time_slots['11:00'] }}</div>
+                    <div class="time-slot-employees">
+                        {% for schedule, event, employee in today_core_events %}
+                            {% if schedule.schedule_datetime.strftime('%H:%M') == '11:00' %}
+                                <div style="font-size: 0.9rem; color: var(--pc-navy); font-weight: 500; margin-bottom: 0.25rem;">{{ employee.name }}</div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if core_time_slots['11:00'] == 0 %}
+                            <div style="font-size: 0.9rem; color: var(--text-muted); font-style: italic;">None</div>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="time-slot">
                     <div class="time-slot-time">11:30 AM</div>
-                    <div class="time-slot-count">{{ core_time_slots['11:30'] }}</div>
+                    <div class="time-slot-employees">
+                        {% for schedule, event, employee in today_core_events %}
+                            {% if schedule.schedule_datetime.strftime('%H:%M') == '11:30' %}
+                                <div style="font-size: 0.9rem; color: var(--pc-navy); font-weight: 500; margin-bottom: 0.25rem;">{{ employee.name }}</div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if core_time_slots['11:30'] == 0 %}
+                            <div style="font-size: 0.9rem; color: var(--text-muted); font-style: italic;">None</div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
-            <!-- Core Events List -->
+            <!-- Core Events List (no scrollbar, clickable) -->
             {% if today_core_events %}
-                <div class="core-events-list">
+                <div class="core-events-list" style="max-height: none; overflow-y: visible;">
                     {% for schedule, event, employee in today_core_events %}
-                    <div class="core-event-item">
+                    <div class="core-event-item" style="cursor: pointer;" onclick="showEventDetails({{ schedule.id }}, '{{ event.project_ref_num }}', '{{ event.project_name|replace("'", "\\'") }}', '{{ employee.name|replace("'", "\\'") if employee else "Unassigned" }}', '{{ schedule.schedule_datetime.strftime('%m-%d-%Y') }}', '{{ schedule.schedule_datetime.strftime('%I:%M %p') }}', '{{ event.start_datetime.strftime('%m-%d-%Y') }}', '{{ event.due_datetime.strftime('%m-%d-%Y') }}', '{{ event.event_type }}')">
                         <div class="core-event-time">{{ schedule.schedule_datetime.strftime('%I:%M %p') }}</div>
-                        <div class="core-event-employee">{{ employee.name }}</div>
+                        <div class="core-event-employee">{{ employee.name if employee else 'Unassigned' }}</div>
                         <div class="core-event-name" title="{{ event.project_name }}">{{ event.project_name }}</div>
                     </div>
                     {% endfor %}
@@ -606,30 +610,6 @@
             {% endif %}
         </div>
 
-        <!-- External API Sync Status -->
-        <div class="dashboard-section" id="sync-status-section">
-            <div class="section-header">
-                <h3 class="section-title">External API Sync Status</h3>
-                <button onclick="refreshSyncStatus()" class="btn btn-outline" style="font-size: 0.9em; padding: 0.5rem 1rem;">
-                    Refresh Status
-                </button>
-            </div>
-
-            <div id="sync-status-content">
-                <div class="loading-indicator" style="text-align: center; padding: 2rem;">
-                    Loading sync status...
-                </div>
-            </div>
-
-            <div class="sync-actions" style="margin-top: var(--spacing-md); text-align: center;">
-                <button onclick="triggerManualSync()" class="btn btn-primary" id="manual-sync-btn">
-                    Manual Sync
-                </button>
-                <a href="{{ url_for('admin.sync_admin') }}" class="btn btn-outline">
-                    Sync Settings
-                </a>
-            </div>
-        </div>
     </div>
 
     <!-- Flash messages -->
@@ -665,10 +645,622 @@
             </div>
         </div>
     </div>
+
+    <!-- Event Details Modal -->
+    <div id="event-details-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+        <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 600px; width: 90%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); margin: 2rem auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid var(--pc-light-blue);">
+                <h3 style="margin: 0; color: var(--pc-navy); font-size: 1.5rem;">Event Details</h3>
+                <button onclick="closeEventDetails()" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; padding: 0; width: 30px; height: 30px;">&times;</button>
+            </div>
+
+            <div id="event-details-content" style="margin-bottom: 1.5rem;">
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.75rem 1rem; margin-bottom: 1.5rem;">
+                    <div style="font-weight: 600; color: var(--text-secondary);">Event Number:</div>
+                    <div id="detail-event-number" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Event Name:</div>
+                    <div id="detail-event-name" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Event Type:</div>
+                    <div id="detail-event-type" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Scheduled Employee:</div>
+                    <div id="detail-employee" style="color: var(--pc-navy); font-weight: 500;"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Scheduled Date:</div>
+                    <div id="detail-scheduled-date" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Scheduled Time:</div>
+                    <div id="detail-scheduled-time" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Event Start Date:</div>
+                    <div id="detail-start-date" style="color: var(--text-primary);"></div>
+
+                    <div style="font-weight: 600; color: var(--text-secondary);">Event Due Date:</div>
+                    <div id="detail-due-date" style="color: var(--text-primary);"></div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                <button onclick="rescheduleEvent()" class="btn btn-primary" style="width: 100%;">Reschedule</button>
+                <button onclick="unscheduleEvent()" class="btn btn-secondary" style="width: 100%;">Unschedule</button>
+                <button onclick="changeEmployee()" class="btn btn-primary" style="width: 100%;">Change Employee</button>
+                <button onclick="printEDR()" class="btn" style="width: 100%; background: var(--pc-navy); color: white;">Print EDR</button>
+                <button onclick="printInstructions()" class="btn" style="width: 100%; background: var(--pc-blue); color: white;">Print Instructions</button>
+                <button onclick="printBoth()" class="btn btn-primary" style="width: 100%;">Print Both</button>
+            </div>
+
+            <div style="text-align: center; margin-top: 1rem;">
+                <button onclick="closeEventDetails()" class="btn btn-outline" style="min-width: 120px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reschedule Event Modal -->
+    <div class="modal-backdrop" id="reschedule-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1001; align-items: center; justify-content: center;">
+        <div class="action-modal" style="background: var(--bg-primary); border-radius: var(--border-radius-lg); padding: var(--spacing-xl); max-width: 500px; max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow-lg); position: relative;">
+            <button class="modal-close" onclick="closeModal('reschedule-modal')" style="position: absolute; top: var(--spacing-md); right: var(--spacing-md); background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            <h3 style="margin-top: 0; color: var(--text-primary); border-bottom: 2px solid var(--pc-light-blue); padding-bottom: var(--spacing-sm);">Reschedule Event</h3>
+            <form id="reschedule-form">
+                <input type="hidden" id="reschedule-schedule-id">
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">Event:</label>
+                    <div id="reschedule-event-info"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label for="reschedule-date" style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">New Date:</label>
+                    <input type="date" id="reschedule-date" required style="width: 100%; padding: var(--spacing-sm); border: 1px solid #ddd; border-radius: var(--border-radius-sm); box-sizing: border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label for="reschedule-time" style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">New Time:</label>
+                    <input type="time" id="reschedule-time" required style="width: 100%; padding: var(--spacing-sm); border: 1px solid #ddd; border-radius: var(--border-radius-sm); box-sizing: border-box;">
+                    <select id="reschedule-time-dropdown" class="hidden" style="width: 100%; padding: var(--spacing-sm); border: 1px solid #ddd; border-radius: var(--border-radius-sm); box-sizing: border-box; display: none;">
+                        <option value="">Select a time</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label for="reschedule-employee" style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">Employee:</label>
+                    <select id="reschedule-employee" required style="width: 100%; padding: var(--spacing-sm); border: 1px solid #ddd; border-radius: var(--border-radius-sm); box-sizing: border-box;">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="modal-actions" style="display: flex; gap: var(--spacing-sm); justify-content: flex-end; margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid #ddd;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('reschedule-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Reschedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Employee Modal -->
+    <div class="modal-backdrop" id="change-employee-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1001; align-items: center; justify-content: center;">
+        <div class="action-modal" style="background: var(--bg-primary); border-radius: var(--border-radius-lg); padding: var(--spacing-xl); max-width: 500px; max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow-lg); position: relative;">
+            <button class="modal-close" onclick="closeModal('change-employee-modal')" style="position: absolute; top: var(--spacing-md); right: var(--spacing-md); background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            <h3 style="margin-top: 0; color: var(--text-primary); border-bottom: 2px solid var(--pc-light-blue); padding-bottom: var(--spacing-sm);">Change Employee</h3>
+            <form id="change-employee-form">
+                <input type="hidden" id="change-schedule-id">
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">Event Details:</label>
+                    <div id="change-event-info"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label for="change-new-employee" style="display: block; margin-bottom: var(--spacing-xs); font-weight: var(--font-weight-bold); color: var(--text-primary);">New Employee:</label>
+                    <select id="change-new-employee" required style="width: 100%; padding: var(--spacing-sm); border: 1px solid #ddd; border-radius: var(--border-radius-sm); box-sizing: border-box;">
+                        <option value="">Select new employee...</option>
+                    </select>
+                </div>
+                <div class="modal-actions" style="display: flex; gap: var(--spacing-sm); justify-content: flex-end; margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid #ddd;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('change-employee-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Change Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Global variables for event details modal
+let currentEventScheduleId = null;
+let currentEventRefNum = null;
+let currentEventType = null;
+
+// Show Event Details Modal
+function showEventDetails(scheduleId, eventRefNum, eventName, employeeName, scheduledDate, scheduledTime, startDate, dueDate, eventType) {
+    currentEventScheduleId = scheduleId;
+    currentEventRefNum = eventRefNum;
+    currentEventType = eventType;
+
+    // Populate modal fields
+    document.getElementById('detail-event-number').textContent = eventRefNum;
+    document.getElementById('detail-event-name').textContent = eventName;
+    document.getElementById('detail-event-type').textContent = eventType;
+    document.getElementById('detail-employee').textContent = employeeName;
+    document.getElementById('detail-scheduled-date').textContent = scheduledDate;
+    document.getElementById('detail-scheduled-time').textContent = scheduledTime;
+    document.getElementById('detail-start-date').textContent = startDate;
+    document.getElementById('detail-due-date').textContent = dueDate;
+
+    // Show modal
+    const modal = document.getElementById('event-details-modal');
+    modal.style.display = 'flex';
+}
+
+// Close Event Details Modal
+function closeEventDetails() {
+    const modal = document.getElementById('event-details-modal');
+    modal.style.display = 'none';
+    currentEventScheduleId = null;
+    currentEventRefNum = null;
+    currentEventType = null;
+}
+
+// Reschedule Event
+function rescheduleEvent() {
+    if (!currentEventScheduleId) return;
+
+    const eventName = document.getElementById('detail-event-name').textContent;
+    const eventType = document.getElementById('detail-event-type').textContent;
+    const currentTime = document.getElementById('detail-scheduled-time').textContent;
+    const employeeName = document.getElementById('detail-employee').textContent;
+    const currentDate = document.getElementById('detail-scheduled-date').textContent;
+
+    openRescheduleModal(currentEventScheduleId, eventName, eventType, currentTime, employeeName, convertDateToISO(currentDate));
+}
+
+// Unschedule Event
+function unscheduleEvent() {
+    if (!currentEventScheduleId) return;
+
+    if (confirm('Are you sure you want to unschedule this event? This will remove the schedule assignment.')) {
+        // Get CSRF token
+        const csrfToken = window.getCsrfToken ? window.getCsrfToken() : null;
+
+        fetch(`/api/unschedule/${currentEventScheduleId}`, {
+            method: 'DELETE',
+            headers: csrfToken ? {
+                'X-CSRF-Token': csrfToken
+            } : {}
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(`Server returned ${response.status}: ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert('Event unscheduled successfully');
+                closeEventDetails();
+                location.reload();
+            } else {
+                alert('Error unscheduling event: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Unschedule error:', error);
+            alert('Error unscheduling event: ' + error.message);
+        });
+    }
+}
+
+// Change Employee
+function changeEmployee() {
+    if (!currentEventScheduleId) return;
+
+    const eventName = document.getElementById('detail-event-name').textContent;
+    const eventType = document.getElementById('detail-event-type').textContent;
+    const time = document.getElementById('detail-scheduled-time').textContent;
+    const employeeName = document.getElementById('detail-employee').textContent;
+    const date = document.getElementById('detail-scheduled-date').textContent;
+
+    openChangeEmployeeModal(currentEventScheduleId, eventName, eventType, time, employeeName, convertDateToISO(date));
+}
+
+// Helper function to convert MM-DD-YYYY to YYYY-MM-DD
+function convertDateToISO(dateStr) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        return `${parts[2]}-${parts[0]}-${parts[1]}`; // Convert MM-DD-YYYY to YYYY-MM-DD
+    }
+    return dateStr;
+}
+
+// Modal management
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Reschedule Modal Functions
+function openRescheduleModal(scheduleId, eventName, eventType, currentTime, employeeName, currentDate) {
+    try {
+        document.getElementById('reschedule-schedule-id').value = scheduleId;
+        document.getElementById('reschedule-event-info').innerHTML = `
+            <strong>${eventName}</strong> (${eventType})<br>
+            Current: ${currentDate} at ${currentTime} with ${employeeName}
+        `;
+
+        // Convert displayed time to 24-hour format for comparison
+        const time24 = convertTo24Hour(currentTime);
+
+        // Set up time restrictions for event type
+        setupTimeRestrictions('reschedule', eventType, time24);
+
+        // Load available employees with role-based filtering
+        loadAvailableEmployeesForReschedule('reschedule-employee', currentDate, eventType);
+
+        document.getElementById('reschedule-modal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error opening reschedule modal:', error);
+        alert('Error opening reschedule modal. Please try again.');
+    }
+}
+
+// Change Employee Modal Functions
+function openChangeEmployeeModal(scheduleId, eventName, eventType, time, employeeName, date) {
+    try {
+        document.getElementById('change-schedule-id').value = scheduleId;
+        document.getElementById('change-event-info').innerHTML = `
+            <strong>${eventName}</strong> (${eventType})<br>
+            Date: ${date} at ${time}<br>
+            Current Employee: ${employeeName}
+        `;
+
+        // Load available employees for this date
+        loadAvailableEmployeesForChange(date, eventType);
+
+        document.getElementById('change-employee-modal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error opening change employee modal:', error);
+        alert('Error opening change employee modal. Please try again.');
+    }
+}
+
+// Helper function to setup time restrictions
+function setupTimeRestrictions(prefix, eventType, currentTime) {
+    const timeInput = document.getElementById(prefix + '-time');
+    const timeDropdown = document.getElementById(prefix + '-time-dropdown');
+
+    const timeRestrictions = {
+        'Core': ['09:45', '10:30', '11:00', '11:30'],
+        'Supervisor': ['12:00'],
+        'Freeosk': ['09:00', '12:00'],
+        'Digitals': ['09:15', '09:30', '09:45', '10:00']
+    };
+
+    if (timeRestrictions[eventType]) {
+        timeInput.style.display = 'none';
+        timeInput.required = false;
+        timeDropdown.style.display = 'block';
+        timeDropdown.required = true;
+
+        timeDropdown.innerHTML = '<option value="">Select a time</option>';
+        timeRestrictions[eventType].forEach(time => {
+            const option = document.createElement('option');
+            option.value = time;
+            option.textContent = formatTime(time);
+            if (currentTime && time === currentTime) {
+                option.selected = true;
+            }
+            timeDropdown.appendChild(option);
+        });
+    } else {
+        timeInput.style.display = 'block';
+        timeInput.required = true;
+        timeDropdown.style.display = 'none';
+        timeDropdown.required = false;
+    }
+}
+
+// Helper function to format time
+function formatTime(time24) {
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+}
+
+// Helper function to convert 12-hour time to 24-hour time
+function convertTo24Hour(time12) {
+    if (!time12 || !time12.includes(':')) {
+        return time12;
+    }
+
+    const [time, modifier] = time12.split(' ');
+    if (!modifier) {
+        return time12;
+    }
+
+    const [hours, minutes] = time.split(':');
+    let hour = parseInt(hours);
+
+    if (modifier.toUpperCase() === 'PM' && hour !== 12) {
+        hour += 12;
+    } else if (modifier.toUpperCase() === 'AM' && hour === 12) {
+        hour = 0;
+    }
+
+    return `${hour.toString().padStart(2, '0')}:${minutes}`;
+}
+
+// Load available employees functions
+function loadAvailableEmployeesForReschedule(selectId, date, eventType) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    fetch(`/api/available_employees_for_change/${date}/${eventType}`)
+        .then(response => response.json())
+        .then(employees => {
+            select.innerHTML = '<option value="">Select an employee</option>';
+            employees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee.id;
+                option.textContent = `${employee.name} (${employee.job_title})`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading employees:', error);
+            select.innerHTML = '<option value="">Error loading employees</option>';
+        });
+}
+
+function loadAvailableEmployeesForChange(date, eventType) {
+    const select = document.getElementById('change-new-employee');
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    fetch(`/api/available_employees_for_change/${date}/${eventType}`)
+        .then(response => response.json())
+        .then(employees => {
+            select.innerHTML = '<option value="">Select new employee...</option>';
+            employees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee.id;
+                option.textContent = `${employee.name} (${employee.job_title})`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading employees:', error);
+            select.innerHTML = '<option value="">Error loading employees</option>';
+        });
+}
+
+// Form submission handlers
+document.addEventListener('DOMContentLoaded', function() {
+    // Reschedule form submission
+    document.getElementById('reschedule-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const scheduleId = document.getElementById('reschedule-schedule-id').value;
+        const date = document.getElementById('reschedule-date').value;
+        const timeInput = document.getElementById('reschedule-time');
+        const timeDropdown = document.getElementById('reschedule-time-dropdown');
+        const time = timeDropdown.style.display !== 'none' ? timeDropdown.value : timeInput.value;
+        const employeeId = document.getElementById('reschedule-employee').value;
+
+        if (!date || !time || !employeeId) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        fetch('/api/reschedule_event', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                schedule_id: parseInt(scheduleId),
+                date: date,
+                time: time,
+                employee_id: employeeId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeModal('reschedule-modal');
+                closeEventDetails();
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error rescheduling event');
+        });
+    });
+
+    // Change employee form submission
+    document.getElementById('change-employee-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const scheduleId = document.getElementById('change-schedule-id').value;
+        const newEmployeeId = document.getElementById('change-new-employee').value;
+
+        if (!newEmployeeId) {
+            alert('Please select a new employee');
+            return;
+        }
+
+        fetch('/api/change_employee', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                schedule_id: parseInt(scheduleId),
+                employee_id: newEmployeeId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeModal('change-employee-modal');
+                closeEventDetails();
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error changing employee');
+        });
+    });
+
+    // Close modals when clicking outside
+    document.querySelectorAll('.modal-backdrop').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal(this.id);
+            }
+        });
+    });
+});
+
+// Print EDR
+function printEDR() {
+    if (!currentEventRefNum) return;
+
+    // Show loading message
+    const statusDiv = document.createElement('div');
+    statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--pc-navy); color: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;';
+    statusDiv.textContent = 'Generating EDR report...';
+    document.body.appendChild(statusDiv);
+
+    // Request EDR for this specific event
+    fetch(`/api/edr_reports/generate_single/${currentEventRefNum}`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        } else {
+            return response.json().then(err => {
+                throw new Error(err.error || 'Failed to generate EDR');
+            });
+        }
+    })
+    .then(blob => {
+        // Download the PDF
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `EDR_${currentEventRefNum}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        statusDiv.style.background = '#27ae60';
+        statusDiv.textContent = 'EDR generated successfully!';
+        setTimeout(() => document.body.removeChild(statusDiv), 3000);
+    })
+    .catch(error => {
+        statusDiv.style.background = '#e74c3c';
+        statusDiv.textContent = 'Error: ' + error.message;
+        setTimeout(() => document.body.removeChild(statusDiv), 5000);
+    });
+}
+
+// Print Instructions
+function printInstructions() {
+    if (!currentEventRefNum) return;
+
+    // Show loading message
+    const statusDiv = document.createElement('div');
+    statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--pc-navy); color: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;';
+    statusDiv.textContent = 'Generating instructions...';
+    document.body.appendChild(statusDiv);
+
+    // Request instructions for this specific event
+    fetch(`/api/instructions/generate/${currentEventRefNum}`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        } else {
+            return response.json().then(err => {
+                throw new Error(err.error || 'Failed to generate instructions');
+            });
+        }
+    })
+    .then(blob => {
+        // Download the PDF
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Instructions_${currentEventRefNum}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        statusDiv.style.background = '#27ae60';
+        statusDiv.textContent = 'Instructions generated successfully!';
+        setTimeout(() => document.body.removeChild(statusDiv), 3000);
+    })
+    .catch(error => {
+        statusDiv.style.background = '#e74c3c';
+        statusDiv.textContent = 'Error: ' + error.message;
+        setTimeout(() => document.body.removeChild(statusDiv), 5000);
+    });
+}
+
+// Print Both (EDR and Instructions)
+function printBoth() {
+    if (!currentEventRefNum) return;
+
+    // Show loading message
+    const statusDiv = document.createElement('div');
+    statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--pc-navy); color: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;';
+    statusDiv.textContent = 'Generating EDR and Instructions...';
+    document.body.appendChild(statusDiv);
+
+    // Request both EDR and instructions
+    fetch(`/api/paperwork/generate_both/${currentEventRefNum}`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        } else {
+            return response.json().then(err => {
+                throw new Error(err.error || 'Failed to generate paperwork');
+            });
+        }
+    })
+    .then(blob => {
+        // Download the PDF
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Paperwork_${currentEventRefNum}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        statusDiv.style.background = '#27ae60';
+        statusDiv.textContent = 'Paperwork generated successfully!';
+        setTimeout(() => document.body.removeChild(statusDiv), 3000);
+    })
+    .catch(error => {
+        statusDiv.style.background = '#e74c3c';
+        statusDiv.textContent = 'Error: ' + error.message;
+        setTimeout(() => document.body.removeChild(statusDiv), 5000);
+    });
+}
+
 // Print today's schedule functionality - matching calendar format exactly
 function printTodaySchedule() {
     // Use explicit date formatting to avoid timezone issues
@@ -930,156 +1522,7 @@ function generatePrintableSchedule(dateStr, printableEvents) {
     `;
 }
 
-// Sync status management functions
-function refreshSyncStatus() {
-    const syncContent = document.getElementById('sync-status-content');
-    syncContent.innerHTML = '<div class="loading-indicator" style="text-align: center; padding: 2rem;">Refreshing sync status...</div>';
-
-    fetch('/api/sync/status')
-        .then(response => response.json())
-        .then(data => {
-            renderSyncStatus(data);
-        })
-        .catch(error => {
-            console.error('Failed to fetch sync status:', error);
-            syncContent.innerHTML = `
-                <div class="error-message" style="text-align: center; padding: 2rem; color: var(--color-error);">
-                    Failed to load sync status: ${error.message}
-                </div>
-            `;
-        });
-}
-
-function renderSyncStatus(data) {
-    const syncContent = document.getElementById('sync-status-content');
-
-    if (!data.sync_enabled) {
-        syncContent.innerHTML = `
-            <div class="sync-disabled-message" style="text-align: center; padding: 2rem; background: #f5f5f5; border-radius: 8px;">
-                <h4 style="color: #666; margin: 0 0 1rem 0;">External API Sync is Disabled</h4>
-                <p style="color: #888; margin: 0;">Configure SYNC_ENABLED=true in your environment to enable synchronization</p>
-            </div>
-        `;
-        return;
-    }
-
-    const statusColor = (pending, failed) => {
-        if (failed > 0) return '#e74c3c';
-        if (pending > 0) return '#f39c12';
-        return '#27ae60';
-    };
-
-    syncContent.innerHTML = `
-        <div class="sync-status-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem;">
-            <div class="sync-stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
-                <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">Employees</h4>
-                <div style="font-size: 1.2rem; font-weight: bold; color: ${statusColor(data.employees.pending, data.employees.failed)};">
-                    ${data.employees.synced} synced
-                </div>
-                <div style="font-size: 0.9rem; color: #666;">
-                    ${data.employees.pending} pending, ${data.employees.failed} failed
-                </div>
-                ${data.employees.last_sync ? `<div style="font-size: 0.8rem; color: #999; margin-top: 0.5rem;">Last: ${formatSyncDate(data.employees.last_sync)}</div>` : ''}
-            </div>
-
-            <div class="sync-stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
-                <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">Events</h4>
-                <div style="font-size: 1.2rem; font-weight: bold; color: ${statusColor(data.events.pending, data.events.failed)};">
-                    ${data.events.synced} synced
-                </div>
-                <div style="font-size: 0.9rem; color: #666;">
-                    ${data.events.pending} pending, ${data.events.failed} failed
-                </div>
-                ${data.events.last_sync ? `<div style="font-size: 0.8rem; color: #999; margin-top: 0.5rem;">Last: ${formatSyncDate(data.events.last_sync)}</div>` : ''}
-            </div>
-
-            <div class="sync-stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">
-                <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">Schedules</h4>
-                <div style="font-size: 1.2rem; font-weight: bold; color: ${statusColor(data.schedules.pending, data.schedules.failed)};">
-                    ${data.schedules.synced} synced
-                </div>
-                <div style="font-size: 0.9rem; color: #666;">
-                    ${data.schedules.pending} pending, ${data.schedules.failed} failed
-                </div>
-                ${data.schedules.last_sync ? `<div style="font-size: 0.8rem; color: #999; margin-top: 0.5rem;">Last: ${formatSyncDate(data.schedules.last_sync)}</div>` : ''}
-            </div>
-        </div>
-
-        <div id="api-health-status" style="margin-top: 1rem;">
-            <div style="font-size: 0.9rem; color: #666; text-align: center;">
-                Checking API connectivity...
-            </div>
-        </div>
-    `;
-
-    // Check API health
-    fetch('/api/sync/health')
-        .then(response => response.json())
-        .then(healthData => {
-            const healthDiv = document.getElementById('api-health-status');
-            const status = healthData.external_api?.status || 'unknown';
-            const statusColors = {
-                'healthy': '#27ae60',
-                'unhealthy': '#e74c3c',
-                'disabled': '#95a5a6',
-                'unknown': '#f39c12'
-            };
-
-            healthDiv.innerHTML = `
-                <div style="text-align: center; padding: 0.5rem; background: ${statusColors[status]}15; border-radius: 4px; border-left: 4px solid ${statusColors[status]};">
-                    <strong>API Status:</strong>
-                    <span style="color: ${statusColors[status]}; text-transform: capitalize;">${status}</span>
-                    ${healthData.external_api?.message ? ` - ${healthData.external_api.message}` : ''}
-                </div>
-            `;
-        })
-        .catch(() => {
-            document.getElementById('api-health-status').innerHTML = `
-                <div style="text-align: center; color: #e74c3c;">
-                    Failed to check API health
-                </div>
-            `;
-        });
-}
-
-function triggerManualSync() {
-    const syncBtn = document.getElementById('manual-sync-btn');
-    const originalText = syncBtn.textContent;
-
-    syncBtn.disabled = true;
-    syncBtn.textContent = 'Syncing...';
-
-    fetch('/api/sync/trigger', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success' || data.status === 'partial') {
-                alert(`Sync completed: ${data.status}\n\nEmployees: ${data.employees?.synced || 0} synced, ${data.employees?.errors || 0} errors\nEvents: ${data.events?.synced || 0} synced, ${data.events?.errors || 0} errors\nSchedules: ${data.schedules?.synced || 0} synced, ${data.schedules?.errors || 0} errors`);
-                refreshSyncStatus();
-            } else {
-                alert(`Sync failed: ${data.message || 'Unknown error'}`);
-            }
-        })
-        .catch(error => {
-            console.error('Sync failed:', error);
-            alert(`Sync failed: ${error.message}`);
-        })
-        .finally(() => {
-            syncBtn.disabled = false;
-            syncBtn.textContent = originalText;
-        });
-}
-
-function formatSyncDate(dateStr) {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return date.toLocaleDateString();
-}
+// Sync status functions removed - moved to dedicated Sync Settings page
 
 // Global variable to track pending paperwork type
 let pendingPaperworkType = null;
@@ -1533,78 +1976,7 @@ function generatePaperwork(type) {
         });
 }
 
-// Auto-scheduler functions
-function checkPendingProposal() {
-    fetch('{{ url_for("auto_scheduler.dashboard_status") }}')
-        .then(response => response.json())
-        .then(data => {
-            const notification = document.getElementById('auto-scheduler-notification');
-            if (data.has_pending) {
-                notification.style.display = 'block';
-            } else {
-                notification.style.display = 'none';
-            }
-        })
-        .catch(error => {
-            console.error('Failed to check pending proposals:', error);
-        });
-}
-
-function runAutoScheduler() {
-    const btn = document.getElementById('auto-schedule-btn');
-    const statusSpan = document.getElementById('auto-schedule-status');
-
-    btn.disabled = true;
-    btn.textContent = 'Running...';
-    statusSpan.textContent = 'Analyzing events...';
-
-    fetch('{{ url_for("auto_scheduler.run_scheduler") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            statusSpan.style.color = '#27ae60';
-            statusSpan.textContent = `✓ Completed: ${data.stats.events_scheduled} scheduled, ${data.stats.events_requiring_swaps} swaps, ${data.stats.events_failed} failed`;
-
-            // Update last run time
-            const lastRunTime = document.getElementById('last-run-time');
-            lastRunTime.textContent = 'Just now';
-
-            // Check for pending proposals
-            setTimeout(() => {
-                checkPendingProposal();
-            }, 500);
-
-            // Show success message
-            setTimeout(() => {
-                if (data.stats.events_scheduled > 0 || data.stats.events_requiring_swaps > 0) {
-                    if (confirm('Auto-scheduler completed successfully! Would you like to review the proposals now?')) {
-                        window.location.href = '{{ url_for("auto_scheduler.review") }}';
-                    }
-                } else {
-                    alert('Auto-scheduler completed but found no events to schedule in the next 3 weeks.');
-                }
-            }, 1000);
-        } else {
-            statusSpan.style.color = '#e74c3c';
-            statusSpan.textContent = `Error: ${data.error}`;
-            alert('Auto-scheduler failed: ' + data.error);
-        }
-    })
-    .catch(error => {
-        statusSpan.style.color = '#e74c3c';
-        statusSpan.textContent = `Failed: ${error.message}`;
-        alert('Failed to run auto-scheduler: ' + error.message);
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.textContent = 'Run Auto-Scheduler';
-    });
-}
+// Removed auto-scheduler functions - moved to dedicated Auto-Scheduler page
 
 // EDR Reports generation function
 function generateEDRReports() {
@@ -1682,10 +2054,6 @@ function showMFAModalForEDR() {
     input.focus();
 }
 
-// Load sync status and check for pending proposals on page load
-document.addEventListener('DOMContentLoaded', function() {
-    refreshSyncStatus();
-    checkPendingProposal();
-});
+// No page load initialization needed for dashboard anymore
 </script>
 {% endblock %}

@@ -1,0 +1,558 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Validation Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .health-score-card {
+        text-align: center;
+        padding: 30px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .health-score-value {
+        font-size: 64px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+
+    .health-score-label {
+        font-size: 18px;
+        opacity: 0.9;
+    }
+
+    .metric-card {
+        border-left: 4px solid #667eea;
+        padding: 20px;
+        margin-bottom: 15px;
+        background: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .metric-card h5 {
+        margin-top: 0;
+        color: #333;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+        font-size: 36px;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .metric-label {
+        color: #666;
+        font-size: 14px;
+    }
+
+    .event-type-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        margin-bottom: 8px;
+        border-radius: 5px;
+        background: #f8f9fa;
+    }
+
+    .event-type-name {
+        font-weight: 600;
+        font-size: 16px;
+    }
+
+    .event-counts {
+        display: flex;
+        gap: 20px;
+    }
+
+    .count-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .count-scheduled {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .count-unscheduled {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .rotation-card {
+        padding: 15px;
+        border-radius: 5px;
+        background: white;
+        border: 2px solid #e9ecef;
+        margin-bottom: 15px;
+    }
+
+    .rotation-exception {
+        border-color: #ffc107;
+        background: #fff3cd;
+    }
+
+    .rotation-title {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .rotation-employee {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .rotation-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 10px;
+    }
+
+    .badge-normal {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .badge-exception {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .issue-card {
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 12px;
+        border-left: 4px solid;
+    }
+
+    .issue-critical {
+        background: #f8d7da;
+        border-color: #dc3545;
+    }
+
+    .issue-warning {
+        background: #fff3cd;
+        border-color: #ffc107;
+    }
+
+    .issue-info {
+        background: #d1ecf1;
+        border-color: #17a2b8;
+    }
+
+    .issue-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .issue-severity-badge {
+        padding: 3px 10px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .severity-critical {
+        background: #dc3545;
+        color: white;
+    }
+
+    .severity-warning {
+        background: #ffc107;
+        color: #333;
+    }
+
+    .severity-info {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .issue-message {
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: #333;
+    }
+
+    .issue-action {
+        font-size: 14px;
+        color: #666;
+        font-style: italic;
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .quick-action-btn {
+        flex: 1;
+        min-width: 200px;
+        padding: 15px;
+        text-align: center;
+        border-radius: 5px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+
+    .quick-action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        text-decoration: none;
+    }
+
+    .btn-primary-action {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-secondary-action {
+        background: #6c757d;
+        color: white;
+    }
+
+    .section-header {
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+
+    .section-header h4 {
+        margin: 0;
+        color: #333;
+    }
+
+    .tab-content {
+        padding: 20px;
+        background: white;
+        border-radius: 0 0 5px 5px;
+    }
+
+    .nav-tabs .nav-link.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+
+    .no-issues-message {
+        text-align: center;
+        padding: 40px;
+        color: #28a745;
+        font-size: 18px;
+    }
+
+    .no-issues-icon {
+        font-size: 48px;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Daily Validation Dashboard</h2>
+            <p class="text-muted">{{ day_of_week }}, {{ today.strftime('%B %d, %Y') }}</p>
+        </div>
+        <div>
+            <button onclick="location.reload()" class="btn btn-outline-primary">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Health Score and Key Metrics -->
+    <div class="row mb-4">
+        <!-- Health Score -->
+        <div class="col-md-4">
+            <div class="health-score-card">
+                <div class="health-score-label">System Health Score</div>
+                <div class="health-score-value">{{ health_score }}</div>
+                <div class="health-score-label">
+                    {% if health_score >= 90 %}
+                        Excellent
+                    {% elif health_score >= 75 %}
+                        Good
+                    {% elif health_score >= 60 %}
+                        Fair
+                    {% else %}
+                        Needs Attention
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="metric-card">
+                        <h5>Events Today</h5>
+                        <div class="metric-value">{{ total_events_today }}</div>
+                        <div class="metric-label">Scheduled</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-card" style="border-color: #dc3545;">
+                        <h5>Unscheduled</h5>
+                        <div class="metric-value" style="color: #dc3545;">{{ total_unscheduled_today }}</div>
+                        <div class="metric-label">Require Attention</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-card" style="border-color: #28a745;">
+                        <h5>Active Staff</h5>
+                        <div class="metric-value" style="color: #28a745;">{{ active_employees }}</div>
+                        <div class="metric-label">Available</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="section-header">
+                <h4><i class="fas fa-bolt"></i> Quick Actions</h4>
+            </div>
+            <div class="quick-actions">
+                <a href="/calendar?date={{ today.strftime('%Y-%m-%d') }}" class="quick-action-btn btn-primary-action">
+                    <i class="fas fa-calendar-day"></i><br>View Today's Calendar
+                </a>
+                <a href="/auto-scheduler" class="quick-action-btn btn-primary-action">
+                    <i class="fas fa-robot"></i><br>Run Auto-Scheduler
+                </a>
+                <a href="/rotations" class="quick-action-btn btn-secondary-action">
+                    <i class="fas fa-sync"></i><br>Manage Rotations
+                </a>
+                <a href="/employees" class="quick-action-btn btn-secondary-action">
+                    <i class="fas fa-users"></i><br>Employee Management
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Issues -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="section-header">
+                <h4><i class="fas fa-exclamation-triangle"></i> Validation Issues ({{ validation_issues|length }})</h4>
+            </div>
+
+            {% if validation_issues %}
+                {% for issue in validation_issues %}
+                <div class="issue-card issue-{{ issue.severity }}">
+                    <div class="issue-header">
+                        <span class="issue-severity-badge severity-{{ issue.severity }}">
+                            {{ issue.severity }}
+                        </span>
+                        <span style="color: #666; font-size: 12px;">{{ issue.type }}</span>
+                    </div>
+                    <div class="issue-message">{{ issue.message }}</div>
+                    <div class="issue-action">Action: {{ issue.action }}</div>
+
+                    {% if issue.details %}
+                    <div class="mt-2">
+                        <small><strong>Details:</strong></small>
+                        <ul class="mb-0" style="font-size: 14px;">
+                            {% for detail in issue.details %}
+                            <li>
+                                {% if detail.employee_name %}
+                                    {{ detail.employee_name }} - {{ detail.reason or 'No reason provided' }}
+                                {% elif detail.rotation_type %}
+                                    {{ detail.rotation_type }}: {{ detail.employee_name }} ({{ detail.reason or 'Time off' }})
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-issues-message">
+                    <div class="no-issues-icon">✅</div>
+                    <div>All validation checks passed! System is healthy.</div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Rotation Assignments -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="section-header">
+                <h4><i class="fas fa-sync-alt"></i> Today's Rotations</h4>
+            </div>
+
+            <div class="rotation-card {% if juicer_rotation and juicer_rotation.is_exception %}rotation-exception{% endif %}">
+                <div class="rotation-title">Juicer Rotation</div>
+                <div class="rotation-employee">
+                    {% if juicer_rotation %}
+                        {{ juicer_rotation.employee_name }}
+                        <span class="rotation-badge {% if juicer_rotation.is_exception %}badge-exception{% else %}badge-normal{% endif %}">
+                            {% if juicer_rotation.is_exception %}Exception{% else %}Normal{% endif %}
+                        </span>
+                    {% else %}
+                        <span style="color: #dc3545;">Not Assigned</span>
+                    {% endif %}
+                </div>
+                {% if juicer_rotation and juicer_rotation.reason %}
+                <div class="mt-2" style="font-size: 14px; color: #666;">
+                    <em>Reason: {{ juicer_rotation.reason }}</em>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="rotation-card {% if primary_lead_rotation and primary_lead_rotation.is_exception %}rotation-exception{% endif %}">
+                <div class="rotation-title">Primary Lead Rotation</div>
+                <div class="rotation-employee">
+                    {% if primary_lead_rotation %}
+                        {{ primary_lead_rotation.employee_name }}
+                        <span class="rotation-badge {% if primary_lead_rotation.is_exception %}badge-exception{% else %}badge-normal{% endif %}">
+                            {% if primary_lead_rotation.is_exception %}Exception{% else %}Normal{% endif %}
+                        </span>
+                    {% else %}
+                        <span style="color: #dc3545;">Not Assigned</span>
+                    {% endif %}
+                </div>
+                {% if primary_lead_rotation and primary_lead_rotation.reason %}
+                <div class="mt-2" style="font-size: 14px; color: #666;">
+                    <em>Reason: {{ primary_lead_rotation.reason }}</em>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Today's Events by Type -->
+        <div class="col-md-6">
+            <div class="section-header">
+                <h4><i class="fas fa-clipboard-list"></i> Today's Events by Type</h4>
+            </div>
+
+            {% for event_type, key in [('Core', 'core'), ('Juicer', 'juicer'), ('Supervisor', 'supervisor'), ('Digitals', 'digitals'), ('Freeosk', 'freeosk'), ('Other', 'other')] %}
+            <div class="event-type-row">
+                <div class="event-type-name">{{ event_type }}</div>
+                <div class="event-counts">
+                    <span class="count-badge count-scheduled">
+                        ✓ {{ today_events[key].scheduled }} Scheduled
+                    </span>
+                    {% if today_events[key].unscheduled > 0 %}
+                    <span class="count-badge count-unscheduled">
+                        ⚠ {{ today_events[key].unscheduled }} Unscheduled
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Lookahead Views (Tabs) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="section-header">
+                <h4><i class="fas fa-calendar-alt"></i> Lookahead Schedule</h4>
+            </div>
+
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-toggle="tab" href="#tomorrow-tab">
+                        Tomorrow ({{ tomorrow.strftime('%b %d') }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#three-day-tab">
+                        3 Days Ahead ({{ three_days_ahead.strftime('%b %d') }})
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Tomorrow Tab -->
+                <div id="tomorrow-tab" class="tab-pane fade show active">
+                    {% for event_type, key in [('Core', 'core'), ('Juicer', 'juicer'), ('Supervisor', 'supervisor'), ('Digitals', 'digitals'), ('Freeosk', 'freeosk'), ('Other', 'other')] %}
+                    <div class="event-type-row">
+                        <div class="event-type-name">{{ event_type }}</div>
+                        <div class="event-counts">
+                            <span class="count-badge count-scheduled">
+                                ✓ {{ tomorrow_events[key].scheduled }} Scheduled
+                            </span>
+                            {% if tomorrow_events[key].unscheduled > 0 %}
+                            <span class="count-badge count-unscheduled">
+                                ⚠ {{ tomorrow_events[key].unscheduled }} Unscheduled
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- 3 Days Ahead Tab -->
+                <div id="three-day-tab" class="tab-pane fade">
+                    {% for event_type, key in [('Core', 'core'), ('Juicer', 'juicer'), ('Supervisor', 'supervisor'), ('Digitals', 'digitals'), ('Freeosk', 'freeosk'), ('Other', 'other')] %}
+                    <div class="event-type-row">
+                        <div class="event-type-name">{{ event_type }}</div>
+                        <div class="event-counts">
+                            <span class="count-badge count-scheduled">
+                                ✓ {{ three_day_events[key].scheduled }} Scheduled
+                            </span>
+                            {% if three_day_events[key].unscheduled > 0 %}
+                            <span class="count-badge count-unscheduled">
+                                ⚠ {{ three_day_events[key].unscheduled }} Unscheduled
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh dashboard every 5 minutes
+setTimeout(function() {
+    location.reload();
+}, 5 * 60 * 1000);
+
+// Add visual feedback for health score
+document.addEventListener('DOMContentLoaded', function() {
+    const healthScore = {{ health_score }};
+    const scoreCard = document.querySelector('.health-score-card');
+
+    if (healthScore >= 90) {
+        scoreCard.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+    } else if (healthScore >= 75) {
+        scoreCard.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    } else if (healthScore >= 60) {
+        scoreCard.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+    } else {
+        scoreCard.style.background = 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+    }
+});
+</script>
+{% endblock %}

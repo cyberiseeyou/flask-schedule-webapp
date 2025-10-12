@@ -498,7 +498,7 @@ class DailyPaperworkGenerator:
             traceback.print_exc()
             return None
 
-    def get_event_edr_pdf_from_data(self, edr_data: Dict, event_mplan_id: str, employee_name: str) -> Optional[str]:
+    def get_event_edr_pdf_from_data(self, edr_data: Dict, event_mplan_id: str, employee_name: str, schedule_info: Optional[Dict] = None) -> Optional[str]:
         """
         Generate EDR PDF from already-fetched EDR data (for efficiency in batch operations)
 
@@ -506,6 +506,7 @@ class DailyPaperworkGenerator:
             edr_data: Pre-fetched EDR data dictionary
             event_mplan_id: Event mPlan ID for filename
             employee_name: Employee name to include in PDF
+            schedule_info: Optional dict with 'scheduled_date', 'start_date', 'due_date'
 
         Returns:
             Path to EDR PDF file or None if failed
@@ -522,7 +523,7 @@ class DailyPaperworkGenerator:
             output_path = os.path.join(tempfile.gettempdir(), f'edr_{event_mplan_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}.pdf')
 
             pdf_generator = EDRPDFGenerator()
-            if pdf_generator.generate_pdf(edr_data, output_path, employee_name):
+            if pdf_generator.generate_pdf(edr_data, output_path, employee_name, schedule_info):
                 self.temp_files.append(output_path)
                 return output_path
             else:
@@ -638,62 +639,46 @@ class DailyPaperworkGenerator:
         schedule_pdf = self.generate_daily_schedule_pdf(target_date, schedules)
         all_pdfs.append(schedule_pdf)
 
-        # 2. Fetch all EDR data - cache first, auto-sync if needed
-        print("📄 Fetching EDR data (cache-first with auto-sync)...")
+        # 2. Fetch all EDR data using get_edr_report() for each event
+        print("📄 Fetching EDR data using direct API calls...")
         edr_data_cache = {}  # Cache: event_number -> edr_data
         edr_data_list = []
-        needs_sync = False
 
         if self.edr_generator:
             from utils.event_helpers import extract_event_number
 
-            # First pass: Check which events are missing from cache
-            missing_events = []
-            for schedule, event, employee in schedules:
-                if event.event_type == 'Core':
-                    event_num = extract_event_number(event.project_name)
-                    if event_num:
-                        print(f"   Checking cache for event {event_num}...")
-                        cached_items = self.edr_generator.get_event_from_cache(int(event_num))
-                        if cached_items:
-                            # Convert to EDR format for compatibility
-                            edr_data = self.edr_generator.convert_cached_items_to_edr_format(cached_items)
-                            edr_data_cache[event_num] = edr_data
-                            edr_data_list.append(edr_data)
-                            print(f"   ✅ Event {event_num} found in cache")
-                        else:
-                            missing_events.append(event_num)
-                            print(f"   ⚠️ Event {event_num} not in cache")
-                            needs_sync = True
+            # Check if we need to authenticate
+            if not self.edr_generator.auth_token:
+                print("❌ Not authenticated - cannot fetch EDR data")
+                print("💡 Please authenticate via the printing interface first")
+            else:
+                # Fetch EDR data for each Core event directly
+                for schedule, event, employee in schedules:
+                    if event.event_type == 'Core':
+                        event_num = extract_event_number(event.project_name)
+                        if event_num:
+                            print(f"   📥 Fetching EDR for event {event_num} via get_edr_report()...")
 
-            # Second pass: If any events are missing, sync the cache
-            if needs_sync:
-                print(f"⚠️ {len(missing_events)} events not in cache - triggering sync...")
+                            try:
+                                # Call get_edr_report() directly for this event
+                                edr_data = self.edr_generator.get_edr_report(event_num)
 
-                # Check if we need to authenticate
-                if not self.edr_generator.auth_token:
-                    print("❌ Not authenticated - cannot sync cache")
-                    print("💡 Please authenticate via the printing interface first")
-                else:
-                    # Sync cache by calling browse_events (stores to database automatically)
-                    print("📥 Syncing cache from Walmart API...")
-                    events_data = self.edr_generator.browse_events()
+                                if edr_data:
+                                    edr_data_cache[event_num] = edr_data
+                                    edr_data_list.append(edr_data)
 
-                    if events_data:
-                        print(f"✅ Cache sync complete - fetched {len(events_data)} event items")
-
-                        # Now retry fetching the missing events from cache
-                        for event_num in missing_events:
-                            cached_items = self.edr_generator.get_event_from_cache(int(event_num))
-                            if cached_items:
-                                edr_data = self.edr_generator.convert_cached_items_to_edr_format(cached_items)
-                                edr_data_cache[event_num] = edr_data
-                                edr_data_list.append(edr_data)
-                                print(f"   ✅ Event {event_num} now available after sync")
-                            else:
-                                print(f"   ⚠️ Event {event_num} still not in cache (may be outside date range)")
-                    else:
-                        print("❌ Cache sync failed - no data returned from API")
+                                    # Verify gtin field is present
+                                    item_details = edr_data.get('itemDetails', [])
+                                    if item_details and len(item_details) > 0:
+                                        first_item = item_details[0]
+                                        gtin = first_item.get('gtin', 'N/A')
+                                        print(f"   ✅ Event {event_num} fetched - {len(item_details)} items, first GTIN: {gtin}")
+                                    else:
+                                        print(f"   ✅ Event {event_num} fetched - no items")
+                                else:
+                                    print(f"   ⚠️ Event {event_num} returned no data")
+                            except Exception as e:
+                                print(f"   ❌ Failed to fetch event {event_num}: {e}")
 
         # 3. Generate Daily Item Numbers from EDR data
         print("📄 Generating daily item numbers...")
@@ -716,7 +701,13 @@ class DailyPaperworkGenerator:
                 # Get EDR PDF if we have cached data
                 if event_num and event_num in edr_data_cache:
                     print(f"   Generating EDR PDF for event {event_num}...")
-                    edr_pdf = self.get_event_edr_pdf_from_data(edr_data_cache[event_num], event_num, employee.name)
+                    # Prepare schedule info for PDF generation
+                    schedule_info = {
+                        'scheduled_date': schedule.schedule_datetime,
+                        'start_date': event.start_date if hasattr(event, 'start_date') else None,
+                        'due_date': event.due_date if hasattr(event, 'due_date') else None
+                    }
+                    edr_pdf = self.get_event_edr_pdf_from_data(edr_data_cache[event_num], event_num, employee.name, schedule_info)
                     if edr_pdf:
                         all_pdfs.append(edr_pdf)
                         print(f"   ✅ EDR PDF added for event {event_num}")

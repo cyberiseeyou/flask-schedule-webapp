@@ -413,11 +413,56 @@ class SessionAPIService:
             self.logger.error(f"Error getting FullCalendar license: {str(e)}")
             return None
 
-    def get_available_representatives(self, filters: Dict = None) -> Optional[Dict]:
-        """Get available representatives for scheduling"""
+    def get_available_representatives(self, start_date: datetime = None, end_date: datetime = None) -> Optional[Dict]:
+        """
+        Get available representatives for scheduling
+        Args:
+            start_date: Start date (defaults to today)
+            end_date: End date (defaults to 7 days from start_date)
+        Returns:
+            dict or None: Representatives data if successful, None otherwise
+        """
         try:
-            data = filters or {}
-            response = self.make_request('POST', '/schedulingcontroller/getAvailableReps', json=data)
+            # Calculate default date range if not provided
+            if start_date is None:
+                start_date = datetime.now()
+            if end_date is None:
+                end_date = start_date + timedelta(days=7)
+
+            # Format dates as "MM/DD/YYYY HH:MM:SS,MM/DD/YYYY HH:MM:SS"
+            start_str = start_date.strftime("%m/%d/%Y %H:%M:%S")
+            end_str = end_date.strftime("%m/%d/%Y %H:%M:%S")
+            project_value = f"{start_str},{end_str}"
+
+            # Prepare multipart form data
+            files = {
+                'project': (None, project_value)
+            }
+
+            headers = {
+                'accept': 'application/json, text/plain, */*',
+                'accept-language': 'en-US,en;q=0.9',
+                'origin': self.base_url,
+                'priority': 'u=1, i',
+                'referer': f'{self.base_url}/scheduling/hourly/',
+                'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-origin',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+            }
+
+            self.logger.info(f"Fetching available reps for date range: {project_value}")
+
+            response = self.make_request(
+                'POST',
+                '/schedulingcontroller/getAvailableReps',
+                files=files,
+                headers=headers
+            )
+
             if response.status_code == 200:
                 return self._safe_json(response)
             return None

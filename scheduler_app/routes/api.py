@@ -546,7 +546,7 @@ def reschedule_event():
 
 @api_bp.route('/unschedule/<int:schedule_id>', methods=['DELETE'])
 def unschedule_event(schedule_id):
-    """Unschedule an event - delete schedule and mark event as unscheduled"""
+    """Unschedule an event - calls Crossmark API first, then deletes schedule and marks event as unscheduled"""
     db = current_app.extensions['sqlalchemy']
     Schedule = current_app.config['Schedule']
     Event = current_app.config['Event']
@@ -562,16 +562,38 @@ def unschedule_event(schedule_id):
         if not event:
             return jsonify({'error': 'Related event not found'}), 404
 
-        # Trigger background sync to Crossmark API (non-blocking) - BEFORE deleting schedule
+        # Call Crossmark API BEFORE deleting local record
         if schedule.external_id:
-            try:
-                from services.sync_service import sync_schedule_deletion_to_crossmark
-                sync_schedule_deletion_to_crossmark.delay(schedule.external_id)
-                current_app.logger.info(f"Triggered background sync for schedule {schedule.id} deletion")
-            except Exception as sync_error:
-                current_app.logger.warning(f"Failed to trigger background sync: {str(sync_error)}")
+            from session_api_service import session_api as external_api
 
-        # Delete the schedule locally
+            # Ensure session is authenticated
+            try:
+                if not external_api.ensure_authenticated():
+                    return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+            except Exception as auth_error:
+                current_app.logger.error(f"Authentication error: {str(auth_error)}")
+                return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+
+            # Call API to delete/unschedule the event
+            try:
+                current_app.logger.info(
+                    f"Submitting unschedule to Crossmark API: schedule_id={schedule.external_id}"
+                )
+
+                api_result = external_api.unschedule_mplan_event(str(schedule.external_id))
+
+                if not api_result.get('success'):
+                    error_message = api_result.get('message', 'Unknown API error')
+                    current_app.logger.error(f"Crossmark API error: {error_message}")
+                    return jsonify({'error': f'Failed to unschedule in Crossmark: {error_message}'}), 500
+
+                current_app.logger.info(f"Successfully unscheduled event in Crossmark API")
+
+            except Exception as api_error:
+                current_app.logger.error(f"API submission error: {str(api_error)}")
+                return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
+
+        # API call successful (or no external_id) - now delete local record
         db.session.delete(schedule)
 
         # Check if this was the only schedule for the event
@@ -579,9 +601,13 @@ def unschedule_event(schedule_id):
         if remaining_schedules == 0:
             event.is_scheduled = False
 
+        # Update event sync status
+        event.sync_status = 'synced'
+        event.last_synced = datetime.utcnow()
+
         db.session.commit()
 
-        return jsonify({'success': True, 'message': f'Event unscheduled successfully. Event moved back to unscheduled status.'})
+        return jsonify({'success': True, 'message': 'Event unscheduled successfully. Event moved back to unscheduled status.'})
 
     except Exception as e:
         db.session.rollback()

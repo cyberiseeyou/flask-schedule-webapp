@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Event Management System - EDR Report</title>
+    <style>
+        /* CSS from the provided files combined with print optimization */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 700;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .elememnt-padding {
+            padding: 10px 0;
+        }
+
+        .font-weight-bold {
+            font-size: 18px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .space-underlined {
+            display: inline-block;
+            width: calc(80% - 230px);
+            border-bottom: 1px solid black;
+            margin-left: 10px;
+        }
+
+        .instruction-heading {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .report-footer div {
+            padding: 2px 0;
+        }
+
+        .report-first {
+            margin-left: 20%;
+        }
+
+        .help-text {
+            font-size: 14px;
+            line-height: 1.2;
+        }
+
+        .demo-text {
+            margin-left: 12px;
+            font-weight: 700;
+        }
+
+        .col-40 {
+            flex: 0 0 40%;
+            max-width: 40%;
+        }
+
+        .report-table-content {
+            text-align: center;
+        }
+
+        .row {
+            display: flex;
+            padding: 5px;
+            width: 100%;
+        }
+
+        .col {
+            flex: 1;
+            display: block;
+            padding: 5px;
+            width: 100%;
+        }
+
+        .col-25 {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+
+        .input-label {
+            font-weight: normal;
+        }
+
+        td {
+            padding: 8px;
+            border-top: solid 1px #ccc;
+            font-family: arial;
+            font-size: 12px;
+            text-align: left;
+            font-weight: 400;
+            color: grey;
+            line-height: 18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 94%;
+            outline: #ccc solid 1px;
+            table-layout: fixed;
+            margin-bottom: 10px;
+        }
+
+        th {
+            padding: 5px;
+            background: #e2e1e1;
+            font-size: 14px;
+            font-weight: 400;
+            color: grey;
+        }
+
+        .demo-table-header {
+            background: #e2e1e1;
+        }
+
+        hr {
+            border: 1px solid #ccc;
+            margin: 10px 0;
+        }
+
+        .cache-notice {
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        @media print {
+            body {
+                padding: 10px;
+            }
+            .print-button {
+                display: none;
+            }
+            .cache-notice {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="reportDdr_pdf">
+        <div class="detail-header">EVENT DETAIL REPORT</div>
+
+        <div class="cache-notice">
+            ℹ️ This report was generated from cached data. For the most up-to-date information including instructions, please verify in the Event Management System.
+        </div>
+
+        <div class="elememnt-padding font-weight-bold">
+            <span>RUN ON </span>
+            <span>2025-10-09</span>
+            <span> AT </span>
+            <span>07:26:56</span>
+        </div>
+
+        <hr>
+
+        <div class="elememnt-padding help-text">
+            <div>
+                <span class="report-first">IMPORTANT!!!</span>
+                This report should be printed each morning prior to completing each event.<br>
+                1. The Event Details Report should be kept in the event prep area for each demonstrator to review instructions and item status.<br>
+                2. The Event Co-ordinator should use this sheet when visiting the event area. Comments should be written to enter into the system at a later time.<br>
+                3. Remember to scan items for product charge using the Club Use function on the handheld device.<br>
+                Retention: This report should be kept in a monthly folder with the most recent being put in the front. The previous 6 months need to be kept accessible in the event prep area. Reports older than 6 months should be boxed and stored. Discard any report over 18 months old.
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="demo_div">
+            <div class="row responsive-md">
+                <div class="col col-25">
+                    <span class="input-label" title="Event Number">
+                        Event Number <span class="demo-text">595831</span>
+                    </span>
+                </div>
+                <div class="col col-25">
+                    <span class="input-label" title="Event Type">
+                        Event Type <span class="demo-text">Demo Supplies</span>
+                    </span>
+                </div>
+                <div class="col col-40">
+                    <span class="input-label" title="Event Locked">
+                        Event Locked <span class="demo-text">false</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="row responsive-md">
+                <div class="col col-25">
+                    <span class="input-label" title="Event Status">
+                        Event Status <span class="demo-text">APPROVED</span>
+                    </span>
+                </div>
+                <div class="col col-25">
+                    <span class="input-label" title="Event Date">
+                        Event Date <span class="demo-text">2025-10-04</span>
+                    </span>
+                </div>
+                <div class="col col-40">
+                    <span class="input-label" title="Event Name">
+                        Event Name <span class="demo-text" title="WK36 Non-Billable Supply Scan Out">WK36 Non-Billable Supply Scan Out</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div id="demo_pdf">
+            <table id="new_event">
+                <thead>
+                    <tr class="demo-table-header">
+                        <th>Item Number</th>
+                        <th>UPC Number</th>
+                        <th>Description</th>
+                        <th>Vendor</th>
+                        <th>Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr class="edr-wrapper">
+                    <td class="report-table-content">598613</td>
+                    <td class="report-table-content">40645986139</td>
+                    <td class="report-table-content">⭐ DEMO</td>
+                    <td class="report-table-content">118322 - CLUB CAFE</td>
+                    <td class="report-table-content">79 - Prepared Foods</td>
+                </tr>
+            
+                </tbody>
+            </table>
+        </div>
+
+        <h4 class="instruction-heading">Instructions:</h4>
+
+        <div>
+            <span class="input-label" title="Event Preparation">
+                Event Preparation: <span class="demo-text">N/A - Check event management system for preparation instructions</span>
+            </span>
+            <div>
+                <span class="input-label" title="Event Portion">
+                    Event Portion: <span class="demo-text">N/A - Check event management system for portion instructions</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="report-footer">
+            <div>
+                <span>Club Associate Printed Name:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Club Associate Signature:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Club Associate Title:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Date:</span>
+                <span class="space-underlined"></span>
+            </div>
+            <div>
+                <span>Tastes & Tips Rep Signature:</span>
+                <span class="space-underlined"></span>
+            </div>
+        </div>
+
+        <div class="print-button" style="margin-top: 20px; text-align: right;">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                🖨️ Print Report
+            </button>
+        </div>
+    </div>
+</body>
+</html>

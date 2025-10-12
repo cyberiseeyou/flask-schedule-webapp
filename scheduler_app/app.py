@@ -81,6 +81,10 @@ SchedulerRunHistory = models['SchedulerRunHistory']
 ScheduleException = models['ScheduleException']
 SystemSetting = models['SystemSetting']
 
+# Extract audit models (if available)
+AuditLog = models.get('AuditLog')
+AuditNotificationSettings = models.get('AuditNotificationSettings')
+
 # Make models available in app config for blueprints
 app.config['Employee'] = Employee
 app.config['Event'] = Event
@@ -93,6 +97,8 @@ app.config['PendingSchedule'] = PendingSchedule
 app.config['SchedulerRunHistory'] = SchedulerRunHistory
 app.config['ScheduleException'] = ScheduleException
 app.config['SystemSetting'] = SystemSetting
+app.config['AuditLog'] = AuditLog
+app.config['AuditNotificationSettings'] = AuditNotificationSettings
 
 # Import authentication helpers and blueprint from routes
 from routes import (
@@ -149,6 +155,10 @@ app.register_blueprint(edr_sync_bp)
 # Import and register Help blueprint
 from routes.help import help_bp
 app.register_blueprint(help_bp)
+
+# Import and register Dashboard blueprint
+from routes.dashboard import dashboard_bp
+app.register_blueprint(dashboard_bp)
 
 # Configure CSRF exemptions for specific routes (after blueprint registration)
 # Only 2 routes are exempt with justified reasons:

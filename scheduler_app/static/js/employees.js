@@ -116,11 +116,16 @@ function createEmployeeCard(employee) {
             </div>
 
             <div class="employee-actions">
-                <button class="btn btn-small btn-primary" onclick="editEmployee('${employee.id}')">Edit</button>
-                <button class="btn btn-small btn-secondary" onclick="toggleEmployeeStatus('${employee.id}', ${!employee.is_active})">
-                    ${employee.is_active ? 'Deactivate' : 'Activate'}
-                </button>
-                <button class="btn btn-small btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
+                <div class="employee-actions-left">
+                    <button class="btn btn-small btn-primary" onclick="editEmployee('${employee.id}')">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleEmployeeStatus('${employee.id}', ${!employee.is_active})">
+                        ${employee.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button class="btn btn-small btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
+                </div>
+                <div class="employee-actions-right">
+                    <button class="btn btn-small btn-secondary" onclick="manageTimeOff('${employee.id}')">📅 Time Off</button>
+                </div>
             </div>
         </div>
     `;
@@ -146,9 +151,29 @@ function setupModalHandlers() {
             if (e.target === this) {
                 closeAddEmployeeModal();
                 closeImportEmployeesModal();
+                closeTimeOffModal();
             }
         });
     });
+
+    // Time-Off form submission
+    const timeOffForm = document.getElementById('add-time-off-form');
+    if (timeOffForm) {
+        timeOffForm.addEventListener('submit', handleAddTimeOffSubmit);
+    }
+
+    // Auto-sync end date when start date changes
+    const startDateInput = document.getElementById('time-off-start-date');
+    const endDateInput = document.getElementById('time-off-end-date');
+
+    if (startDateInput && endDateInput) {
+        startDateInput.addEventListener('change', function() {
+            // If end date is before start date, update it
+            if (endDateInput.value < startDateInput.value) {
+                endDateInput.value = startDateInput.value;
+            }
+        });
+    }
 }
 
 // ========================================
@@ -528,4 +553,207 @@ function showFlashMessage(message, type) {
     setTimeout(() => {
         alertDiv.remove();
     }, 5000);
+}
+
+// ========================================
+// Time-Off Management
+// ========================================
+
+let currentTimeOffEmployeeId = null;
+
+async function manageTimeOff(employeeId) {
+    currentTimeOffEmployeeId = employeeId;
+
+    // Get employee name
+    try {
+        const response = await fetch('/api/employees');
+        const employees = await response.json();
+        const employee = employees.find(emp => emp.id === employeeId);
+
+        if (!employee) {
+            showFlashMessage('Employee not found', 'error');
+            return;
+        }
+
+        // Update modal title
+        document.getElementById('time-off-employee-name').textContent = employee.name;
+
+        // Load time-off requests
+        await loadTimeOffRequests(employeeId);
+
+        // Open modal
+        document.getElementById('time-off-modal').classList.add('active');
+
+        // Set up date field defaults
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('time-off-start-date').value = today;
+        document.getElementById('time-off-end-date').value = today;
+
+        // Clear alerts
+        document.getElementById('time-off-modal-alerts').innerHTML = '';
+
+    } catch (error) {
+        console.error('Error opening time-off modal:', error);
+        showFlashMessage('Error loading time-off data', 'error');
+    }
+}
+
+function closeTimeOffModal() {
+    document.getElementById('time-off-modal').classList.remove('active');
+    currentTimeOffEmployeeId = null;
+    document.getElementById('add-time-off-form').reset();
+    document.getElementById('time-off-modal-alerts').innerHTML = '';
+}
+
+async function loadTimeOffRequests(employeeId) {
+    const listContainer = document.getElementById('time-off-requests-list');
+    const countSpan = document.getElementById('time-off-count');
+
+    try {
+        const response = await fetch(`/api/employees/${employeeId}/time_off`);
+        const requests = await response.json();
+
+        countSpan.textContent = `(${requests.length})`;
+
+        if (requests.length === 0) {
+            listContainer.innerHTML = '<div class="time-off-empty-state">No time-off requests for this employee.</div>';
+            return;
+        }
+
+        // Sort by start date (most recent first)
+        requests.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+
+        listContainer.innerHTML = requests.map(req => createTimeOffCard(req)).join('');
+
+    } catch (error) {
+        console.error('Error loading time-off requests:', error);
+        listContainer.innerHTML = '<div class="alert alert-error">Error loading time-off requests.</div>';
+    }
+}
+
+function createTimeOffCard(request) {
+    const startDate = new Date(request.start_date);
+    const endDate = new Date(request.end_date);
+
+    // Format dates
+    const startFormatted = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const endFormatted = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Check if single day
+    const isSingleDay = startDate.getTime() === endDate.getTime();
+    const dateDisplay = isSingleDay ? `${startFormatted} (Single Day)` : `${startFormatted} - ${endFormatted}`;
+
+    return `
+        <div class="time-off-request-card">
+            <div class="time-off-info">
+                <div class="time-off-dates">🗓️ ${dateDisplay}</div>
+                ${request.reason ? `<div class="time-off-reason">Reason: ${request.reason}</div>` : ''}
+            </div>
+            <div class="time-off-actions">
+                <button class="btn-delete-time-off" onclick="deleteTimeOffRequest(${request.id})">Delete</button>
+            </div>
+        </div>
+    `;
+}
+
+async function handleAddTimeOffSubmit(e) {
+    e.preventDefault();
+
+    const startDate = document.getElementById('time-off-start-date').value;
+    const endDate = document.getElementById('time-off-end-date').value;
+    const reason = document.getElementById('time-off-reason').value.trim();
+
+    if (!startDate || !endDate) {
+        showTimeOffAlert('Start date and end date are required', 'error');
+        return;
+    }
+
+    if (new Date(endDate) < new Date(startDate)) {
+        showTimeOffAlert('End date cannot be before start date', 'error');
+        return;
+    }
+
+    const formData = {
+        start_date: startDate,
+        end_date: endDate,
+        reason: reason || null
+    };
+
+    try {
+        const response = await fetch(`/api/employees/${currentTimeOffEmployeeId}/time_off`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showTimeOffAlert(`Error: ${data.error}`, 'error');
+            return;
+        }
+
+        // Success!
+        showTimeOffAlert('Time-off request added successfully!', 'success');
+
+        // Reset form
+        document.getElementById('add-time-off-form').reset();
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('time-off-start-date').value = today;
+        document.getElementById('time-off-end-date').value = today;
+
+        // Reload time-off list
+        await loadTimeOffRequests(currentTimeOffEmployeeId);
+
+        // Reload employees to update any indicators (future enhancement)
+        // loadEmployees();
+
+    } catch (error) {
+        console.error('Error adding time-off:', error);
+        showTimeOffAlert('Error adding time-off request. Please try again.', 'error');
+    }
+}
+
+async function deleteTimeOffRequest(timeOffId) {
+    if (!confirm('Are you sure you want to delete this time-off request?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/time_off/${timeOffId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showTimeOffAlert(`Error: ${data.error}`, 'error');
+            return;
+        }
+
+        // Success!
+        showTimeOffAlert('Time-off request deleted successfully!', 'success');
+
+        // Reload time-off list
+        await loadTimeOffRequests(currentTimeOffEmployeeId);
+
+        // Reload employees to update any indicators (future enhancement)
+        // loadEmployees();
+
+    } catch (error) {
+        console.error('Error deleting time-off:', error);
+        showTimeOffAlert('Error deleting time-off request. Please try again.', 'error');
+    }
+}
+
+function showTimeOffAlert(message, type) {
+    const alerts = document.getElementById('time-off-modal-alerts');
+    alerts.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+
+    // Auto-remove success messages after 3 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            alerts.innerHTML = '';
+        }, 3000);
+    }
 }

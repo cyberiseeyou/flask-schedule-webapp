@@ -3,12 +3,70 @@ Auto-scheduler routes
 Handles scheduler runs, review, and approval workflow
 """
 from flask import Blueprint, render_template, request, jsonify, current_app
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from sqlalchemy import func
 
 from services import SchedulingEngine
+from routes.auth import require_authentication
 
 auto_scheduler_bp = Blueprint('auto_scheduler', __name__, url_prefix='/auto-schedule')
+
+
+@auto_scheduler_bp.route('/')
+@require_authentication()
+def index():
+    """Main auto-scheduler page with scheduling progress"""
+    db = current_app.extensions['sqlalchemy']
+    Event = current_app.config['Event']
+    SchedulerRunHistory = current_app.config['SchedulerRunHistory']
+
+    # Get today's date
+    today = date.today()
+    two_weeks_from_now = today + timedelta(days=14)
+
+    # Calculate statistics with new logic
+    # Total events within 2 weeks (from today to 2 weeks from now)
+    total_events_2weeks = Event.query.filter(
+        Event.start_datetime >= today,
+        Event.start_datetime <= two_weeks_from_now,
+        # Exclude canceled and expired
+        ~Event.condition.in_(['Canceled', 'Expired'])
+    ).count()
+
+    # Scheduled events: Scheduled + Submitted conditions within date range
+    scheduled_events_2weeks = Event.query.filter(
+        Event.start_datetime >= today,
+        Event.start_datetime <= two_weeks_from_now,
+        Event.condition.in_(['Scheduled', 'Submitted'])
+    ).count()
+
+    # Get unscheduled events within 2 weeks - ONLY Unstaffed are truly unscheduled
+    unscheduled_events_2weeks = Event.query.filter(
+        Event.condition == 'Unstaffed',
+        Event.start_datetime >= today,
+        Event.start_datetime <= two_weeks_from_now
+    ).order_by(
+        Event.start_datetime.asc(),
+        Event.due_datetime.asc()
+    ).all()
+
+    # Calculate scheduling percentage
+    scheduling_percentage = 0
+    if total_events_2weeks > 0:
+        scheduling_percentage = round((scheduled_events_2weeks / total_events_2weeks) * 100, 1)
+
+    # Get last scheduler run info
+    last_run = db.session.query(SchedulerRunHistory).order_by(
+        SchedulerRunHistory.started_at.desc()
+    ).first()
+
+    return render_template('auto_scheduler_main.html',
+                         unscheduled_events_2weeks=unscheduled_events_2weeks,
+                         total_events_2weeks=total_events_2weeks,
+                         scheduled_events_2weeks=scheduled_events_2weeks,
+                         scheduling_percentage=scheduling_percentage,
+                         last_run=last_run,
+                         today=today)
 
 
 @auto_scheduler_bp.route('/run', methods=['POST'])

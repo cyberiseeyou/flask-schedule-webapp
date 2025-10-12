@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(for file in admin.py api.py auto_scheduler.py employees.py main.py rotations.py scheduling.py)",
-      "Bash(do echo \"=== $file ===\")"
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

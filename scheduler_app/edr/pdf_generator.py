@@ -106,6 +106,53 @@ class EDRPDFGenerator:
 
         return f"Department {code}"
 
+    def wrap_category_text(self, text: str, max_length: int = 18) -> str:
+        """
+        Wrap category text to fit within max_length per line.
+        Breaks on word boundaries to avoid splitting words.
+        Wraps if adding the next word would make the line exceed max_length.
+
+        Args:
+            text: Text to wrap
+            max_length: Maximum characters per line (default 18)
+
+        Returns:
+            Text with newlines inserted at appropriate positions
+        """
+        if len(text) <= max_length:
+            return text
+
+        words = text.split()
+        if not words:
+            return text
+
+        lines = []
+        current_line = []
+        current_length = 0
+
+        for word in words:
+            # Check if adding this word would exceed the limit
+            word_length = len(word)
+            space_length = 1 if current_line else 0  # Space before word (if not first word)
+
+            # Wrap if adding this word would make line > max_length (more than 18 chars)
+            # This allows lines to be exactly 18 characters, but not more
+            if current_line and current_length + space_length + word_length > max_length:
+                # Start new line
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = word_length
+            else:
+                # Word fits on current line
+                current_line.append(word)
+                current_length += space_length + word_length
+
+        # Add remaining words
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        return '\n'.join(lines)
+
     def format_date(self, date_str: str) -> str:
         """Format date from YYYY-MM-DD to MM-DD-YYYY"""
         if not date_str or date_str == 'N/A':
@@ -147,8 +194,16 @@ class EDRPDFGenerator:
     #
     #     canvas.restoreState()
 
-    def generate_pdf(self, edr_data: Dict[str, Any], filename: str, employee_name: str = 'N/A') -> bool:
-        """Generate a PDF file from EDR data"""
+    def generate_pdf(self, edr_data: Dict[str, Any], filename: str, employee_name: str = 'N/A', schedule_info: Optional[Dict] = None) -> bool:
+        """
+        Generate a PDF file from EDR data
+
+        Args:
+            edr_data: EDR report data dictionary
+            filename: Output PDF filename
+            employee_name: Employee name for signature section
+            schedule_info: Optional dict with 'scheduled_date', 'start_date', 'due_date'
+        """
         try:
             # Create PDF with custom page template for 2/3 line
             doc = SimpleDocTemplate(
@@ -208,7 +263,24 @@ class EDRPDFGenerator:
 
             # Title
             story.append(Paragraph("EVENT DETAIL REPORT", title_style))
-            story.append(Spacer(1, 12))
+
+            # Scheduled date under the heading (if provided in schedule_info)
+            if schedule_info and schedule_info.get('scheduled_date'):
+                scheduled_date = schedule_info.get('scheduled_date')
+                scheduled_date_str = scheduled_date.strftime('%m-%d-%Y')
+
+                date_under_heading_style = ParagraphStyle(
+                    'DateUnderHeading',
+                    parent=styles['Normal'],
+                    fontSize=12,
+                    spaceAfter=12,
+                    alignment=TA_CENTER,
+                    fontName='Helvetica-Bold',
+                    textColor=colors.black
+                )
+                story.append(Paragraph(f"Event Scheduled On {scheduled_date_str}", date_under_heading_style))
+            else:
+                story.append(Spacer(1, 12))
 
             # Row 1: Event Number and Event Name (2 columns, Event Name takes 75% width)
             row1_data = [
@@ -238,7 +310,7 @@ class EDRPDFGenerator:
             col_width = page_width / 4
             row2_table = Table(row2_data, colWidths=[col_width, col_width, col_width, col_width])
             row2_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), self.pc_light_blue),
+                ('BACKGROUND', (0, 0), (-1, 0), self.pc_blue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('TEXTCOLOR', (0, 1), (-1, 1), colors.black),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # Headers centered
@@ -264,17 +336,19 @@ class EDRPDFGenerator:
                 for item in item_details:
                     dept_no = str(item.get('deptNbr', ''))
                     category = self.get_department_description(dept_no)
+                    # Wrap category text to prevent overflow (18 char max per line)
+                    wrapped_category = self.wrap_category_text(category, max_length=18)
                     items_data.append([
                         str(item.get('itemNbr', '')),
                         str(item.get('itemDesc', '')),
-                        category
+                        wrapped_category
                     ])
 
                 # Increased Category column width from 1.5 to 2.2 inches to fit longer category names
                 # like "EXTREME VALUE GIFT CARDS" and "PLANNING SOLUTIONS"
                 items_table = Table(items_data, colWidths=[1.2*inch, 3.1*inch, 2.2*inch])
                 items_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), self.pc_blue),
+                    ('BACKGROUND', (0, 0), (-1, 0), self.pc_light_blue),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                     ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
                     ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Item Number column - CENTER
@@ -321,8 +395,28 @@ class EDRPDFGenerator:
             ]))
             story.append(signature_table)
 
-            # Build PDF
-            doc.build(story)
+            # Create a custom page template to add "Printed" timestamp in bottom right
+            def add_printed_timestamp(canvas, doc):
+                """Add 'Printed: mm-dd-yyyy at HH:MM AM/PM' in bottom right corner"""
+                canvas.saveState()
+
+                # Get current timestamp
+                now = datetime.datetime.now()
+                timestamp_str = now.strftime('Printed: %m-%d-%Y at %I:%M %p')
+
+                # Position in bottom right corner (72pt = 1 inch from edges)
+                page_width = letter[0]  # 612pt
+                x_position = page_width - 72 - 150  # 150pt width for text, 72pt right margin
+                y_position = 50  # 50pt from bottom
+
+                canvas.setFont('Helvetica', 9)
+                canvas.setFillColor(colors.grey)
+                canvas.drawRightString(page_width - 72, y_position, timestamp_str)
+
+                canvas.restoreState()
+
+            # Build PDF with custom page template
+            doc.build(story, onFirstPage=add_printed_timestamp, onLaterPages=add_printed_timestamp)
             self.logger.info(f"PDF generated successfully: {filename}")
             return True
 

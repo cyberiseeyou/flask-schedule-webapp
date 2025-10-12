@@ -281,9 +281,18 @@
         background: #28a745;
         color: var(--text-white);
     }
-    
+
     .btn-change-employee:hover {
         background: #218838;
+    }
+
+    .btn-unschedule {
+        background: #dc3545;
+        color: var(--text-white);
+    }
+
+    .btn-unschedule:hover {
+        background: #c82333;
     }
     
     .modal-backdrop {
@@ -666,13 +675,18 @@
                                 ${event.store_name ? `<span>🏪 ${event.store_name}</span>` : ''}
                                 ${event.estimated_time ? `<span>⏱️ ${event.estimated_time} min</span>` : ''}
                             </div>
+                            <div class="event-dates" style="font-size: var(--font-size-small); color: var(--text-muted); margin-top: var(--spacing-xs); display: flex; gap: var(--spacing-md);">
+                                <span>📅 Start: ${event.start_date}</span>
+                                <span>📅 Due: ${event.due_date}</span>
+                            </div>
                             <div class="event-actions">
-                                <button class="event-action-btn btn-reschedule" 
+                                <button class="event-action-btn btn-reschedule"
                                         data-schedule-id="${event.id}"
                                         data-event-name="${event.event_name}"
                                         data-event-type="${event.event_type}"
                                         data-time="${event.time}"
                                         data-employee-name="${event.employee_name}"
+                                        data-employee-id="${event.employee_id}"
                                         data-date="${data.date}">
                                     Reschedule
                                 </button>
@@ -694,6 +708,12 @@
                                         data-employee-name="${event.employee_name}"
                                         data-date="${data.date}">
                                     Change Employee
+                                </button>
+                                <button class="event-action-btn btn-unschedule"
+                                        data-schedule-id="${event.id}"
+                                        data-event-name="${event.event_name}"
+                                        data-employee-name="${event.employee_name}">
+                                    Unschedule
                                 </button>
                             </div>
                         </div>
@@ -763,9 +783,10 @@
                 const eventType = this.dataset.eventType;
                 const time = this.dataset.time;
                 const employeeName = this.dataset.employeeName;
+                const employeeId = this.dataset.employeeId;
                 const date = this.dataset.date;
-                
-                openRescheduleModal(scheduleId, eventName, eventType, time, employeeName, date);
+
+                openRescheduleModal(scheduleId, eventName, eventType, time, employeeName, employeeId, date);
             });
         });
         
@@ -793,8 +814,20 @@
                 const employeeName = this.dataset.employeeName;
                 const time = this.dataset.time;
                 const date = this.dataset.date;
-                
+
                 openTradeModal(scheduleId, eventName, employeeName, time, date);
+            });
+        });
+
+        // Add event listeners for unschedule buttons
+        document.querySelectorAll('.btn-unschedule').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const scheduleId = this.dataset.scheduleId;
+                const eventName = this.dataset.eventName;
+                const employeeName = this.dataset.employeeName;
+
+                unscheduleEvent(scheduleId, eventName, employeeName);
             });
         });
     }
@@ -1007,23 +1040,23 @@
     });
     
     // Reschedule Modal Functions
-    function openRescheduleModal(scheduleId, eventName, eventType, currentTime, employeeName, currentDate) {
+    function openRescheduleModal(scheduleId, eventName, eventType, currentTime, employeeName, employeeId, currentDate) {
         try {
             document.getElementById('reschedule-schedule-id').value = scheduleId;
             document.getElementById('reschedule-event-info').innerHTML = `
                 <strong>${eventName}</strong> (${eventType})<br>
                 Current: ${currentDate} at ${currentTime} with ${employeeName}
             `;
-            
+
             // Convert displayed time to 24-hour format for comparison
             const time24 = convertTo24Hour(currentTime);
-            
+
             // Set up time restrictions for event type
             setupTimeRestrictions('reschedule', eventType, time24);
-            
-            // Load available employees with role-based filtering
-            loadAvailableEmployeesForReschedule('reschedule-employee', currentDate, eventType);
-            
+
+            // Load available employees with role-based filtering, passing current employee info
+            loadAvailableEmployeesForReschedule('reschedule-employee', currentDate, eventType, employeeId, currentDate);
+
             document.getElementById('reschedule-modal').style.display = 'flex';
         } catch (error) {
             console.error('Error opening reschedule modal:', error);
@@ -1162,11 +1195,19 @@
             });
     }
     
-    function loadAvailableEmployeesForReschedule(selectId, date, eventType) {
+    function loadAvailableEmployeesForReschedule(selectId, date, eventType, employeeId, currentDate) {
         const select = document.getElementById(selectId);
         select.innerHTML = '<option value="">Loading...</option>';
-        
-        fetch(`/api/available_employees_for_change/${date}/${eventType}`)
+
+        // Build API URL with event type and date
+        let apiUrl = `/api/available_employees_for_change/${date}/${eventType}`;
+
+        // Add query parameters for current employee and date if both are provided
+        if (employeeId && currentDate) {
+            apiUrl += `?current_employee_id=${employeeId}&current_date=${currentDate}`;
+        }
+
+        fetch(apiUrl)
             .then(response => response.json())
             .then(employees => {
                 select.innerHTML = '<option value="">Select an employee</option>';
@@ -1312,15 +1353,15 @@
     
     document.getElementById('change-employee-form').addEventListener('submit', function(e) {
         e.preventDefault();
-        
+
         const scheduleId = document.getElementById('change-schedule-id').value;
         const newEmployeeId = document.getElementById('change-new-employee').value;
-        
+
         if (!newEmployeeId) {
             alert('Please select a new employee');
             return;
         }
-        
+
         fetch('/api/change_employee', {
             method: 'POST',
             headers: {
@@ -1346,5 +1387,35 @@
             alert('Error changing employee');
         });
     });
+
+    // Unschedule Event Function
+    function unscheduleEvent(scheduleId, eventName, employeeName) {
+        // Confirm before unscheduling
+        const confirmMessage = `Are you sure you want to unschedule this event?\n\nEvent: ${eventName}\nEmployee: ${employeeName}\n\nThis will remove the event from the schedule and mark it as unscheduled.`;
+
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+
+        fetch(`/api/unschedule/${scheduleId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload(); // Refresh calendar
+            } else {
+                alert('Error: ' + (data.error || 'Failed to unschedule event'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error unscheduling event. Please try again.');
+        });
+    }
 </script>
 {% endblock %}
