@@ -660,51 +660,122 @@ def unschedule_event(schedule_id):
             return jsonify({'error': 'Related event not found'}), 404
 
         # Call Crossmark API BEFORE deleting local record
-        if schedule.external_id:
-            from session_api_service import session_api as external_api
+        from session_api_service import session_api as external_api
 
-            # Ensure session is authenticated
-            try:
-                if not external_api.ensure_authenticated():
-                    return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
-            except Exception as auth_error:
-                current_app.logger.error(f"Authentication error: {str(auth_error)}")
+        # Ensure session is authenticated
+        try:
+            if not external_api.ensure_authenticated():
                 return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+        except Exception as auth_error:
+            current_app.logger.error(f"Authentication error: {str(auth_error)}")
+            return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
 
-            # Call API to delete/unschedule the event
-            try:
-                current_app.logger.info(
-                    f"Submitting unschedule to Crossmark API: schedule_id={schedule.external_id}"
-                )
+        # BEGIN NESTED TRANSACTION for CORE-Supervisor pairing (Calendar Redesign - Sprint 2)
+        try:
+            with db.session.begin_nested():
+                # Call API to delete/unschedule the CORE event
+                if schedule.external_id:
+                    try:
+                        current_app.logger.info(
+                            f"Submitting unschedule to Crossmark API: schedule_id={schedule.external_id}"
+                        )
 
-                api_result = external_api.unschedule_mplan_event(str(schedule.external_id))
+                        api_result = external_api.unschedule_mplan_event(str(schedule.external_id))
 
-                if not api_result.get('success'):
-                    error_message = api_result.get('message', 'Unknown API error')
-                    current_app.logger.error(f"Crossmark API error: {error_message}")
-                    return jsonify({'error': f'Failed to unschedule in Crossmark: {error_message}'}), 500
+                        if not api_result.get('success'):
+                            error_message = api_result.get('message', 'Unknown API error')
+                            current_app.logger.error(f"Crossmark API error: {error_message}")
+                            raise Exception(f'Failed to unschedule in Crossmark: {error_message}')
 
-                current_app.logger.info(f"Successfully unscheduled event in Crossmark API")
+                        current_app.logger.info(f"Successfully unscheduled event in Crossmark API")
 
-            except Exception as api_error:
-                current_app.logger.error(f"API submission error: {str(api_error)}")
-                return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
+                    except Exception as api_error:
+                        current_app.logger.error(f"API submission error: {str(api_error)}")
+                        raise Exception(f'Failed to submit to Crossmark API: {str(api_error)}')
 
-        # API call successful (or no external_id) - now delete local record
-        db.session.delete(schedule)
+                # NEW: Check if this is a CORE event and unschedule Supervisor (Calendar Redesign - Sprint 2)
+                from scheduler_app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
-        # Check if this was the only schedule for the event
-        remaining_schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).count()
-        if remaining_schedules == 0:
-            event.is_scheduled = False
+                if is_core_event_redesign(event):
+                    current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
 
-        # Update event sync status
-        event.sync_status = 'synced'
-        event.last_synced = datetime.utcnow()
+                    supervisor_status = get_supervisor_status(event)
 
-        db.session.commit()
+                    if supervisor_status['exists'] and supervisor_status['is_scheduled']:
+                        supervisor_event = supervisor_status['event']
+                        current_app.logger.info(
+                            f"Found paired Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                        )
 
-        return jsonify({'success': True, 'message': 'Event unscheduled successfully. Event moved back to unscheduled status.'})
+                        # Find Supervisor's schedule
+                        supervisor_schedule = Schedule.query.filter_by(
+                            event_ref_num=supervisor_event.project_ref_num
+                        ).first()
+
+                        if supervisor_schedule:
+                            # Call Crossmark API to unschedule Supervisor
+                            if supervisor_schedule.external_id:
+                                current_app.logger.info(
+                                    f"Calling Crossmark API to unschedule Supervisor: schedule_id={supervisor_schedule.external_id}"
+                                )
+
+                                supervisor_api_result = external_api.unschedule_mplan_event(str(supervisor_schedule.external_id))
+
+                                if not supervisor_api_result.get('success'):
+                                    error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                                    current_app.logger.error(f"Supervisor unschedule API call failed: {error_msg}")
+                                    raise Exception(f"Failed to unschedule Supervisor in Crossmark: {error_msg}")
+
+                                current_app.logger.info(f"Successfully unscheduled Supervisor in Crossmark API")
+
+                            # Delete Supervisor schedule record
+                            db.session.delete(supervisor_schedule)
+
+                            # Check if Supervisor has other schedules
+                            remaining_supervisor_schedules = Schedule.query.filter_by(
+                                event_ref_num=supervisor_event.project_ref_num
+                            ).count()
+                            if remaining_supervisor_schedules == 0:
+                                supervisor_event.is_scheduled = False
+
+                            # Update Supervisor event sync status
+                            supervisor_event.sync_status = 'synced'
+                            supervisor_event.last_synced = datetime.utcnow()
+
+                            current_app.logger.info(
+                                f"✅ Successfully auto-unscheduled Supervisor event {supervisor_event.project_ref_num}"
+                            )
+                        else:
+                            current_app.logger.warning(f"Supervisor schedule not found for event {supervisor_event.project_ref_num}")
+                    elif supervisor_status['exists']:
+                        current_app.logger.info(
+                            f"Supervisor event exists but is not scheduled (condition: {supervisor_status['condition']}). "
+                            f"No auto-unschedule needed."
+                        )
+                    else:
+                        current_app.logger.info("No paired Supervisor event found for this CORE event.")
+
+                # Delete CORE event schedule record
+                db.session.delete(schedule)
+
+                # Check if this was the only schedule for the CORE event
+                remaining_schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).count()
+                if remaining_schedules == 0:
+                    event.is_scheduled = False
+
+                # Update CORE event sync status
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
+
+            # COMMIT TRANSACTION
+            db.session.commit()
+
+            return jsonify({'success': True, 'message': 'Event unscheduled successfully. Event moved back to unscheduled status.'})
+
+        except Exception as nested_error:
+            db.session.rollback()
+            current_app.logger.error(f"Transaction failed during unschedule: {str(nested_error)}", exc_info=True)
+            raise nested_error
 
     except Exception as e:
         db.session.rollback()
