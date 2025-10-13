@@ -229,3 +229,210 @@ def validate_event_number(event_number: str) -> bool:
 
     # Must be exactly 6 digits
     return bool(re.match(r'^\d{6}$', event_number))
+
+
+# ============================================================================
+# CORE-Supervisor Event Pairing Functions (Calendar Redesign - Sprint 2)
+# ============================================================================
+
+def get_supervisor_event(core_event):
+    """
+    Find Supervisor event paired with CORE event.
+
+    The pairing is based on a 6-digit event number prefix. For example:
+    - CORE event: "606001-CORE-Super Pretzel"
+    - Supervisor event: "606001-Supervisor-Super Pretzel"
+
+    Args:
+        core_event: Event object with project_name containing "-CORE-"
+
+    Returns:
+        Event object or None if no matching Supervisor found
+
+    Example:
+        >>> core_event = Event.query.filter_by(event_id=1001).first()
+        >>> supervisor = get_supervisor_event(core_event)
+        >>> if supervisor:
+        ...     print(f"Found supervisor: {supervisor.project_name}")
+    """
+    import logging
+    from scheduler_app.models import Event
+
+    logger = logging.getLogger(__name__)
+
+    if not core_event:
+        logger.warning("get_supervisor_event called with None core_event")
+        return None
+
+    # Extract 6-digit event number using regex (case-insensitive)
+    match = re.search(r'(\d{6})-CORE-', core_event.project_name, re.IGNORECASE)
+
+    if not match:
+        logger.warning(
+            f"Could not extract event number from: {core_event.project_name}. "
+            f"Expected format: XXXXXX-CORE-ProductName"
+        )
+        return None
+
+    event_number = match.group(1)
+    logger.debug(f"Extracted event number: {event_number} from CORE event {core_event.event_id}")
+
+    # Find matching Supervisor event (case-insensitive search)
+    supervisor_event = Event.query.filter(
+        Event.project_name.ilike(f'{event_number}-Supervisor-%')
+    ).first()
+
+    if not supervisor_event:
+        logger.info(
+            f"No Supervisor event found for CORE event {core_event.event_id} "
+            f"(event number: {event_number}). This may be expected."
+        )
+        return None
+
+    logger.debug(f"Found Supervisor event {supervisor_event.event_id} for CORE event {core_event.event_id}")
+    return supervisor_event
+
+
+def get_supervisor_status(core_event):
+    """
+    Get detailed status of paired Supervisor event.
+
+    Returns comprehensive status information useful for decision-making
+    in reschedule/unschedule operations.
+
+    Args:
+        core_event: Event object with project_name containing "-CORE-"
+
+    Returns:
+        dict: {
+            'exists': bool - Whether a Supervisor event exists
+            'event': Event object or None
+            'is_scheduled': bool - Whether Supervisor is currently scheduled
+            'start_datetime': datetime or None - When Supervisor is scheduled
+            'condition': str or None - Current condition ('Scheduled' or 'Unstaffed')
+        }
+
+    Example:
+        >>> core_event = Event.query.filter_by(event_id=1001).first()
+        >>> status = get_supervisor_status(core_event)
+        >>> if status['exists'] and status['is_scheduled']:
+        ...     print(f"Supervisor scheduled for {status['start_datetime']}")
+    """
+    supervisor = get_supervisor_event(core_event)
+
+    if not supervisor:
+        return {
+            'exists': False,
+            'event': None,
+            'is_scheduled': False,
+            'start_datetime': None,
+            'condition': None
+        }
+
+    return {
+        'exists': True,
+        'event': supervisor,
+        'is_scheduled': supervisor.condition == 'Scheduled',
+        'start_datetime': supervisor.start_datetime,
+        'condition': supervisor.condition
+    }
+
+
+def is_core_event_redesign(event):
+    """
+    Check if an event is a CORE event based on project_name (for Calendar Redesign).
+
+    This is different from is_core_event() which checks event_type.
+    This function checks if the project_name contains "-CORE-".
+
+    Args:
+        event: Event object
+
+    Returns:
+        bool: True if event is a CORE event, False otherwise
+
+    Example:
+        >>> event = Event.query.filter_by(event_id=1001).first()
+        >>> if is_core_event_redesign(event):
+        ...     print("This is a CORE event")
+    """
+    if not event or not event.project_name:
+        return False
+
+    return '-CORE-' in event.project_name.upper()
+
+
+def is_supervisor_event(event):
+    """
+    Check if an event is a Supervisor event based on project_name.
+
+    Args:
+        event: Event object
+
+    Returns:
+        bool: True if event is a Supervisor event, False otherwise
+
+    Example:
+        >>> event = Event.query.filter_by(event_id=1002).first()
+        >>> if is_supervisor_event(event):
+        ...     print("This is a Supervisor event")
+    """
+    if not event or not event.project_name:
+        return False
+
+    return '-SUPERVISOR-' in event.project_name.upper()
+
+
+def validate_event_pairing(core_event, supervisor_event):
+    """
+    Validate that CORE and Supervisor events are properly paired.
+
+    Checks:
+    - Both events exist
+    - Event numbers match
+    - CORE event has "-CORE-" in name
+    - Supervisor event has "-Supervisor-" in name
+
+    Args:
+        core_event: Event object (expected to be CORE)
+        supervisor_event: Event object (expected to be Supervisor)
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+
+    Example:
+        >>> core = Event.query.filter_by(event_id=1001).first()
+        >>> supervisor = Event.query.filter_by(event_id=1002).first()
+        >>> is_valid, error = validate_event_pairing(core, supervisor)
+        >>> if not is_valid:
+        ...     print(f"Pairing error: {error}")
+    """
+    if not core_event:
+        return False, "CORE event is None"
+
+    if not supervisor_event:
+        return False, "Supervisor event is None"
+
+    if not is_core_event_redesign(core_event):
+        return False, f"Event {core_event.event_id} is not a CORE event"
+
+    if not is_supervisor_event(supervisor_event):
+        return False, f"Event {supervisor_event.event_id} is not a Supervisor event"
+
+    # Extract event numbers from both
+    core_match = re.search(r'(\d{6})-CORE-', core_event.project_name, re.IGNORECASE)
+    supervisor_match = re.search(r'(\d{6})-SUPERVISOR-', supervisor_event.project_name, re.IGNORECASE)
+
+    if not core_match:
+        return False, f"Could not extract event number from CORE: {core_event.project_name}"
+
+    if not supervisor_match:
+        return False, f"Could not extract event number from Supervisor: {supervisor_event.project_name}"
+
+    core_number = core_match.group(1)
+    supervisor_number = supervisor_match.group(1)
+
+    if core_number != supervisor_number:
+        return False, f"Event numbers don't match: CORE={core_number}, Supervisor={supervisor_number}"
+
+    return True, None
