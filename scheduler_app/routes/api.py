@@ -394,17 +394,114 @@ def reschedule():
             current_app.logger.error(f"API submission error: {str(api_error)}")
             return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
 
-        # API submission successful - now update local record
-        schedule.employee_id = new_employee_id
-        schedule.schedule_datetime = new_datetime
+        # API submission successful - now update local record with transaction
+        try:
+            # BEGIN NESTED TRANSACTION for CORE-Supervisor pairing
+            with db.session.begin_nested():
+                # Update CORE event schedule
+                schedule.employee_id = new_employee_id
+                schedule.schedule_datetime = new_datetime
 
-        # Update event sync status
-        event.sync_status = 'synced'
-        event.last_synced = datetime.utcnow()
+                # Update event sync status
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
 
-        db.session.commit()
+                # NEW: Check if this is a CORE event and reschedule Supervisor (Calendar Redesign - Sprint 2)
+                from scheduler_app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
-        return jsonify({'success': True, 'message': 'Event rescheduled successfully'})
+                if is_core_event_redesign(event):
+                    current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
+
+                    supervisor_status = get_supervisor_status(event)
+
+                    if supervisor_status['exists'] and supervisor_status['is_scheduled']:
+                        supervisor_event = supervisor_status['event']
+                        current_app.logger.info(
+                            f"Found paired Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                        )
+
+                        # Find Supervisor's schedule
+                        supervisor_schedule = Schedule.query.filter_by(
+                            event_ref_num=supervisor_event.project_ref_num
+                        ).first()
+
+                        if supervisor_schedule:
+                            # Calculate Supervisor datetime (2 hours after CORE start)
+                            supervisor_new_datetime = new_datetime + timedelta(hours=2)
+
+                            # Get Supervisor employee
+                            supervisor_employee = db.session.get(Employee, supervisor_schedule.employee_id)
+
+                            if supervisor_employee:
+                                # Prepare Supervisor API data
+                                supervisor_rep_id = str(supervisor_employee.external_id) if supervisor_employee.external_id else None
+                                supervisor_mplan_id = str(supervisor_event.external_id) if supervisor_event.external_id else None
+                                supervisor_location_id = str(supervisor_event.location_mvid) if supervisor_event.location_mvid else None
+
+                                # Validate Supervisor API fields
+                                if all([supervisor_rep_id, supervisor_mplan_id, supervisor_location_id]):
+                                    # Calculate Supervisor end datetime
+                                    supervisor_estimated_minutes = supervisor_event.estimated_time or supervisor_event.get_default_duration(supervisor_event.event_type)
+                                    supervisor_end_datetime = supervisor_new_datetime + timedelta(minutes=supervisor_estimated_minutes)
+
+                                    # Call Crossmark API for Supervisor
+                                    current_app.logger.info(
+                                        f"Calling Crossmark API for Supervisor: "
+                                        f"rep_id={supervisor_rep_id}, mplan_id={supervisor_mplan_id}, "
+                                        f"start={supervisor_new_datetime.isoformat()}"
+                                    )
+
+                                    supervisor_api_result = external_api.schedule_mplan_event(
+                                        rep_id=supervisor_rep_id,
+                                        mplan_id=supervisor_mplan_id,
+                                        location_id=supervisor_location_id,
+                                        start_datetime=supervisor_new_datetime,
+                                        end_datetime=supervisor_end_datetime,
+                                        planning_override=True
+                                    )
+
+                                    if not supervisor_api_result.get('success'):
+                                        error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                                        current_app.logger.error(f"Supervisor API call failed: {error_msg}")
+                                        raise Exception(f"Failed to reschedule Supervisor in Crossmark: {error_msg}")
+
+                                    # Update Supervisor schedule
+                                    supervisor_schedule.schedule_datetime = supervisor_new_datetime
+
+                                    # Update Supervisor event sync status
+                                    supervisor_event.sync_status = 'synced'
+                                    supervisor_event.last_synced = datetime.utcnow()
+
+                                    current_app.logger.info(
+                                        f"✅ Successfully auto-rescheduled Supervisor event {supervisor_event.project_ref_num} "
+                                        f"to {supervisor_new_datetime.isoformat()}"
+                                    )
+                                else:
+                                    current_app.logger.warning(
+                                        f"Supervisor API fields incomplete for {supervisor_event.project_name}. "
+                                        f"Skipping Supervisor reschedule."
+                                    )
+                            else:
+                                current_app.logger.warning(f"Supervisor employee not found for schedule {supervisor_schedule.id}")
+                        else:
+                            current_app.logger.warning(f"Supervisor schedule not found for event {supervisor_event.project_ref_num}")
+                    elif supervisor_status['exists']:
+                        current_app.logger.info(
+                            f"Supervisor event exists but is not scheduled (condition: {supervisor_status['condition']}). "
+                            f"No auto-reschedule needed."
+                        )
+                    else:
+                        current_app.logger.info("No paired Supervisor event found for this CORE event.")
+
+            # COMMIT TRANSACTION
+            db.session.commit()
+
+            return jsonify({'success': True, 'message': 'Event rescheduled successfully'})
+
+        except Exception as nested_error:
+            db.session.rollback()
+            current_app.logger.error(f"Transaction failed during reschedule: {str(nested_error)}", exc_info=True)
+            raise nested_error
 
     except Exception as e:
         db.session.rollback()
