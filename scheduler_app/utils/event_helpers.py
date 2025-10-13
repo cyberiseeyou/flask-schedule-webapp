@@ -256,9 +256,25 @@ def get_supervisor_event(core_event):
         ...     print(f"Found supervisor: {supervisor.project_name}")
     """
     import logging
-    from scheduler_app.models import Event
-
     logger = logging.getLogger(__name__)
+
+    # Get Event model from the model class of core_event
+    Event = type(core_event)
+    from sqlalchemy import inspect
+
+    # Try to get db session from the event
+    try:
+        db_session = inspect(core_event).session
+    except:
+        # Fallback: try to import from app context
+        try:
+            from flask import current_app
+            Event = current_app.config.get('Event')
+            if not Event:
+                from scheduler_app.models import Event
+        except:
+            logger.error("Could not get Event model - unable to query Supervisor")
+            return None
 
     if not core_event:
         logger.warning("get_supervisor_event called with None core_event")
@@ -275,7 +291,7 @@ def get_supervisor_event(core_event):
         return None
 
     event_number = match.group(1)
-    logger.debug(f"Extracted event number: {event_number} from CORE event {core_event.event_id}")
+    logger.debug(f"Extracted event number: {event_number} from CORE event {core_event.id}")
 
     # Find matching Supervisor event (case-insensitive search)
     supervisor_event = Event.query.filter(
@@ -284,12 +300,12 @@ def get_supervisor_event(core_event):
 
     if not supervisor_event:
         logger.info(
-            f"No Supervisor event found for CORE event {core_event.event_id} "
+            f"No Supervisor event found for CORE event {core_event.id} "
             f"(event number: {event_number}). This may be expected."
         )
         return None
 
-    logger.debug(f"Found Supervisor event {supervisor_event.event_id} for CORE event {core_event.event_id}")
+    logger.debug(f"Found Supervisor event {supervisor_event.id} for CORE event {core_event.id}")
     return supervisor_event
 
 
@@ -414,10 +430,10 @@ def validate_event_pairing(core_event, supervisor_event):
         return False, "Supervisor event is None"
 
     if not is_core_event_redesign(core_event):
-        return False, f"Event {core_event.event_id} is not a CORE event"
+        return False, f"Event {core_event.id} is not a CORE event"
 
     if not is_supervisor_event(supervisor_event):
-        return False, f"Event {supervisor_event.event_id} is not a Supervisor event"
+        return False, f"Event {supervisor_event.id} is not a Supervisor event"
 
     # Extract event numbers from both
     core_match = re.search(r'(\d{6})-CORE-', core_event.project_name, re.IGNORECASE)
