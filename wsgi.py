@@ -15,16 +15,16 @@ import os
 import sys
 from pathlib import Path
 
-# Add the scheduler_app directory to the Python path
+# Add the application directory to the Python path
 base_dir = Path(__file__).resolve().parent
-sys.path.insert(0, str(base_dir / 'scheduler_app'))
+sys.path.insert(0, str(base_dir))
 
 # Set production environment if not already set
 if 'FLASK_ENV' not in os.environ:
     os.environ['FLASK_ENV'] = 'production'
 
 # Import the Flask application
-from scheduler_app.app import app, init_db
+from app import app, init_db
 
 # Initialize database if needed
 try:

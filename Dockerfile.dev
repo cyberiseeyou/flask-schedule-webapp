@@ -36,7 +36,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --chown=scheduler:scheduler . /app
 
 # Create necessary directories
-RUN mkdir -p /app/scheduler_app/instance /app/scheduler_app/logs && \
+RUN mkdir -p /app/instance /app/logs && \
     chown -R scheduler:scheduler /app
 
 # Switch to non-root user
@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5000/health/ping || exit 1
 
 # Run Flask development server
-CMD ["python", "-m", "flask", "--app", "scheduler_app.app", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["python", "-m", "flask", "--app", "app", "run", "--host=0.0.0.0", "--port=5000"]

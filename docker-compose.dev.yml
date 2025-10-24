@@ -37,7 +37,7 @@ services:
     container_name: scheduler-app-dev
     restart: unless-stopped
     env_file:
-      - scheduler_app/.env
+      - .env
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
@@ -45,12 +45,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       # Mount source code for hot-reload
-      - ./scheduler_app:/app/scheduler_app
-      - ./wsgi.py:/app/wsgi.py
-      - ./gunicorn_config.py:/app/gunicorn_config.py
+      - .:/app
       # Persistent volumes
-      - dev_instance:/app/scheduler_app/instance
-      - dev_logs:/app/scheduler_app/logs
+      - dev_instance:/app/instance
+      - dev_logs:/app/logs
     ports:
       - "5000:5000"
     depends_on:

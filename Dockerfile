@@ -55,7 +55,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 COPY --chown=scheduler:scheduler . /app
 
 # Create necessary directories
-RUN mkdir -p /app/scheduler_app/instance /app/scheduler_app/logs && \
+RUN mkdir -p /app/instance /app/logs && \
     chown -R scheduler:scheduler /app
 
 # Switch to non-root user
