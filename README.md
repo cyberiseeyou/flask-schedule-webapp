@@ -26,25 +26,37 @@ A comprehensive Flask-based web application for automating employee scheduling, 
 
 ## Quick Start
 
-### Docker Deployment (Recommended)
+### Docker Deployment (Recommended) 🐳
 
-**Prerequisites:**
-- Docker 20.10+
-- Docker Compose 2.0+
+The easiest way to get started! Just clone and run the setup script.
 
-**Deploy:**
+**Linux/Mac:**
 ```bash
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run deployment script
-bash scripts/setup/deploy.sh
+git clone <repository-url>
+cd flask-schedule-webapp
+chmod +x setup.sh
+./setup.sh
 ```
 
-**Access:** http://localhost
+**Windows:**
+```cmd
+git clone <repository-url>
+cd flask-schedule-webapp
+setup.bat
+```
 
-See [Docker Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT.md) for detailed instructions.
+**Access:**
+- Production: http://localhost:8000
+- Development: http://localhost:5000 (use `./setup.sh dev` or `setup.bat dev`)
+
+The setup script automatically:
+- ✅ Checks Docker installation
+- ✅ Generates secure secrets
+- ✅ Configures the database
+- ✅ Builds and starts all containers
+- ✅ Runs database migrations
+
+See [DOCKER.md](DOCKER.md) for detailed Docker deployment guide.
 
 ### Local Development
 

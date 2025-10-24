@@ -91,18 +91,23 @@ test_*.py
 comprehensive_api_test.py
 
 # Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
+Dockerfile.dev
+docker-compose.dev.yml
 docker/
 
 # CI/CD
 .github/
 
 # README and docs
-README.md
 *.md
+!README.md
+!DEPLOYMENT.md
+!PRODUCTION_CHECKLIST.md
 
 # Claude files
-.claude/
+.claude/skills/
 awesome-claude-skills/
+
+# Setup scripts
+setup.sh
+setup.bat
