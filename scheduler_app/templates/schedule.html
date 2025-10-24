@@ -3,6 +3,10 @@
 {% block title %}{{ action_type }} Event - Product Connections Scheduler{% endblock %}
 {% block page_title %}{{ action_type }} Event{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/validation.css') }}">
+{% endblock %}
+
 {% block content %}
     <!-- Page Header -->
     <div class="page-header" style="text-align: center; margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-md); border-bottom: 2px solid var(--pc-light-blue);">
@@ -31,6 +35,7 @@
             
             <form class="schedule-form" id="scheduling-form" action="/save_schedule" method="POST">
                 <input type="hidden" name="event_id" value="{{ event.id }}">
+                <input type="hidden" name="return_url" value="{{ return_url }}">
                 
                 <div class="form-group">
                     <label for="scheduled_date">Scheduled Date</label>
@@ -99,4 +104,7 @@
         };
     </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <!-- Inline Validation Module (Story 1.4) -->
+    <script type="module" src="{{ url_for('static', filename='js/pages/schedule-form.js') }}"></script>
 {% endblock %}

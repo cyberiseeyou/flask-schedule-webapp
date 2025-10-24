@@ -1,0 +1,2155 @@
+// static/js/pages/daily-view.js
+
+/**
+ * Daily View Page Controller
+ *
+ * Manages daily schedule view including summary, timeslots, and event cards.
+ * Extended for Story 3.3 to include event cards display and interactions.
+ */
+
+class DailyView {
+    constructor(date) {
+        this.date = date;
+        this.summaryContainer = document.getElementById('daily-summary');
+        this.timeslotContainer = document.getElementById('timeslot-blocks');
+        this.eventsContainer = document.getElementById('event-cards-container');  // NEW for Story 3.3
+        this.attendanceContainer = document.getElementById('attendance-list-container');  // NEW for attendance
+        this.init();
+    }
+
+    async init() {
+        await this.loadDailySummary();  // From Story 3.2
+        await this.loadAttendance();    // NEW for attendance
+        await this.loadDailyEvents();   // NEW for Story 3.3
+    }
+
+    /* ===================================================================
+       Story 3.2 Methods - Event Type Summary & Timeslot Coverage
+       =================================================================== */
+
+    /**
+     * Load daily summary data from API
+     */
+    async loadDailySummary() {
+        try {
+            const response = await fetch(`/api/daily-summary/${this.date}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            this.renderEventTypeSummary(data.event_types, data.total_events);
+            this.renderTimeslotCoverage(data.timeslot_coverage);
+        } catch (error) {
+            console.error('Failed to load daily summary:', error);
+            this.showError('Failed to load daily summary. Please refresh the page.');
+        }
+    }
+
+    /**
+     * Render event type summary section
+     */
+    renderEventTypeSummary(eventTypes, totalEvents) {
+        if (!this.summaryContainer) return;
+
+        const html = `
+            <div class="event-summary">
+                <h3 class="event-summary__title">Events Summary</h3>
+                <div class="event-summary__total">
+                    <span class="event-summary__count">${totalEvents}</span>
+                    <span class="event-summary__label">Total Events</span>
+                </div>
+                <div class="event-summary__types">
+                    ${Object.entries(eventTypes).map(([type, count]) => `
+                        <div class="event-type-item">
+                            <span class="event-type-item__icon">${this.getEventIcon(type)}</span>
+                            <span class="event-type-item__label">${type}</span>
+                            <span class="event-type-item__count">${count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        this.summaryContainer.innerHTML = html;
+    }
+
+    /**
+     * Render timeslot coverage blocks
+     */
+    renderTimeslotCoverage(timeslotCoverage) {
+        if (!this.timeslotContainer) return;
+
+        const timeslots = [
+            { time: '09:45:00', label: '9:45 AM' },
+            { time: '10:30:00', label: '10:30 AM' },
+            { time: '11:00:00', label: '11:00 AM' },
+            { time: '11:30:00', label: '11:30 AM' }
+        ];
+
+        const html = timeslots.map(slot => {
+            const count = timeslotCoverage[slot.time] || 0;
+            const status = this.getTimeslotStatus(count);
+            const statusClass = `timeslot-block--${status}`;
+
+            return `
+                <div class="timeslot-block ${statusClass}"
+                     title="Employees with events starting at ${slot.label}: ${count}"
+                     aria-label="${count} employees starting at ${slot.label}">
+                    <div class="timeslot-block__time">${slot.label}</div>
+                    <div class="timeslot-block__count">${count}</div>
+                    <div class="timeslot-block__label">employees</div>
+                </div>
+            `;
+        }).join('');
+
+        this.timeslotContainer.innerHTML = html;
+    }
+
+    /**
+     * Get timeslot status based on employee count
+     *
+     * @param {number} count - Number of employees
+     * @returns {string} Status: 'optimal', 'low', or 'empty'
+     */
+    getTimeslotStatus(count) {
+        if (count >= 3) return 'optimal';
+        if (count >= 1) return 'low';
+        return 'empty';
+    }
+
+    /**
+     * Get icon for event type
+     */
+    getEventIcon(eventType) {
+        const icons = {
+            'Setup': '📦',
+            'Demo': '🎯',
+            'Juicer': '🏪',
+            'Other': '📋',
+            'Core': '🎯',
+            'Supervisor': '👔',
+            'Freeosk': '🆓',
+            'Digitals': '💻'
+        };
+        return icons[eventType] || '📋';
+    }
+
+    /**
+     * Show error message
+     */
+    showError(message) {
+        const container = this.summaryContainer || this.timeslotContainer;
+        if (container) {
+            container.innerHTML = `<div class="error-message" role="alert">${message}</div>`;
+        }
+    }
+
+    /* ===================================================================
+       Employee Attendance Methods - Separate from Events
+       =================================================================== */
+
+    /**
+     * Load attendance data for scheduled employees
+     */
+    async loadAttendance() {
+        try {
+            const response = await fetch(`/api/attendance/scheduled-employees/${this.date}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            this.renderAttendanceList(data.scheduled_employees);
+        } catch (error) {
+            console.error('Failed to load attendance:', error);
+            this.showAttendanceError('Failed to load attendance. Please refresh the page.');
+        }
+    }
+
+    /**
+     * Render attendance list
+     */
+    renderAttendanceList(employees) {
+        if (!this.attendanceContainer) return;
+
+        if (employees.length === 0) {
+            this.attendanceContainer.innerHTML = `
+                <div class="empty-state" role="status">
+                    <p class="empty-state__message">No employees scheduled for this date</p>
+                </div>
+            `;
+            return;
+        }
+
+        const html = employees.map(emp => this.createAttendanceRow(emp)).join('');
+        this.attendanceContainer.innerHTML = `
+            <div class="attendance-table">
+                ${html}
+            </div>
+        `;
+
+        // Attach event listeners
+        this.attachAttendanceListeners();
+    }
+
+    /**
+     * Create attendance row for an employee
+     */
+    createAttendanceRow(employee) {
+        const hasAttendance = employee.attendance_status !== null;
+        const statusBadge = hasAttendance
+            ? this.getAttendanceBadge(employee.attendance_status, employee.status_label)
+            : '<span class="attendance-badge attendance-badge--no-record">⚪ No Record</span>';
+
+        const notesPreview = employee.attendance_notes
+            ? `<span class="attendance-notes" title="${this.escapeHtml(employee.attendance_notes)}">📝 ${this.truncate(employee.attendance_notes, 40)}</span>`
+            : '';
+
+        const startTime = employee.earliest_start_time
+            ? `<span class="employee-start-time"> - ${employee.earliest_start_time}</span>`
+            : '';
+
+        return `
+            <div class="attendance-row" data-employee-id="${employee.employee_id}">
+                <div class="attendance-row__employee">
+                    <span class="employee-icon">👤</span>
+                    <span class="employee-name">${employee.employee_name}${startTime}</span>
+                </div>
+                <div class="attendance-row__status">
+                    ${statusBadge}
+                    ${notesPreview}
+                </div>
+                <div class="attendance-row__actions">
+                    ${hasAttendance
+                        ? `<button class="btn btn-secondary btn-sm btn-edit-attendance-row"
+                                   data-employee-id="${employee.employee_id}"
+                                   aria-label="Edit attendance for ${employee.employee_name}">
+                               Edit
+                           </button>`
+                        : `<div class="attendance-dropdown" data-employee-id="${employee.employee_id}">
+                               <button class="btn btn-primary btn-sm dropdown-toggle"
+                                       aria-label="Record attendance for ${employee.employee_name}"
+                                       aria-haspopup="true"
+                                       aria-expanded="false">
+                                   Record Attendance ▼
+                               </button>
+                               <div class="dropdown-menu" role="menu">
+                                   <button class="dropdown-item attendance-option"
+                                           role="menuitem"
+                                           data-employee-id="${employee.employee_id}"
+                                           data-status="on_time">
+                                       🟢 On-Time
+                                   </button>
+                                   <button class="dropdown-item attendance-option"
+                                           role="menuitem"
+                                           data-employee-id="${employee.employee_id}"
+                                           data-status="late">
+                                       🟡 Late
+                                   </button>
+                                   <button class="dropdown-item attendance-option"
+                                           role="menuitem"
+                                           data-employee-id="${employee.employee_id}"
+                                           data-status="called_in">
+                                       📞 Called-In
+                                   </button>
+                                   <button class="dropdown-item attendance-option"
+                                           role="menuitem"
+                                           data-employee-id="${employee.employee_id}"
+                                           data-status="no_call_no_show">
+                                       🔴 No-Call-No-Show
+                                   </button>
+                                   <button class="dropdown-item attendance-option"
+                                           role="menuitem"
+                                           data-employee-id="${employee.employee_id}"
+                                           data-status="excused_absence">
+                                       🔵 Excused Absence
+                                   </button>
+                               </div>
+                           </div>`
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Get attendance badge HTML
+     */
+    getAttendanceBadge(status, statusLabel) {
+        return `<span class="attendance-badge attendance-badge--${status}">${statusLabel}</span>`;
+    }
+
+    /**
+     * Attach event listeners to attendance section
+     */
+    attachAttendanceListeners() {
+        // Record attendance dropdowns
+        document.querySelectorAll('.attendance-dropdown .dropdown-toggle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const dropdown = e.currentTarget.closest('.attendance-dropdown');
+                this.toggleAttendanceDropdown(dropdown);
+            });
+        });
+
+        // Attendance status options
+        document.querySelectorAll('.attendance-option').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const employeeId = e.currentTarget.getAttribute('data-employee-id');
+                const status = e.currentTarget.getAttribute('data-status');
+                this.handleAttendanceRecordForEmployee(employeeId, status);
+            });
+        });
+
+        // Edit attendance buttons
+        document.querySelectorAll('.btn-edit-attendance-row').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const employeeId = e.currentTarget.getAttribute('data-employee-id');
+                this.handleAttendanceEditForEmployee(employeeId);
+            });
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.attendance-dropdown')) {
+                this.closeAllAttendanceDropdowns();
+            }
+        });
+    }
+
+    /**
+     * Handle attendance recording for employee
+     */
+    async handleAttendanceRecordForEmployee(employeeId, status) {
+        this.closeAllAttendanceDropdowns();
+        const notes = await this.showAttendanceNoteModal(status);
+        if (notes === null) return;
+
+        try {
+            const response = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': this.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    employee_id: employeeId,
+                    attendance_date: this.date,
+                    status,
+                    notes
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                this.showNotification(`Attendance recorded: ${data.attendance.status_label}`, 'success');
+                await this.loadAttendance();  // Reload attendance list
+            } else {
+                throw new Error(data.error || 'Failed to record attendance');
+            }
+        } catch (error) {
+            this.showNotification(error.message || 'Failed to record attendance', 'error');
+        }
+    }
+
+    /**
+     * Handle attendance edit for employee
+     */
+    async handleAttendanceEditForEmployee(employeeId) {
+        const row = document.querySelector(`[data-employee-id="${employeeId}"]`);
+        if (row) {
+            // Replace edit button with record dropdown
+            const actionsCell = row.querySelector('.attendance-row__actions');
+            actionsCell.innerHTML = `
+                <div class="attendance-dropdown" data-employee-id="${employeeId}">
+                    <button class="btn btn-primary btn-sm dropdown-toggle"
+                            aria-label="Update attendance"
+                            aria-haspopup="true"
+                            aria-expanded="false">
+                        Update Attendance ▼
+                    </button>
+                    <div class="dropdown-menu" role="menu">
+                        <button class="dropdown-item attendance-option"
+                                role="menuitem"
+                                data-employee-id="${employeeId}"
+                                data-status="on_time">
+                            🟢 On-Time
+                        </button>
+                        <button class="dropdown-item attendance-option"
+                                role="menuitem"
+                                data-employee-id="${employeeId}"
+                                data-status="late">
+                            🟡 Late
+                        </button>
+                        <button class="dropdown-item attendance-option"
+                                role="menuitem"
+                                data-employee-id="${employeeId}"
+                                data-status="called_in">
+                            📞 Called-In
+                        </button>
+                        <button class="dropdown-item attendance-option"
+                                role="menuitem"
+                                data-employee-id="${employeeId}"
+                                data-status="no_call_no_show">
+                            🔴 No-Call-No-Show
+                        </button>
+                        <button class="dropdown-item attendance-option"
+                                role="menuitem"
+                                data-employee-id="${employeeId}"
+                                data-status="excused_absence">
+                            🔵 Excused Absence
+                        </button>
+                    </div>
+                </div>
+            `;
+            this.attachAttendanceListeners();
+        }
+    }
+
+    /**
+     * Show attendance error
+     */
+    showAttendanceError(message) {
+        if (this.attendanceContainer) {
+            this.attendanceContainer.innerHTML = `
+                <div class="error-message" role="alert">${message}</div>
+            `;
+        }
+    }
+
+    /* ===================================================================
+       Story 3.3 Methods - Event Cards Display
+       =================================================================== */
+
+    /**
+     * Load daily events from API
+     */
+    async loadDailyEvents() {
+        try {
+            const response = await fetch(`/api/daily-events/${this.date}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            this.renderEventCards(data.events);
+        } catch (error) {
+            console.error('Failed to load daily events:', error);
+            this.showEventsError('Failed to load events. Please refresh the page.');
+        }
+    }
+
+    /**
+     * Render event cards into container
+     *
+     * @param {Array} events - Array of event objects from API
+     */
+    renderEventCards(events) {
+        if (!this.eventsContainer) return;
+
+        if (events.length === 0) {
+            // Empty state
+            this.eventsContainer.innerHTML = `
+                <div class="empty-state" role="status">
+                    <p class="empty-state__message">No events scheduled for this date</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Render event cards
+        const cardsHTML = events.map(event => this.createEventCard(event)).join('');
+        this.eventsContainer.innerHTML = cardsHTML;
+
+        // Attach event listeners after rendering
+        this.attachEventCardListeners();
+    }
+
+    /**
+     * Create HTML for a single event card
+     *
+     * @param {Object} event - Event object from API
+     * @returns {string} HTML string for event card
+     */
+    createEventCard(event) {
+        const statusBadge = this.getStatusBadge(event.reporting_status);
+        const overdueBadge = event.is_overdue ? '<span class="badge-overdue">⚠️ OVERDUE</span>' : '';
+        const salesToolLink = event.sales_tool_url
+            ? `<a href="${event.sales_tool_url}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="link-sales-tool"
+                   aria-label="View event details in sales tool (opens new tab)">
+                 🔗 View Event Details in Sales Tool (opens new tab)
+               </a>`
+            : '';
+
+        return `
+            <article class="event-card"
+                     data-schedule-id="${event.schedule_id}"
+                     data-event-id="${event.event_id}"
+                     aria-label="${event.employee_name} - ${event.start_time} ${event.event_name}">
+                <div class="event-card__header">
+                    <div class="employee-name">👤 ${event.employee_name.toUpperCase()}</div>
+                    ${overdueBadge}
+                </div>
+
+                <div class="event-card__details">
+                    <div class="event-time">⏰ ${event.start_time} - ${event.end_time}</div>
+                    <div class="event-info">
+                        ${this.getEventIcon(event.event_type)} ${event.event_name}
+                    </div>
+                    ${event.start_date ? `<div class="event-dates">📅 Start: ${event.start_date} | Due: ${event.due_date}</div>` : ''}
+                    ${salesToolLink}
+                </div>
+
+                <div class="event-divider"></div>
+
+                <div class="event-card__status">
+                    Status: ${statusBadge}
+                </div>
+
+                <div class="event-divider"></div>
+
+                <div class="event-card__actions">
+                    <button class="btn btn-primary btn-reschedule"
+                            data-schedule-id="${event.schedule_id}"
+                            aria-label="Reschedule event for ${event.employee_name}">
+                        Reschedule
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-secondary dropdown-toggle"
+                                aria-label="More actions for ${event.employee_name} event"
+                                aria-haspopup="true"
+                                aria-expanded="false">
+                            ⋮ More Actions ▼
+                        </button>
+                        <div class="dropdown-menu" role="menu">
+                            <button class="dropdown-item btn-change-employee"
+                                    role="menuitem"
+                                    data-schedule-id="${event.schedule_id}">
+                                Change Employee
+                            </button>
+                            <button class="dropdown-item btn-trade-event"
+                                    role="menuitem"
+                                    data-schedule-id="${event.schedule_id}">
+                                Trade Event
+                            </button>
+                            <button class="dropdown-item btn-unschedule"
+                                    role="menuitem"
+                                    data-schedule-id="${event.schedule_id}">
+                                Unschedule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        `;
+    }
+
+    /**
+     * Get status badge HTML for reporting status
+     *
+     * @param {string} status - Reporting status (scheduled, submitted)
+     * @returns {string} HTML string for status badge
+     */
+    getStatusBadge(status) {
+        const badges = {
+            'submitted': '<span class="status-badge status-submitted">🟢 SUBMITTED</span>',
+            'scheduled': '<span class="status-badge status-scheduled">🟡 SCHEDULED (Not Reported)</span>'
+        };
+        return badges[status] || badges['scheduled'];
+    }
+
+    /**
+     * Attach event listeners to event card buttons
+     */
+    attachEventCardListeners() {
+        // Reschedule buttons
+        document.querySelectorAll('.btn-reschedule').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const scheduleId = e.currentTarget.getAttribute('data-schedule-id');
+                this.handleReschedule(scheduleId);
+            });
+        });
+
+        // Dropdown toggles
+        document.querySelectorAll('.dropdown-toggle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const dropdown = e.currentTarget.closest('.dropdown');
+                this.toggleDropdown(dropdown);
+            });
+        });
+
+        // Change employee buttons
+        document.querySelectorAll('.btn-change-employee').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const scheduleId = e.currentTarget.getAttribute('data-schedule-id');
+                this.handleChangeEmployee(scheduleId);
+            });
+        });
+
+        // Trade event buttons
+        document.querySelectorAll('.btn-trade-event').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const scheduleId = e.currentTarget.getAttribute('data-schedule-id');
+                this.handleTradeEvent(scheduleId);
+            });
+        });
+
+        // Unschedule buttons
+        document.querySelectorAll('.btn-unschedule').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const scheduleId = e.currentTarget.getAttribute('data-schedule-id');
+                this.handleUnschedule(scheduleId);
+            });
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.dropdown')) {
+                this.closeAllDropdowns();
+            }
+        });
+
+        // Keyboard accessibility for dropdowns
+        document.querySelectorAll('.dropdown-toggle').forEach(btn => {
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    this.closeAllDropdowns();
+                }
+            });
+        });
+    }
+
+    /**
+     * Toggle dropdown menu open/closed
+     *
+     * @param {HTMLElement} dropdown - Dropdown container element
+     */
+    toggleDropdown(dropdown) {
+        const isOpen = dropdown.classList.contains('dropdown-open');
+
+        // Close all other dropdowns
+        this.closeAllDropdowns();
+
+        // Toggle this dropdown
+        if (!isOpen) {
+            dropdown.classList.add('dropdown-open');
+            const toggle = dropdown.querySelector('.dropdown-toggle');
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    /**
+     * Close all open dropdowns
+     */
+    closeAllDropdowns() {
+        document.querySelectorAll('.dropdown').forEach(dropdown => {
+            dropdown.classList.remove('dropdown-open');
+            const toggle = dropdown.querySelector('.dropdown-toggle');
+            toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    /**
+     * Handle reschedule button click
+     *
+     * @param {number} scheduleId - Schedule ID
+     */
+    async handleReschedule(scheduleId) {
+        console.log('Reschedule event:', scheduleId);
+
+        // Get event card to extract event details
+        const eventCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+        if (!eventCard) {
+            this.showNotification('Event not found', 'error');
+            return;
+        }
+
+        const eventId = eventCard.getAttribute('data-event-id');
+        const eventName = eventCard.querySelector('.event-title')?.textContent?.trim() || 'Unknown Event';
+        const eventType = eventCard.querySelector('.event-type-badge')?.textContent?.trim() || 'Unknown';
+        const currentEmployeeName = eventCard.querySelector('.employee-name')?.textContent?.replace('👤 ', '') || 'Unknown';
+        const currentEmployeeId = eventCard.getAttribute('data-employee-id');
+
+        // Get event datetime from card
+        const timeText = eventCard.querySelector('.event-time')?.textContent?.replace('⏰ ', '') || '';
+        const [startTime] = timeText.split(' - ');
+
+        // Open reschedule modal
+        await this.openRescheduleModal(scheduleId, eventName, eventType, startTime, currentEmployeeName, currentEmployeeId, this.date);
+    }
+
+    /**
+     * Open reschedule modal
+     *
+     * @param {number} scheduleId - Schedule ID
+     * @param {string} eventName - Event name
+     * @param {string} eventType - Event type
+     * @param {string} currentTime - Current scheduled time
+     * @param {string} employeeName - Current employee name
+     * @param {number} employeeId - Current employee ID
+     * @param {string} currentDate - Current date (YYYY-MM-DD)
+     */
+    async openRescheduleModal(scheduleId, eventName, eventType, currentTime, employeeName, employeeId, currentDate) {
+        try {
+            document.getElementById('reschedule-schedule-id').value = scheduleId;
+            document.getElementById('reschedule-event-info').innerHTML = `
+                <strong>${eventName}</strong> (${eventType})<br>
+                Current: ${currentDate} at ${currentTime} with ${employeeName}
+            `;
+
+            // Convert displayed time to 24-hour format for comparison
+            const time24 = this.convertTo24Hour(currentTime);
+
+            // Set up time restrictions for event type
+            this.setupTimeRestrictions('reschedule', eventType, time24);
+
+            // Load available employees
+            await this.loadAvailableEmployeesForReschedule('reschedule-employee', currentDate, eventType, employeeId);
+
+            document.getElementById('reschedule-modal').style.display = 'flex';
+        } catch (error) {
+            console.error('Error opening reschedule modal:', error);
+            this.showNotification('Error opening reschedule modal', 'error');
+        }
+    }
+
+    /**
+     * Close reschedule modal
+     */
+    closeRescheduleModal() {
+        document.getElementById('reschedule-modal').style.display = 'none';
+    }
+
+    /**
+     * Setup time restrictions based on event type
+     *
+     * @param {string} prefix - Form field prefix
+     * @param {string} eventType - Event type
+     * @param {string} currentTime - Current time in 24-hour format
+     */
+    setupTimeRestrictions(prefix, eventType, currentTime) {
+        const timeInput = document.getElementById(`${prefix}-time`);
+        const timeDropdown = document.getElementById(`${prefix}-time-dropdown`);
+
+        const timeRestrictions = {
+            'Core': ['09:45', '10:30', '11:00', '11:30'],
+            'Supervisor': ['12:00'],
+            'Freeosk': ['09:00', '12:00'],
+            'Digitals': ['09:15', '09:30', '09:45', '10:00']
+        };
+
+        if (timeRestrictions[eventType]) {
+            timeInput.style.display = 'none';
+            timeInput.required = false;
+            timeDropdown.style.display = 'block';
+            timeDropdown.required = true;
+            timeDropdown.classList.remove('hidden');
+
+            timeDropdown.innerHTML = '<option value="">Select a time</option>';
+            timeRestrictions[eventType].forEach(time => {
+                const option = document.createElement('option');
+                option.value = time;
+                option.textContent = this.formatTime(time);
+                if (currentTime && time === currentTime) {
+                    option.selected = true;
+                }
+                timeDropdown.appendChild(option);
+            });
+
+            // Set default value for Freeosk events if no current time matches
+            if (eventType === 'Freeosk' && currentTime && !timeRestrictions[eventType].includes(currentTime)) {
+                timeDropdown.value = '09:00';
+            }
+        } else {
+            timeInput.style.display = 'block';
+            timeInput.required = true;
+            timeDropdown.style.display = 'none';
+            timeDropdown.required = false;
+            timeDropdown.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Format time from 24-hour to 12-hour format
+     *
+     * @param {string} time24 - Time in 24-hour format (HH:MM)
+     * @returns {string} Time in 12-hour format
+     */
+    formatTime(time24) {
+        const [hours, minutes] = time24.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        return `${displayHour}:${minutes} ${ampm}`;
+    }
+
+    /**
+     * Convert 12-hour time to 24-hour format
+     *
+     * @param {string} time12 - Time in 12-hour format
+     * @returns {string} Time in 24-hour format
+     */
+    convertTo24Hour(time12) {
+        if (!time12 || !time12.includes(':')) {
+            return time12;
+        }
+
+        const [time, modifier] = time12.split(' ');
+        if (!modifier) {
+            return time12; // Already in 24-hour format
+        }
+
+        const [hours, minutes] = time.split(':');
+        let hour = parseInt(hours);
+
+        if (modifier.toUpperCase() === 'PM' && hour !== 12) {
+            hour += 12;
+        } else if (modifier.toUpperCase() === 'AM' && hour === 12) {
+            hour = 0;
+        }
+
+        return `${hour.toString().padStart(2, '0')}:${minutes}`;
+    }
+
+    /**
+     * Load available employees for rescheduling
+     *
+     * @param {string} selectId - Select element ID
+     * @param {string} date - Date for availability check
+     * @param {string} eventType - Event type
+     * @param {number} currentEmployeeId - Current employee ID
+     */
+    async loadAvailableEmployeesForReschedule(selectId, date, eventType, currentEmployeeId) {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">Loading...</option>';
+
+        try {
+            let apiUrl = `/api/available_employees_for_change/${date}/${eventType}`;
+            if (currentEmployeeId) {
+                apiUrl += `?current_employee_id=${currentEmployeeId}&current_date=${date}`;
+            }
+
+            const response = await fetch(apiUrl);
+            const employees = await response.json();
+
+            select.innerHTML = '<option value="">Select an employee</option>';
+            employees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee.id;
+                option.textContent = `${employee.name} (${employee.job_title})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading employees:', error);
+            select.innerHTML = '<option value="">Error loading employees</option>';
+        }
+    }
+
+    /**
+     * Handle change employee button click (Story 3.7)
+     *
+     * Opens a modal with available employees dropdown and handles
+     * the employee change with conflict validation.
+     *
+     * @param {number} scheduleId - Schedule ID
+     */
+    async handleChangeEmployee(scheduleId) {
+        console.log('Change employee:', scheduleId);
+
+        // Get event card to extract event details
+        const eventCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+        if (!eventCard) {
+            this.showNotification('Event not found', 'error');
+            return;
+        }
+
+        const eventId = eventCard.getAttribute('data-event-id');
+        const currentEmployeeName = eventCard.querySelector('.employee-name')?.textContent?.replace('👤 ', '') || 'Unknown';
+
+        // Get event datetime from card (parse from displayed time)
+        const timeText = eventCard.querySelector('.event-time')?.textContent?.replace('⏰ ', '') || '';
+        const [startTime] = timeText.split(' - ');
+
+        // Open change employee modal
+        await this.openChangeEmployeeModal(scheduleId, eventId, currentEmployeeName, this.date, startTime);
+    }
+
+    /**
+     * Open change employee modal (Story 3.7)
+     *
+     * @param {number} scheduleId - Schedule ID
+     * @param {number} eventId - Event ID
+     * @param {string} currentEmployeeName - Current employee name
+     * @param {string} date - Event date (YYYY-MM-DD)
+     * @param {string} time - Event time (e.g., "10:00 AM")
+     */
+    async openChangeEmployeeModal(scheduleId, eventId, currentEmployeeName, date, time) {
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal modal-open" id="change-employee-modal" role="dialog" aria-labelledby="change-employee-title" aria-modal="true">
+                <div class="modal-overlay"></div>
+                <div class="modal-container modal-container--medium">
+                    <div class="modal-header">
+                        <h2 id="change-employee-title" class="modal-title">Change Employee Assignment</h2>
+                        <button class="modal-close" aria-label="Close modal">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="current-assignment">
+                            <label class="form-label">Current Assignment:</label>
+                            <div class="current-employee-display">
+                                <span class="employee-icon">👤</span>
+                                <strong>${this.escapeHtml(currentEmployeeName)}</strong>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-employee-select" class="form-label">New Employee:</label>
+                            <select id="new-employee-select" class="form-select" required>
+                                <option value="">Loading available employees...</option>
+                            </select>
+                            <div class="form-help">Only showing employees with no conflicts at this time</div>
+                        </div>
+
+                        <div id="conflict-error" class="error-message" style="display: none;" role="alert"></div>
+
+                        <div class="loading-spinner" id="loading-employees" role="status">
+                            <span class="sr-only">Loading available employees...</span>
+                            Loading...
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                        <button type="button" class="btn btn-primary modal-submit" disabled>Change Employee</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert modal into DOM
+        const existingModal = document.getElementById('change-employee-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        const modal = document.getElementById('change-employee-modal');
+
+        // Load available employees
+        await this.loadAvailableEmployees(date, time, modal);
+
+        // Prevent body scroll
+        document.body.style.overflow = 'hidden';
+
+        // Setup event listeners
+        this.setupChangeEmployeeModalListeners(modal, scheduleId);
+
+        // Focus first focusable element
+        const firstInput = modal.querySelector('#new-employee-select');
+        if (firstInput) {
+            firstInput.focus();
+        }
+    }
+
+    /**
+     * Load available employees into dropdown (Story 3.7)
+     *
+     * @param {string} date - Event date (YYYY-MM-DD)
+     * @param {string} time - Event time (e.g., "10:00 AM")
+     * @param {HTMLElement} modal - Modal element
+     */
+    async loadAvailableEmployees(date, time, modal) {
+        const select = modal.querySelector('#new-employee-select');
+        const loadingSpinner = modal.querySelector('#loading-employees');
+
+        try {
+            // Convert time from "10:00 AM" to "10:00" (24-hour format)
+            const time24 = this.convertTo24Hour(time);
+
+            const response = await fetch(
+                `/api/available-employees?date=${date}&time=${time24}&duration=120`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRFToken': this.getCsrfToken()
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // Hide loading spinner
+            loadingSpinner.style.display = 'none';
+
+            // Populate dropdown
+            if (data.available_employees.length === 0) {
+                select.innerHTML = '<option value="">No available employees</option>';
+                select.disabled = true;
+            } else {
+                select.innerHTML = '<option value="">-- Select an employee --</option>';
+                data.available_employees.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.employee_id;
+                    option.textContent = emp.employee_name;
+                    select.appendChild(option);
+                });
+                select.disabled = false;
+            }
+
+        } catch (error) {
+            console.error('Failed to load available employees:', error);
+            loadingSpinner.style.display = 'none';
+            select.innerHTML = '<option value="">Error loading employees</option>';
+            select.disabled = true;
+            this.showModalError(modal, 'Failed to load available employees. Please try again.');
+        }
+    }
+
+    /**
+     * Setup change employee modal event listeners (Story 3.7)
+     *
+     * @param {HTMLElement} modal - Modal element
+     * @param {number} scheduleId - Schedule ID
+     */
+    setupChangeEmployeeModalListeners(modal, scheduleId) {
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.modal-cancel');
+        const submitBtn = modal.querySelector('.modal-submit');
+        const overlay = modal.querySelector('.modal-overlay');
+        const select = modal.querySelector('#new-employee-select');
+
+        // Close handlers
+        const closeModal = () => this.closeChangeEmployeeModal(modal);
+
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', closeModal);
+
+        // Escape key handler
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        modal._escapeHandler = handleEscape; // Store for cleanup
+
+        // Enable submit button when employee selected
+        select.addEventListener('change', () => {
+            submitBtn.disabled = !select.value;
+        });
+
+        // Submit handler
+        submitBtn.addEventListener('click', async () => {
+            const newEmployeeId = select.value;
+            if (!newEmployeeId) return;
+
+            await this.submitChangeEmployee(scheduleId, newEmployeeId, modal);
+        });
+    }
+
+    /**
+     * Submit change employee request (Story 3.7)
+     *
+     * @param {number} scheduleId - Schedule ID
+     * @param {string} newEmployeeId - New employee ID
+     * @param {HTMLElement} modal - Modal element
+     * @param {boolean} overrideConflicts - Whether to override conflicts
+     */
+    async submitChangeEmployee(scheduleId, newEmployeeId, modal, overrideConflicts = false) {
+        const submitBtn = modal.querySelector('.modal-submit');
+        const originalText = submitBtn.textContent;
+
+        try {
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Changing...';
+
+            const response = await fetch(`/api/event/${scheduleId}/change-employee`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    new_employee_id: newEmployeeId,
+                    override_conflicts: overrideConflicts
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.status === 409) {
+                // Conflict detected - show conflicts with override option
+                this.showModalConflictsWithOverride(
+                    modal,
+                    'Employee Change Conflicts',
+                    result.conflicts,
+                    () => this.submitChangeEmployee(scheduleId, newEmployeeId, modal, true)
+                );
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to change employee');
+            }
+
+            // Success
+            const warningMsg = overrideConflicts ? ' (conflicts overridden)' : '';
+            this.showNotification(
+                `Employee changed from ${result.old_employee_name} to ${result.new_employee_name}${warningMsg}`,
+                overrideConflicts ? 'warning' : 'success'
+            );
+
+            // Update event card UI with new employee name
+            this.updateEventCardEmployee(scheduleId, result.new_employee_name);
+
+            // Close modal
+            this.closeChangeEmployeeModal(modal);
+
+            // Optionally reload daily summary if needed
+            // await this.loadDailySummary();
+
+        } catch (error) {
+            console.error('Failed to change employee:', error);
+            this.showModalError(modal, error.message);
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    }
+
+    /**
+     * Update event card with new employee name (Story 3.7)
+     *
+     * @param {number} scheduleId - Schedule ID
+     * @param {string} newEmployeeName - New employee name
+     */
+    updateEventCardEmployee(scheduleId, newEmployeeName) {
+        const eventCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+        if (!eventCard) return;
+
+        const employeeNameEl = eventCard.querySelector('.employee-name');
+        if (employeeNameEl) {
+            employeeNameEl.textContent = `👤 ${newEmployeeName.toUpperCase()}`;
+        }
+    }
+
+    /**
+     * Show error in modal (Story 3.7)
+     *
+     * @param {HTMLElement} modal - Modal element
+     * @param {string} message - Error message
+     * @param {Array} conflicts - Optional array of conflict objects
+     */
+    showModalError(modal, message, conflicts = null) {
+        const errorDiv = modal.querySelector('#conflict-error');
+        if (!errorDiv) return;
+
+        errorDiv.style.display = 'block';
+
+        if (conflicts && conflicts.length > 0) {
+            const conflictList = conflicts.map(c =>
+                `<li class="conflict-${c.severity}">
+                    <span class="icon">${c.severity === 'error' ? '✕' : '⚠️'}</span>
+                    ${this.escapeHtml(c.message)}
+                </li>`
+            ).join('');
+
+            errorDiv.innerHTML = `
+                <strong>${this.escapeHtml(message)}</strong>
+                <ul class="conflict-list">
+                    ${conflictList}
+                </ul>
+            `;
+        } else {
+            errorDiv.innerHTML = `<span class="icon">✕</span> ${this.escapeHtml(message)}`;
+        }
+    }
+
+    /**
+     * Show modal conflicts with override option
+     *
+     * @param {HTMLElement} modal - Modal element
+     * @param {string} title - Conflict title
+     * @param {Array} conflicts - Array of conflicts
+     * @param {Function} overrideCallback - Function to call when override is clicked
+     */
+    showModalConflictsWithOverride(modal, title, conflicts, overrideCallback) {
+        const errorDiv = modal.querySelector('#conflict-error');
+        if (!errorDiv) return;
+
+        errorDiv.style.display = 'block';
+
+        const conflictList = conflicts.map(c =>
+            `<li class="conflict-${c.severity}">
+                <span class="icon">${c.severity === 'hard' ? '✕' : '⚠️'}</span>
+                ${this.escapeHtml(c.message)}
+            </li>`
+        ).join('');
+
+        errorDiv.innerHTML = `
+            <div class="conflict-warning">
+                <strong>${this.escapeHtml(title)}</strong>
+                <ul class="conflict-list">
+                    ${conflictList}
+                </ul>
+                <div class="conflict-actions" style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary conflict-cancel" style="padding: 8px 16px;">Cancel</button>
+                    <button class="btn btn-warning conflict-override" style="padding: 8px 16px; background: #ff9800; border-color: #ff9800;">
+                        ⚠️ Override and Continue
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Setup event listeners for override buttons
+        const cancelBtn = errorDiv.querySelector('.conflict-cancel');
+        const overrideBtn = errorDiv.querySelector('.conflict-override');
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                errorDiv.style.display = 'none';
+                errorDiv.innerHTML = '';
+            });
+        }
+
+        if (overrideBtn) {
+            overrideBtn.addEventListener('click', () => {
+                errorDiv.style.display = 'none';
+                errorDiv.innerHTML = '';
+                if (overrideCallback) {
+                    overrideCallback();
+                }
+            });
+        }
+    }
+
+    /**
+     * Close change employee modal (Story 3.7)
+     *
+     * @param {HTMLElement} modal - Modal element
+     */
+    closeChangeEmployeeModal(modal) {
+        if (!modal) return;
+
+        // Remove escape key handler
+        if (modal._escapeHandler) {
+            document.removeEventListener('keydown', modal._escapeHandler);
+        }
+
+        // Hide modal
+        modal.classList.remove('modal-open');
+        modal.setAttribute('aria-hidden', 'true');
+
+        // Restore body scroll
+        document.body.style.overflow = '';
+
+        // Remove modal from DOM after animation
+        setTimeout(() => {
+            modal.remove();
+        }, 200);
+    }
+
+    /**
+     * Convert 12-hour time to 24-hour format (Story 3.7)
+     *
+     * @param {string} time12 - Time in 12-hour format (e.g., "10:00 AM")
+     * @returns {string} Time in 24-hour format (e.g., "10:00")
+     */
+    convertTo24Hour(time12) {
+        const [time, period] = time12.split(' ');
+        let [hours, minutes] = time.split(':');
+        hours = parseInt(hours);
+
+        if (period === 'PM' && hours !== 12) {
+            hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+            hours = 0;
+        }
+
+        return `${hours.toString().padStart(2, '0')}:${minutes}`;
+    }
+
+    /**
+     * Handle trade event button click (Story 3.8)
+     *
+     * Opens a modal to trade employee assignments with another event on the same day.
+     * Uses ConflictValidator to validate both employees before swapping.
+     *
+     * @param {number} scheduleId - Schedule ID
+     */
+    async handleTradeEvent(scheduleId) {
+        console.log('Trade event:', scheduleId);
+
+        // Get event card to extract details
+        const eventCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+        if (!eventCard) {
+            this.showNotification('Event not found', 'error');
+            return;
+        }
+
+        const eventId = eventCard.getAttribute('data-event-id');
+        const employeeName = eventCard.querySelector('.employee-name')?.textContent?.replace('👤 ', '') || 'Unknown';
+        const timeText = eventCard.querySelector('.event-time')?.textContent?.replace('⏰ ', '') || '';
+        const eventName = eventCard.querySelector('.event-info')?.textContent;
+
+        // Extract date/time from event card
+        const [startTime, endTime] = timeText.split(' - ');
+        const datetime = `${this.date} ${this.convertTo24Hour(startTime)}`;
+
+        // Open trade modal
+        await this.openTradeEventModal({
+            schedule_id: scheduleId,
+            event_id: eventId,
+            employee_name: employeeName,
+            event_name: eventName,
+            datetime: datetime,
+            start_time: startTime,
+            end_time: endTime,
+            date: this.date
+        });
+    }
+
+    /**
+     * Open trade event modal (Story 3.8)
+     *
+     * @param {Object} sourceEvent - Source event data
+     */
+    async openTradeEventModal(sourceEvent) {
+        const modalHtml = `
+            <div class="modal modal-open" id="trade-event-modal" role="dialog" aria-labelledby="trade-modal-title" aria-modal="true">
+                <div class="modal-overlay"></div>
+                <div class="modal-container modal-container--large">
+                    <div class="modal-header">
+                        <h2 id="trade-modal-title" class="modal-title">Trade Event Assignment</h2>
+                        <button class="modal-close" aria-label="Close modal">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Source Event Display -->
+                        <div class="trade-source-event">
+                            <h3 class="trade-section-title">Current Event:</h3>
+                            <div class="trade-event-card trade-event-card--source">
+                                <div class="trade-event-employee">👤 ${this.escapeHtml(sourceEvent.employee_name)}</div>
+                                <div class="trade-event-time">⏰ ${sourceEvent.start_time} - ${sourceEvent.end_time}</div>
+                                <div class="trade-event-name">${this.escapeHtml(sourceEvent.event_name || 'Event')}</div>
+                            </div>
+                        </div>
+
+                        <div class="trade-divider">
+                            <span class="trade-divider-text">Trade with</span>
+                        </div>
+
+                        <!-- Target Events List -->
+                        <div class="trade-target-events">
+                            <h3 class="trade-section-title">Select Event to Trade With:</h3>
+                            <div id="trade-events-list" class="trade-events-list">
+                                <div class="loading-spinner" role="status">
+                                    <span class="sr-only">Loading events...</span>
+                                    Loading events...
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Display -->
+                        <div id="trade-error" class="error-message" style="display: none;" role="alert"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                        <button type="button" class="btn btn-primary modal-submit" id="btn-execute-trade" disabled>Execute Trade</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert modal into DOM
+        const existingModal = document.getElementById('trade-event-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        const modal = document.getElementById('trade-event-modal');
+
+        // Load available events to trade with
+        await this.loadTradeableEvents(sourceEvent.schedule_id, modal);
+
+        // Prevent body scroll
+        document.body.style.overflow = 'hidden';
+
+        // Setup event listeners
+        this.setupTradeEventModalListeners(modal, sourceEvent.schedule_id);
+    }
+
+    /**
+     * Load events available for trading (Story 3.8)
+     *
+     * @param {number} sourceScheduleId - Source schedule ID to exclude
+     * @param {HTMLElement} modal - Modal element
+     */
+    async loadTradeableEvents(sourceScheduleId, modal) {
+        const eventsList = modal.querySelector('#trade-events-list');
+        const executeBtn = modal.querySelector('#btn-execute-trade');
+
+        try {
+            // Fetch events for the same date
+            const response = await fetch(`/api/daily-events/${this.date}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // Filter out source event and empty events
+            const tradeableEvents = data.events.filter(event =>
+                event.schedule_id !== sourceScheduleId
+            );
+
+            if (tradeableEvents.length === 0) {
+                // No other events available
+                eventsList.innerHTML = `
+                    <div class="empty-state" role="status">
+                        <p class="empty-state__message">No other events available to trade on this date</p>
+                    </div>
+                `;
+                executeBtn.disabled = true;
+            } else {
+                // Render event cards
+                this.renderTradeableEvents(tradeableEvents, eventsList);
+            }
+
+        } catch (error) {
+            console.error('Failed to load tradeable events:', error);
+            eventsList.innerHTML = `
+                <div class="error-message" role="alert">
+                    <span class="icon">✕</span>
+                    Failed to load events. Please try again.
+                </div>
+            `;
+            executeBtn.disabled = true;
+        }
+    }
+
+    /**
+     * Render tradeable events list (Story 3.8)
+     *
+     * @param {Array} events - Array of event objects
+     * @param {HTMLElement} container - Container element
+     */
+    renderTradeableEvents(events, container) {
+        const eventsHtml = events.map(event => `
+            <div class="trade-event-card"
+                 data-schedule-id="${event.schedule_id}"
+                 role="radio"
+                 aria-checked="false"
+                 tabindex="0">
+                <div class="trade-event-employee">👤 ${this.escapeHtml(event.employee_name)}</div>
+                <div class="trade-event-time">⏰ ${event.start_time} - ${event.end_time}</div>
+                <div class="trade-event-name">${this.escapeHtml(event.event_name)}</div>
+                <div class="trade-event-check" aria-hidden="true">✓</div>
+            </div>
+        `).join('');
+
+        container.innerHTML = eventsHtml;
+
+        // Attach selection handlers
+        this.attachTradeEventSelectionHandlers(container);
+    }
+
+    /**
+     * Attach selection handlers to tradeable event cards (Story 3.8)
+     *
+     * @param {HTMLElement} container - Container element
+     */
+    attachTradeEventSelectionHandlers(container) {
+        const eventCards = container.querySelectorAll('.trade-event-card');
+        const executeBtn = document.querySelector('#btn-execute-trade');
+
+        eventCards.forEach(card => {
+            // Click handler
+            card.addEventListener('click', () => {
+                this.selectTradeEvent(card, executeBtn);
+            });
+
+            // Keyboard handler
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.selectTradeEvent(card, executeBtn);
+                }
+            });
+        });
+    }
+
+    /**
+     * Select a trade event (Story 3.8)
+     *
+     * @param {HTMLElement} card - Selected event card
+     * @param {HTMLElement} executeBtn - Execute trade button
+     */
+    selectTradeEvent(card, executeBtn) {
+        // Deselect all cards
+        const allCards = document.querySelectorAll('.trade-event-card');
+        allCards.forEach(c => {
+            c.classList.remove('trade-event-card--selected');
+            c.setAttribute('aria-checked', 'false');
+        });
+
+        // Select this card
+        card.classList.add('trade-event-card--selected');
+        card.setAttribute('aria-checked', 'true');
+
+        // Enable execute button
+        executeBtn.disabled = false;
+
+        // Store selected schedule ID
+        this.selectedTradeScheduleId = parseInt(card.getAttribute('data-schedule-id'));
+    }
+
+    /**
+     * Setup trade event modal listeners (Story 3.8)
+     *
+     * @param {HTMLElement} modal - Modal element
+     * @param {number} sourceScheduleId - Source schedule ID
+     */
+    setupTradeEventModalListeners(modal, sourceScheduleId) {
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.modal-cancel');
+        const executeBtn = modal.querySelector('#btn-execute-trade');
+        const overlay = modal.querySelector('.modal-overlay');
+
+        // Close handlers
+        const closeModal = () => this.closeTradeEventModal(modal);
+
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', closeModal);
+
+        // Escape key handler
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        modal._escapeHandler = handleEscape;
+
+        // Execute trade handler
+        executeBtn.addEventListener('click', async () => {
+            if (!this.selectedTradeScheduleId) return;
+
+            await this.executeTradeEvent(sourceScheduleId, this.selectedTradeScheduleId, modal);
+        });
+    }
+
+    /**
+     * Execute trade between two events (Story 3.8)
+     *
+     * @param {number} schedule1Id - First schedule ID
+     * @param {number} schedule2Id - Second schedule ID
+     * @param {HTMLElement} modal - Modal element
+     */
+    async executeTradeEvent(schedule1Id, schedule2Id, modal) {
+        const executeBtn = modal.querySelector('#btn-execute-trade');
+        const originalText = executeBtn.textContent;
+
+        try {
+            // Show loading state
+            executeBtn.disabled = true;
+            executeBtn.textContent = 'Trading...';
+
+            const response = await fetch('/api/trade-events', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    schedule_1_id: schedule1Id,
+                    schedule_2_id: schedule2Id
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.status === 409) {
+                // Conflict detected
+                this.showTradeModalError(modal, 'Trade would create conflicts:', result.conflicts);
+                executeBtn.disabled = false;
+                executeBtn.textContent = originalText;
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to execute trade');
+            }
+
+            // Success
+            this.showNotification('Events traded successfully', 'success');
+
+            // Close modal
+            this.closeTradeEventModal(modal);
+
+            // Reload events to show swapped assignments
+            await this.loadDailyEvents();
+            await this.loadDailySummary();
+
+        } catch (error) {
+            console.error('Failed to execute trade:', error);
+            this.showTradeModalError(modal, error.message || 'Failed to execute trade. Please try again.');
+            executeBtn.disabled = false;
+            executeBtn.textContent = originalText;
+        }
+    }
+
+    /**
+     * Show error in trade modal (Story 3.8)
+     *
+     * @param {HTMLElement} modal - Modal element
+     * @param {string} message - Error message
+     * @param {Array} conflicts - Optional array of conflict objects
+     */
+    showTradeModalError(modal, message, conflicts = null) {
+        const errorDiv = modal.querySelector('#trade-error');
+        if (!errorDiv) return;
+
+        errorDiv.style.display = 'block';
+
+        if (conflicts && conflicts.length > 0) {
+            const conflictList = conflicts.map(c =>
+                `<li class="conflict-${c.severity}">
+                    <span class="icon">${c.severity === 'error' ? '✕' : '⚠️'}</span>
+                    ${this.escapeHtml(c.message)}
+                </li>`
+            ).join('');
+
+            errorDiv.innerHTML = `
+                <strong>${this.escapeHtml(message)}</strong>
+                <ul class="conflict-list">
+                    ${conflictList}
+                </ul>
+            `;
+        } else {
+            errorDiv.innerHTML = `<span class="icon">✕</span> ${this.escapeHtml(message)}`;
+        }
+    }
+
+    /**
+     * Close trade event modal (Story 3.8)
+     *
+     * @param {HTMLElement} modal - Modal element
+     */
+    closeTradeEventModal(modal) {
+        if (!modal) return;
+
+        // Remove escape key handler
+        if (modal._escapeHandler) {
+            document.removeEventListener('keydown', modal._escapeHandler);
+        }
+
+        // Hide modal
+        modal.classList.remove('modal-open');
+        modal.setAttribute('aria-hidden', 'true');
+
+        // Restore body scroll
+        document.body.style.overflow = '';
+
+        // Clear selected trade ID
+        this.selectedTradeScheduleId = null;
+
+        // Remove modal from DOM after animation
+        setTimeout(() => {
+            modal.remove();
+        }, 200);
+    }
+
+    /**
+     * Handle unschedule button click (Story 3.5)
+     *
+     * Displays confirmation modal, checks for attendance warnings,
+     * and unschedules event via API if confirmed.
+     *
+     * @param {number} scheduleId - Schedule ID to unschedule
+     */
+    async handleUnschedule(scheduleId) {
+        console.log('Unschedule event:', scheduleId);
+
+        // Get event card for context
+        const eventCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+        const employeeName = eventCard?.querySelector('.employee-name')?.textContent || 'this employee';
+        const eventInfo = eventCard?.querySelector('.event-info')?.textContent || 'this event';
+
+        // Show confirmation modal
+        const confirmed = await this.showConfirmationModal(
+            'Unschedule Event',
+            `Are you sure you want to unschedule ${eventInfo} for ${employeeName}? This will remove the employee assignment.`
+        );
+
+        if (!confirmed) {
+            console.log('Unschedule cancelled by user');
+            return;
+        }
+
+        // Close any open dropdowns
+        this.closeAllDropdowns();
+
+        // Show loading state on button
+        const unscheduleBtn = eventCard?.querySelector('.btn-unschedule');
+        if (unscheduleBtn) {
+            unscheduleBtn.disabled = true;
+            unscheduleBtn.textContent = 'Unscheduling...';
+        }
+
+        try {
+            // Call API to unschedule
+            const response = await fetch(`/api/event/${scheduleId}/unschedule`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCsrfToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // Show appropriate notification
+                if (data.had_attendance) {
+                    this.showNotification(
+                        'Event unscheduled. Attendance record was also removed.',
+                        'warning'
+                    );
+                } else {
+                    this.showNotification('Event unscheduled successfully', 'success');
+                }
+
+                // Remove card from UI with animation
+                if (eventCard) {
+                    eventCard.style.transition = 'opacity 300ms ease, transform 300ms ease';
+                    eventCard.style.opacity = '0';
+                    eventCard.style.transform = 'translateX(20px)';
+
+                    setTimeout(() => {
+                        eventCard.remove();
+
+                        // Check if no more events, show empty state
+                        const remainingCards = this.eventsContainer?.querySelectorAll('.event-card');
+                        if (remainingCards?.length === 0) {
+                            this.eventsContainer.innerHTML = `
+                                <div class="empty-state" role="status">
+                                    <p class="empty-state__message">No events scheduled for this date</p>
+                                </div>
+                            `;
+                        }
+                    }, 300);
+                }
+
+                // Reload summary stats (event count may have changed)
+                await this.loadDailySummary();
+
+            } else {
+                // API returned error
+                throw new Error(data.error || 'Failed to unschedule event');
+            }
+
+        } catch (error) {
+            console.error('Failed to unschedule event:', error);
+            this.showNotification(
+                error.message || 'Failed to unschedule event. Please try again.',
+                'error'
+            );
+
+            // Re-enable button
+            if (unscheduleBtn) {
+                unscheduleBtn.disabled = false;
+                unscheduleBtn.textContent = 'Unschedule';
+            }
+        }
+    }
+
+    /**
+     * Show confirmation modal (Story 3.5)
+     *
+     * Displays a modal dialog with title, message, and confirm/cancel buttons.
+     * Returns a promise that resolves to true if confirmed, false if cancelled.
+     *
+     * @param {string} title - Modal title
+     * @param {string} message - Confirmation message
+     * @returns {Promise<boolean>} - Resolves to true if confirmed
+     */
+    showConfirmationModal(title, message) {
+        return new Promise((resolve) => {
+            // Create modal HTML
+            const modalHTML = `
+                <div class="modal modal-open" id="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                    <div class="modal-overlay" aria-hidden="true"></div>
+                    <div class="modal-container modal-container--small">
+                        <div class="modal-header">
+                            <h2 class="modal-title" id="modal-title">${this.escapeHtml(title)}</h2>
+                            <button class="modal-close" aria-label="Close" data-action="cancel">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="modal-message">${this.escapeHtml(message)}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                            <button class="btn btn-primary" data-action="confirm">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Insert modal into DOM
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            const modal = document.getElementById('confirmation-modal');
+            const overlay = modal.querySelector('.modal-overlay');
+            const confirmBtn = modal.querySelector('[data-action="confirm"]');
+            const cancelBtns = modal.querySelectorAll('[data-action="cancel"]');
+
+            // Focus first button (cancel for accessibility)
+            cancelBtns[0]?.focus();
+
+            // Prevent body scroll
+            document.body.style.overflow = 'hidden';
+
+            // Handle confirm
+            const handleConfirm = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            // Handle cancel
+            const handleCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            // Cleanup function
+            const cleanup = () => {
+                modal.remove();
+                document.body.style.overflow = '';
+            };
+
+            // Attach event listeners
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtns.forEach(btn => btn.addEventListener('click', handleCancel));
+            overlay.addEventListener('click', handleCancel);
+
+            // Handle Escape key
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    handleCancel();
+                    document.removeEventListener('keydown', handleKeyDown);
+                }
+            };
+            document.addEventListener('keydown', handleKeyDown);
+
+            // Handle Tab key for focus trap
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    const focusableElements = modal.querySelectorAll(
+                        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                    );
+                    const firstFocusable = focusableElements[0];
+                    const lastFocusable = focusableElements[focusableElements.length - 1];
+
+                    if (e.shiftKey && document.activeElement === firstFocusable) {
+                        e.preventDefault();
+                        lastFocusable.focus();
+                    } else if (!e.shiftKey && document.activeElement === lastFocusable) {
+                        e.preventDefault();
+                        firstFocusable.focus();
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Show toast notification (Story 3.5)
+     *
+     * Displays a temporary toast notification at the top right of the page.
+     *
+     * @param {string} message - Notification message
+     * @param {string} type - Notification type (success, error, warning, info)
+     */
+    showNotification(message, type = 'info') {
+        // Use global toast manager if available
+        if (window.toast) {
+            window.toast.show(message, type);
+            return;
+        }
+
+        // Fallback: simple notification
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.setAttribute('role', 'alert');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            background: ${this.getNotificationColor(type)};
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            animation: slideInRight 200ms ease-out;
+        `;
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            notification.style.animation = 'slideOutRight 200ms ease-in';
+            setTimeout(() => notification.remove(), 200);
+        }, 3000);
+    }
+
+    /**
+     * Get notification background color based on type (Story 3.5)
+     *
+     * @param {string} type - Notification type
+     * @returns {string} CSS color value
+     */
+    getNotificationColor(type) {
+        const colors = {
+            success: '#10B981',  // Green
+            error: '#DC2626',    // Red
+            warning: '#F59E0B',  // Amber
+            info: '#3B82F6'      // Blue
+        };
+        return colors[type] || colors.info;
+    }
+
+    /**
+     * Get CSRF token from meta tag (Story 3.5)
+     *
+     * @returns {string} CSRF token
+     */
+    getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    }
+
+    /**
+     * Escape HTML to prevent XSS (Story 3.5)
+     *
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Show error message for events container
+     *
+     * @param {string} message - Error message to display
+     */
+    showEventsError(message) {
+        if (this.eventsContainer) {
+            this.eventsContainer.innerHTML = `
+                <div class="error-message" role="alert">${message}</div>
+            `;
+        }
+    }
+
+    /* ===================================================================
+       Shared Utility Methods
+       =================================================================== */
+
+    /**
+     * Truncate text to specified length
+     */
+    truncate(text, maxLength) {
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    }
+
+    /**
+     * Toggle attendance dropdown
+     */
+    toggleAttendanceDropdown(dropdown) {
+        const isOpen = dropdown.classList.contains('dropdown-open');
+        this.closeAllDropdowns();
+        this.closeAllAttendanceDropdowns();
+        if (!isOpen) {
+            dropdown.classList.add('dropdown-open');
+            const toggle = dropdown.querySelector('.dropdown-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    /**
+     * Close all attendance dropdowns
+     */
+    closeAllAttendanceDropdowns() {
+        document.querySelectorAll('.attendance-dropdown').forEach(dropdown => {
+            dropdown.classList.remove('dropdown-open');
+            const toggle = dropdown.querySelector('.dropdown-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    /**
+     * Show attendance note modal
+     */
+    showAttendanceNoteModal(status) {
+        return new Promise((resolve) => {
+            const statusLabels = {
+                'on_time': '🟢 On-Time',
+                'late': '🟡 Late',
+                'called_in': '📞 Called-In',
+                'no_call_no_show': '🔴 No-Call-No-Show',
+                'excused_absence': '🔵 Excused Absence'
+            };
+            const modalHTML = `
+                <div class="modal modal-open" id="attendance-note-modal">
+                    <div class="modal-overlay"></div>
+                    <div class="modal-container modal-container--medium">
+                        <div class="modal-header">
+                            <h2 class="modal-title">Record Attendance - ${statusLabels[status]}</h2>
+                            <button class="modal-close" data-action="cancel">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="attendance-notes" class="form-label">Notes (optional):</label>
+                                <textarea id="attendance-notes" class="form-control" rows="4"
+                                          placeholder="Add context (e.g., 'Traffic delay, arrived 15 min late')"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                            <button class="btn btn-primary" data-action="save">Save</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            const modal = document.getElementById('attendance-note-modal');
+            const textarea = document.getElementById('attendance-notes');
+            textarea.focus();
+            document.body.style.overflow = 'hidden';
+
+            const cleanup = () => { modal.remove(); document.body.style.overflow = ''; };
+            const handleSave = () => { cleanup(); resolve(textarea.value.trim()); };
+            const handleCancel = () => { cleanup(); resolve(null); };
+
+            modal.querySelector('[data-action="save"]').addEventListener('click', handleSave);
+            modal.querySelectorAll('[data-action="cancel"]').forEach(btn => btn.addEventListener('click', handleCancel));
+            modal.querySelector('.modal-overlay').addEventListener('click', handleCancel);
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') { handleCancel(); document.removeEventListener('keydown', handleKeyDown); }
+                else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSave();
+            };
+            document.addEventListener('keydown', handleKeyDown);
+        });
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const dateElement = document.querySelector('[data-selected-date]');
+    if (dateElement) {
+        const date = dateElement.getAttribute('data-selected-date');
+        window.dailyView = new DailyView(date);
+    }
+
+    // Setup reschedule form submission handler
+    const rescheduleForm = document.getElementById('reschedule-form');
+    if (rescheduleForm) {
+        // Helper function to submit reschedule with optional override
+        const submitReschedule = async (overrideConflicts = false) => {
+            const scheduleId = document.getElementById('reschedule-schedule-id').value;
+            const date = document.getElementById('reschedule-date').value;
+            const timeInput = document.getElementById('reschedule-time');
+            const timeDropdown = document.getElementById('reschedule-time-dropdown');
+            const time = timeDropdown.style.display !== 'none' ? timeDropdown.value : timeInput.value;
+            const employeeId = document.getElementById('reschedule-employee').value;
+
+            if (!date || !time || !employeeId) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/event/' + scheduleId + '/reschedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        new_date: date,
+                        new_time: time,
+                        override_conflicts: overrideConflicts
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.status === 409) {
+                    // Conflict detected - show override option
+                    const conflictList = data.conflicts.map(c =>
+                        `<li class="conflict-${c.severity}">
+                            <span class="icon">${c.severity === 'hard' ? '✕' : '⚠️'}</span>
+                            ${c.message}
+                        </li>`
+                    ).join('');
+
+                    const confirmOverride = confirm(
+                        `Reschedule Conflicts Detected:\n\n` +
+                        data.conflicts.map(c => `• ${c.message}`).join('\n') +
+                        `\n\nDo you want to override these conflicts and reschedule anyway?`
+                    );
+
+                    if (confirmOverride) {
+                        // Retry with override flag
+                        await submitReschedule(true);
+                    }
+                    return;
+                }
+
+                if (data.success) {
+                    const warningMsg = overrideConflicts ? ' (conflicts overridden)' : '';
+                    if (window.dailyView) {
+                        window.dailyView.showNotification(data.message + warningMsg, overrideConflicts ? 'warning' : 'success');
+                        window.dailyView.closeRescheduleModal();
+                        // Reload the daily view data
+                        window.dailyView.init();
+                    } else {
+                        alert(data.message + warningMsg);
+                        location.reload();
+                    }
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error rescheduling event');
+            }
+        };
+
+        rescheduleForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await submitReschedule(false);
+        });
+    }
+});

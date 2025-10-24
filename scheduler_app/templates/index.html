@@ -401,6 +401,13 @@
         }
     }
 </style>
+
+<!-- Epic 2 Story 2.2: Dashboard page styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/dashboard.css') }}">
+<!-- Epic 2 Story 2.1: Schedule modal styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/schedule-modal.css') }}">
+<!-- Epic 2 Story 1.6: Base modal styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/modal.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -596,6 +603,19 @@
                         <div class="unscheduled-dates">
                             📅 {{ event.start_datetime.strftime('%m/%d') }} - {{ event.due_datetime.strftime('%m/%d') }}
                         </div>
+
+                        <!-- Schedule Now Button -->
+                        <button class="btn btn-primary schedule-now-btn"
+                                data-event-id="{{ event.project_ref_num }}"
+                                data-event-name="{{ event.project_name }}"
+                                data-event-type="{{ event.event_type }}"
+                                data-location="{{ event.store_name or '' }}"
+                                data-duration="120"
+                                data-date-needed="{{ event.start_datetime.strftime('%Y-%m-%d') }}"
+                                style="margin-top: var(--spacing-sm); width: 100%;">
+                            <span class="btn-text">Schedule Now</span>
+                            <span class="btn-spinner" style="display:none;">⏳</span>
+                        </button>
                     </div>
                     {% endfor %}
                 </div>
@@ -1048,15 +1068,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        fetch('/api/reschedule_event', {
+        fetch('/api/reschedule', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 schedule_id: parseInt(scheduleId),
-                date: date,
-                time: time,
+                new_date: date,
+                new_time: time,
                 employee_id: employeeId
             })
         })
@@ -2056,4 +2076,7 @@ function showMFAModalForEDR() {
 
 // No page load initialization needed for dashboard anymore
 </script>
+
+<!-- Epic 2 Story 2.2: Dashboard page functionality -->
+<script type="module" src="{{ url_for('static', filename='js/pages/dashboard.js') }}"></script>
 {% endblock %}

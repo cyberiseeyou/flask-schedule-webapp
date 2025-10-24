@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
@@ -29,15 +30,119 @@
                 <div class="header-spacer"></div>
             </div>
             <nav class="header-nav">
-                <a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">Dashboard</a>
-                <a href="{{ url_for('dashboard.daily_validation') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard.') %}active{% endif %}">Daily Validation</a>
-                <a href="{{ url_for('main.unscheduled_events') }}" class="nav-link {% if request.endpoint == 'main.unscheduled_events' %}active{% endif %}">Events</a>
-                <a href="{{ url_for('main.calendar_view') }}" class="nav-link {% if request.endpoint == 'main.calendar_view' %}active{% endif %}">Calendar</a>
-                <a href="{{ url_for('employees.employees') }}" class="nav-link {% if request.endpoint == 'employees.employees' %}active{% endif %}">Employees</a>
-                <a href="{{ url_for('admin.employee_analytics') }}" class="nav-link {% if request.endpoint == 'admin.employee_analytics' %}active{% endif %}">Analytics</a>
-                <a href="{{ url_for('auto_scheduler.index') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('auto_scheduler.') %}active{% endif %}">Auto-Scheduler</a>
-                <a href="{{ url_for('printing.printing_home') }}" class="nav-link {% if request.endpoint and request.endpoint.startswith('printing.') %}active{% endif %}">Printing</a>
+                <!-- Mobile Hamburger Menu Button -->
+                <button class="hamburger-menu" id="hamburgerBtn" aria-label="Toggle navigation menu" aria-expanded="false">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+
+                <!-- Navigation Links (Desktop & Mobile) -->
+                <div class="nav-links" id="navLinks">
+                    <!-- Home Link (redirects to Daily Validation) -->
+                    <a href="{{ url_for('dashboard.daily_validation') }}"
+                       class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard.') %}active{% endif %}"
+                       aria-label="Go to home page">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">Home</span>
+                    </a>
+
+                    <!-- Scheduling Dropdown -->
+                    <div class="nav-dropdown">
+                        <button class="nav-link nav-dropdown-toggle"
+                                aria-haspopup="true"
+                                aria-expanded="false"
+                                aria-label="Scheduling menu">
+                            <span class="nav-icon">📅</span>
+                            <span class="nav-text">Scheduling</span>
+                            <span class="nav-arrow">▼</span>
+                        </button>
+                        <div class="nav-dropdown-menu" hidden>
+                            <a href="{{ url_for('main.unscheduled_events') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'main.unscheduled_events' %}active{% endif %}">
+                                Events
+                            </a>
+                            <a href="{{ url_for('main.unreported_events') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'main.unreported_events' %}active{% endif %}">
+                                Unreported Events
+                            </a>
+                            <a href="{{ url_for('main.calendar_view') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'main.calendar_view' %}active{% endif %}">
+                                Calendar
+                            </a>
+                            <a href="{{ url_for('auto_scheduler.index') }}"
+                               class="nav-dropdown-item {% if request.endpoint and request.endpoint.startswith('auto_scheduler.') %}active{% endif %}">
+                                Auto-Scheduler
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Team Dropdown -->
+                    <div class="nav-dropdown">
+                        <button class="nav-link nav-dropdown-toggle"
+                                aria-haspopup="true"
+                                aria-expanded="false"
+                                aria-label="Team menu">
+                            <span class="nav-icon">👥</span>
+                            <span class="nav-text">Team</span>
+                            <span class="nav-arrow">▼</span>
+                        </button>
+                        <div class="nav-dropdown-menu" hidden>
+                            <a href="{{ url_for('employees.employees') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'employees.employees' %}active{% endif %}">
+                                Employees
+                            </a>
+                            <a href="{{ url_for('employees.time_off_requests') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'employees.time_off_requests' %}active{% endif %}">
+                                Time Off Requests
+                            </a>
+                            <a href="{{ url_for('main.attendance_calendar') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'main.attendance_calendar' %}active{% endif %}">
+                                Attendance
+                            </a>
+                            <a href="{{ url_for('admin.employee_analytics') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'admin.employee_analytics' %}active{% endif %}">
+                                Analytics
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Printing Link -->
+                    <a href="{{ url_for('printing.printing_home') }}"
+                       class="nav-link {% if request.endpoint and request.endpoint.startswith('printing.') %}active{% endif %}"
+                       aria-label="Go to printing page">
+                        <span class="nav-icon">🖨️</span>
+                        <span class="nav-text">Printing</span>
+                    </a>
+                </div>
+
                 <div class="nav-user-section">
+                    <button id="refreshDatabaseBtn" class="refresh-database-btn" title="Refresh database from Crossmark API" aria-label="Refresh database">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        <span class="btn-text">Refresh Database</span>
+                    </button>
+                    <div class="notifications-dropdown">
+                        <button id="notificationsBtn" class="notifications-btn" title="View notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
+                        </button>
+                        <div id="notificationsPanel" class="notifications-panel" hidden>
+                            <div class="notifications-header">
+                                <h3 class="notifications-title">Notifications</h3>
+                                <span id="notificationCount" class="notification-count">0</span>
+                            </div>
+                            <div id="notificationsContent" class="notifications-content">
+                                <div class="notifications-loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="user-dropdown">
                         <button class="user-dropdown-toggle" id="userDropdownToggle" aria-haspopup="true" aria-expanded="false">
                             <span class="user-name">{{ get_current_user().get('full_name', get_current_user().get('username', 'User')) if get_current_user() else 'User' }}</span>
@@ -64,6 +169,35 @@
         </div>
     </header>
 
+    <!-- Database Refresh Modal -->
+    <div id="refreshDatabaseModal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="refreshModalTitle">
+        <div class="modal-overlay"></div>
+        <div class="modal-container modal-container--medium">
+            <div class="modal-header">
+                <h2 class="modal-title" id="refreshModalTitle">Refresh Database</h2>
+                <button class="modal-close" id="closeRefreshModal" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="refreshModalContent">
+                    <p class="refresh-modal-message">This will clear all existing events and fetch the latest data from the Crossmark API.</p>
+                    <div id="refreshProgress" style="display: none;">
+                        <div class="progress-indicator">
+                            <div class="progress-spinner"></div>
+                            <span class="progress-text" id="refreshProgressText">Refreshing database...</span>
+                        </div>
+                    </div>
+                    <div id="refreshResult" style="display: none;">
+                        <div class="refresh-result-message" id="refreshResultMessage"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="refreshModalFooter">
+                <button class="btn btn-secondary" id="cancelRefresh">Cancel</button>
+                <button class="btn btn-primary" id="confirmRefresh">Refresh Database</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="container">
         <div class="main-content">
@@ -81,8 +215,37 @@
     <!-- CSRF Protection (CRITICAL-02) -->
     <script src="{{ url_for('static', filename='js/csrf_helper.js') }}"></script>
 
+    <!-- Core Infrastructure Modules (ES6) -->
+    <!-- Priority 2: Load shared modules first for global availability -->
+    <script type="module">
+        // Import and initialize core modules
+        import { apiClient } from '{{ url_for('static', filename='js/utils/api-client.js') }}';
+        import { stateManager } from '{{ url_for('static', filename='js/modules/state-manager.js') }}';
+        import { ariaAnnouncer } from '{{ url_for('static', filename='js/modules/aria-announcer.js') }}';
+        import { toaster } from '{{ url_for('static', filename='js/modules/toast-notifications.js') }}';
+        import ValidationEngine from '{{ url_for('static', filename='js/modules/validation-engine.js') }}';
+
+        // Make available globally for non-module scripts
+        window.apiClient = apiClient;
+        window.stateManager = stateManager;
+        window.ariaAnnouncer = ariaAnnouncer;
+        window.toaster = toaster;
+        window.ValidationEngine = ValidationEngine;
+
+        console.log('[Base] Core infrastructure modules loaded');
+    </script>
+
+    <!-- Navigation -->
+    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
+
     <!-- User Dropdown -->
     <script src="{{ url_for('static', filename='js/user_dropdown.js') }}"></script>
+
+    <!-- Database Refresh Modal -->
+    <script src="{{ url_for('static', filename='js/database-refresh.js') }}"></script>
+
+    <!-- Notifications -->
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>

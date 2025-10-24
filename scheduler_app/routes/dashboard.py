@@ -5,6 +5,7 @@ Provides visual overview of scheduling status and validation checks
 from flask import Blueprint, render_template, jsonify, current_app
 from datetime import datetime, date, timedelta
 from sqlalchemy import func, and_, or_
+from urllib.parse import quote
 
 # Create blueprint
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
@@ -13,15 +14,20 @@ dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 @dashboard_bp.route('/daily-validation')
 def daily_validation():
     """
-    Daily validation dashboard showing today's scheduling status
+    Daily validation dashboard showing scheduling status for selected date
 
     Displays:
-    - Today's event counts by type
+    - Event counts by type for selected date
     - Rotation assignments
     - Unscheduled events requiring attention
     - Validation warnings and errors
     - Quick action buttons
+
+    Query Parameters:
+    - date: Date to validate (YYYY-MM-DD format), defaults to today
     """
+    from flask import request
+
     db = current_app.extensions['sqlalchemy']
 
     # Get models
@@ -33,7 +39,18 @@ def daily_validation():
     EmployeeTimeOff = current_app.config['EmployeeTimeOff']
     PendingSchedule = current_app.config.get('PendingSchedule')
 
-    today = date.today()
+    # Get selected date from query parameter or default to today
+    date_param = request.args.get('date')
+    if date_param:
+        try:
+            selected_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+        except ValueError:
+            selected_date = date.today()
+    else:
+        selected_date = date.today()
+
+    # Calculate relative dates based on selected date
+    today = selected_date
     tomorrow = today + timedelta(days=1)
     three_days_ahead = today + timedelta(days=3)
 
@@ -115,18 +132,26 @@ def daily_validation():
     validation_issues = []
 
     # Check 1: Unscheduled events due within 24 hours
+    now = datetime.now()
+    twenty_four_hours_from_now = now + timedelta(hours=24)
     urgent_unscheduled = db.session.query(Event).filter(
         Event.condition == 'Unstaffed',
-        Event.due_datetime <= datetime.combine(today + timedelta(days=1), datetime.max.time())
+        Event.due_datetime >= now,
+        Event.due_datetime <= twenty_four_hours_from_now
     ).all()
 
     if urgent_unscheduled:
+        # Generate search query for date range
+        tomorrow = today + timedelta(days=1)
+        date_search = f"d:{today.strftime('%m-%d-%y')} to {tomorrow.strftime('%m-%d-%y')}"
+
         validation_issues.append({
             'severity': 'critical',
             'type': 'unscheduled_urgent',
             'message': f'{len(urgent_unscheduled)} event(s) due within 24 hours are unscheduled',
             'count': len(urgent_unscheduled),
-            'action': 'Schedule immediately'
+            'action': 'Schedule immediately',
+            'url': f"/events?condition=unstaffed&search={quote(date_search)}"
         })
 
     # Check 2: Freeosk events today without assignments
@@ -143,7 +168,8 @@ def daily_validation():
             'type': 'freeosk_unscheduled',
             'message': f'{freeosk_today_unscheduled} Freeosk event(s) today are unscheduled',
             'count': freeosk_today_unscheduled,
-            'action': 'Assign to Primary Lead or Club Supervisor'
+            'action': 'Assign to Primary Lead or Club Supervisor',
+            'url': '/events?condition=unstaffed&event_type=Freeosk&date_filter=today'
         })
 
     # Check 3: Digital events today without assignments
@@ -160,11 +186,13 @@ def daily_validation():
             'type': 'digital_unscheduled',
             'message': f'{digital_today_unscheduled} Digital event(s) today are unscheduled',
             'count': digital_today_unscheduled,
-            'action': 'Assign to Primary/Secondary Lead'
+            'action': 'Assign to Primary/Secondary Lead',
+            'url': '/events?condition=unstaffed&event_type=Digitals&date_filter=today'
         })
 
     # Check 4: Core events without paired Supervisor events
     core_without_supervisor = []
+    core_event_numbers = []
     core_events_scheduled = db.session.query(Event).join(
         Schedule, Event.project_ref_num == Schedule.event_ref_num
     ).filter(
@@ -185,14 +213,18 @@ def daily_validation():
             ).first()
             if not supervisor_event:
                 core_without_supervisor.append(core_event)
+                core_event_numbers.append(event_number)
 
     if core_without_supervisor:
+        # Build search query with all event numbers
+        search_query = ', '.join(core_event_numbers)
         validation_issues.append({
             'severity': 'warning',
             'type': 'missing_supervisor',
             'message': f'{len(core_without_supervisor)} Core event(s) missing paired Supervisor events',
             'count': len(core_without_supervisor),
-            'action': 'Verify Supervisor events exist in MVRetail'
+            'action': 'Click to view these events and verify Supervisor events exist in MVRetail',
+            'url': f'/events?condition=scheduled&event_type=Core&search={search_query}'
         })
 
     # Check 5: Employees scheduled during time off
@@ -222,7 +254,8 @@ def daily_validation():
             'message': f'{len(employees_with_conflicts)} employee(s) scheduled during time off',
             'count': len(employees_with_conflicts),
             'details': employees_with_conflicts,
-            'action': 'Reassign events immediately'
+            'action': 'Reassign events immediately',
+            'url': '/events?condition=scheduled&date_filter=today'
         })
 
     # Check 6: Rotation employee unavailable
@@ -260,24 +293,31 @@ def daily_validation():
             'message': f'{len(rotation_warnings)} rotation employee(s) have time off today',
             'count': len(rotation_warnings),
             'details': rotation_warnings,
-            'action': 'Create Schedule Exception or reassign'
+            'action': 'Create Schedule Exception or reassign',
+            'url': '/rotations'
         })
 
     # Check 7: Pending schedules awaiting approval
-    pending_count = 0
-    if PendingSchedule:
-        pending_count = db.session.query(PendingSchedule).filter(
-            PendingSchedule.status == 'proposed'
-        ).count()
+    # Only check if PendingSchedule model exists and is properly configured
+    try:
+        if PendingSchedule is not None:
+            pending_count = db.session.query(PendingSchedule).filter(
+                PendingSchedule.status == 'proposed'
+            ).count()
 
-    if pending_count > 0:
-        validation_issues.append({
-            'severity': 'info',
-            'type': 'pending_approval',
-            'message': f'{pending_count} pending schedule(s) awaiting approval',
-            'count': pending_count,
-            'action': 'Review and approve in Auto-Scheduler'
-        })
+            if pending_count > 0:
+                validation_issues.append({
+                    'severity': 'info',
+                    'type': 'pending_approval',
+                    'message': f'{pending_count} pending schedule(s) awaiting approval',
+                    'count': pending_count,
+                    'action': 'Review and approve in Auto-Scheduler',
+                    'url': '/auto-schedule'
+                })
+    except Exception as e:
+        # PendingSchedule table doesn't exist or has issues - skip this check
+        current_app.logger.debug(f'Skipping pending schedules check: {e}')
+        pass
 
     # Check 8: Events within 3-day window (should be scheduled)
     within_window_unscheduled = db.session.query(Event).filter(
@@ -287,12 +327,16 @@ def daily_validation():
     ).count()
 
     if within_window_unscheduled > 0:
+        # Generate search query for 3-day window
+        window_search = f"s:{today.strftime('%m-%d-%y')} to {three_days_ahead.strftime('%m-%d-%y')}"
+
         validation_issues.append({
             'severity': 'warning',
             'type': 'within_window',
             'message': f'{within_window_unscheduled} event(s) within 3-day window are unscheduled',
             'count': within_window_unscheduled,
-            'action': 'Run auto-scheduler or manually assign'
+            'action': 'Run auto-scheduler or manually assign',
+            'url': f"/events?condition=unstaffed&search={quote(window_search)}"
         })
 
     # ===== SUMMARY STATISTICS =====
@@ -350,12 +394,13 @@ def _get_events_by_type(db, Event, Schedule, target_date):
     result = {}
 
     for event_type in event_types:
-        # Scheduled events (have Schedule record for this date)
+        # Scheduled events (have Schedule record for this date AND condition is Scheduled or Submitted)
         scheduled_count = db.session.query(Event).join(
             Schedule, Event.project_ref_num == Schedule.event_ref_num
         ).filter(
             Event.event_type == event_type,
-            func.date(Schedule.schedule_datetime) == target_date
+            func.date(Schedule.schedule_datetime) == target_date,
+            Event.condition.in_(['Scheduled', 'Submitted'])
         ).count()
 
         # Unscheduled events (start_date is target_date, condition is Unstaffed)
@@ -435,9 +480,12 @@ def validation_summary_api():
     ])
 
     # Count critical issues
+    now = datetime.now()
+    twenty_four_hours_from_now = now + timedelta(hours=24)
     urgent_unscheduled = db.session.query(Event).filter(
         Event.condition == 'Unstaffed',
-        Event.due_datetime <= datetime.combine(today + timedelta(days=1), datetime.max.time())
+        Event.due_datetime >= now,
+        Event.due_datetime <= twenty_four_hours_from_now
     ).count()
 
     return jsonify({

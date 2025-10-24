@@ -31,6 +31,26 @@
                 <span class="help-icon">✅</span>
                 Review & Approve
             </a>
+            <a href="{{ url_for('help.daily_validation') }}" class="help-nav-item">
+                <span class="help-icon">📋</span>
+                Daily Validation
+            </a>
+            <a href="{{ url_for('help.printing_reports') }}" class="help-nav-item">
+                <span class="help-icon">🖨️</span>
+                Printing & Reports
+            </a>
+            <a href="{{ url_for('help.edr_sync') }}" class="help-nav-item">
+                <span class="help-icon">🔄</span>
+                EDR Sync & Paperwork
+            </a>
+            <a href="{{ url_for('help.attendance') }}" class="help-nav-item">
+                <span class="help-icon">📊</span>
+                Attendance & Time Off
+            </a>
+            <a href="{{ url_for('help.workload_analytics') }}" class="help-nav-item">
+                <span class="help-icon">📈</span>
+                Workload Analytics
+            </a>
         </nav>
     </aside>
 
@@ -71,6 +91,36 @@
                 <div class="help-card-icon">✅</div>
                 <h3>Review & Approve Schedules</h3>
                 <p>Learn how to review, edit, and approve or reject auto-generated schedules.</p>
+            </a>
+
+            <a href="{{ url_for('help.daily_validation') }}" class="help-card">
+                <div class="help-card-icon">📋</div>
+                <h3>Daily Validation Dashboard</h3>
+                <p>Monitor daily schedules, rotation assignments, and validation warnings in real-time.</p>
+            </a>
+
+            <a href="{{ url_for('help.printing_reports') }}" class="help-card">
+                <div class="help-card-icon">🖨️</div>
+                <h3>Printing & Reports</h3>
+                <p>Generate and print schedules, paperwork, and reports for employees and events.</p>
+            </a>
+
+            <a href="{{ url_for('help.edr_sync') }}" class="help-card">
+                <div class="help-card-icon">🔄</div>
+                <h3>EDR Sync & Paperwork</h3>
+                <p>Sync sales data from Walmart Retail Link and generate event-specific paperwork.</p>
+            </a>
+
+            <a href="{{ url_for('help.attendance') }}" class="help-card">
+                <div class="help-card-icon">📊</div>
+                <h3>Attendance & Time Off</h3>
+                <p>Track employee attendance, manage time-off requests, and monitor unreported events.</p>
+            </a>
+
+            <a href="{{ url_for('help.workload_analytics') }}" class="help-card">
+                <div class="help-card-icon">📈</div>
+                <h3>Workload Analytics</h3>
+                <p>Analyze team performance, workload distribution, and scheduling trends.</p>
             </a>
         </div>
 

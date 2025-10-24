@@ -146,20 +146,34 @@ function initializeFormValidation() {
     const employeeSelect = document.getElementById('employee_id');
     const startTimeInput = document.getElementById('start_time');
     const startTimeDropdown = document.getElementById('start_time_dropdown');
+    const overrideCheckbox = document.getElementById('override_constraints');
+    const dateInput = document.getElementById('scheduled_date');
     const form = document.getElementById('scheduling-form');
-    
+
     if (employeeSelect) {
         employeeSelect.addEventListener('change', function() {
             validateForm();
         });
     }
-    
+
     if (startTimeInput) {
         startTimeInput.addEventListener('change', function() {
             validateForm();
         });
     }
-    
+
+    // Add listener for override checkbox - reload employees when toggled
+    if (overrideCheckbox && dateInput) {
+        overrideCheckbox.addEventListener('change', function() {
+            // Reload employee list with/without override
+            if (dateInput.value) {
+                fetchAvailableEmployees(dateInput.value);
+            }
+            // Validate form to update button state
+            validateForm();
+        });
+    }
+
     // Handle form submission to use the correct time value
     if (form) {
         form.addEventListener('submit', function(e) {
@@ -176,22 +190,26 @@ function validateDateSelection(selectedDate, submitButton) {
         submitButton.disabled = true;
         return;
     }
-    
+
+    // Check if override is enabled
+    const overrideCheckbox = document.getElementById('override_constraints');
+    const overrideEnabled = overrideCheckbox ? overrideCheckbox.checked : false;
+
     const selected = new Date(selectedDate);
     const startDate = new Date(window.eventData.startDate);
     const endDate = new Date(window.eventData.endDate);
-    
-    // Check if selected date is within valid range
-    const isValidDate = selected >= startDate && selected <= endDate;
-    
+
+    // Check if selected date is within valid range (skip check if override enabled)
+    const isValidDate = overrideEnabled || (selected >= startDate && selected <= endDate);
+
     // Add visual feedback
     const dateInput = document.getElementById('scheduled_date');
-    if (isValidDate) {
-        dateInput.style.borderColor = '#28a745';
+    if (isValidDate || overrideEnabled) {
+        dateInput.style.borderColor = overrideEnabled ? '#ff8c00' : '#28a745'; // Orange for override, green for normal
     } else {
         dateInput.style.borderColor = '#dc3545';
     }
-    
+
     // Validate entire form
     validateForm();
 }
@@ -211,8 +229,17 @@ function fetchAvailableEmployees(date) {
     
     // Make AJAX call to availability API with event ID for role-based filtering
     const eventId = window.eventData ? window.eventData.id : null;
-    const apiUrl = eventId ? `/api/available_employees/${date}/${eventId}` : `/api/available_employees/${date}`;
-    
+
+    // Check if override constraints checkbox is checked
+    const overrideCheckbox = document.getElementById('override_constraints');
+    const overrideEnabled = overrideCheckbox ? overrideCheckbox.checked : false;
+
+    // Build API URL with override parameter if needed
+    let apiUrl = eventId ? `/api/available_employees/${date}/${eventId}` : `/api/available_employees/${date}`;
+    if (overrideEnabled) {
+        apiUrl += '?override=true';
+    }
+
     fetch(apiUrl)
         .then(response => {
             if (!response.ok) {
@@ -456,11 +483,20 @@ function isValidDate(selectedDate) {
     if (!selectedDate || !window.eventData) {
         return false;
     }
-    
+
+    // Check if override is enabled
+    const overrideCheckbox = document.getElementById('override_constraints');
+    const overrideEnabled = overrideCheckbox ? overrideCheckbox.checked : false;
+
+    // If override is enabled, any date is valid
+    if (overrideEnabled) {
+        return true;
+    }
+
     const selected = new Date(selectedDate);
     const startDate = new Date(window.eventData.startDate);
     const endDate = new Date(window.eventData.endDate);
-    
+
     return selected >= startDate && selected <= endDate;
 }
 

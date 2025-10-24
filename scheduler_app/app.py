@@ -80,6 +80,8 @@ PendingSchedule = models['PendingSchedule']
 SchedulerRunHistory = models['SchedulerRunHistory']
 ScheduleException = models['ScheduleException']
 SystemSetting = models['SystemSetting']
+EmployeeAttendance = models['EmployeeAttendance']
+PaperworkTemplate = models['PaperworkTemplate']
 
 # Extract audit models (if available)
 AuditLog = models.get('AuditLog')
@@ -99,6 +101,8 @@ app.config['ScheduleException'] = ScheduleException
 app.config['SystemSetting'] = SystemSetting
 app.config['AuditLog'] = AuditLog
 app.config['AuditNotificationSettings'] = AuditNotificationSettings
+app.config['EmployeeAttendance'] = EmployeeAttendance
+app.config['PaperworkTemplate'] = PaperworkTemplate
 
 # Import authentication helpers and blueprint from routes
 from routes import (
@@ -159,6 +163,24 @@ app.register_blueprint(help_bp)
 # Import and register Dashboard blueprint
 from routes.dashboard import dashboard_bp
 app.register_blueprint(dashboard_bp)
+
+# Import and register Health Check blueprint
+from routes.health import health_bp
+app.register_blueprint(health_bp)
+
+# Import and register Attendance API blueprint
+from routes.api_attendance import init_attendance_routes
+attendance_api_bp = init_attendance_routes(db, models)
+app.register_blueprint(attendance_api_bp)
+
+# Import and register Notifications API blueprint
+from routes.api_notifications import init_notification_routes
+notifications_api_bp = init_notification_routes(db, models)
+app.register_blueprint(notifications_api_bp)
+
+# Import and register Paperwork Templates API blueprint
+from routes.api_paperwork_templates import api_paperwork_templates_bp
+app.register_blueprint(api_paperwork_templates_bp)
 
 # Configure CSRF exemptions for specific routes (after blueprint registration)
 # Only 2 routes are exempt with justified reasons:

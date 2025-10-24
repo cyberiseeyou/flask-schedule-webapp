@@ -902,15 +902,23 @@ def edr_request_mfa():
         return jsonify({'success': False, 'error': 'EDR modules not available'}), 500
 
     try:
-        # Get Walmart credentials from app config
-        username = current_app.config.get('WALMART_EDR_USERNAME')
-        password = current_app.config.get('WALMART_EDR_PASSWORD')
-        mfa_credential_id = current_app.config.get('WALMART_EDR_MFA_CREDENTIAL_ID')
+        # Get Walmart credentials from SystemSetting database (with .env fallback)
+        SystemSetting = current_app.config.get('SystemSetting')
+
+        if SystemSetting:
+            username = SystemSetting.get_setting('edr_username') or current_app.config.get('WALMART_EDR_USERNAME')
+            password = SystemSetting.get_setting('edr_password') or current_app.config.get('WALMART_EDR_PASSWORD')
+            mfa_credential_id = SystemSetting.get_setting('edr_mfa_credential_id') or current_app.config.get('WALMART_EDR_MFA_CREDENTIAL_ID')
+        else:
+            # Fallback to .env config if SystemSetting not available
+            username = current_app.config.get('WALMART_EDR_USERNAME')
+            password = current_app.config.get('WALMART_EDR_PASSWORD')
+            mfa_credential_id = current_app.config.get('WALMART_EDR_MFA_CREDENTIAL_ID')
 
         if not all([username, password, mfa_credential_id]):
             return jsonify({
                 'success': False,
-                'error': 'Walmart credentials not configured in settings'
+                'error': 'Walmart credentials not configured in settings. Please configure them on the Settings page.'
             }), 400
 
         # Create new EDRReportGenerator instance (NOT EDRAuthenticator)

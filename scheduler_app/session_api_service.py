@@ -218,8 +218,19 @@ class SessionAPIService:
 
         url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
-        # Ensure PHPSESSID cookie is set
+        # Clear any existing PHPSESSID cookies to avoid duplicates
         if self.phpsessid:
+            # Remove all PHPSESSID cookies first (safely)
+            try:
+                # Get all PHPSESSID cookies and remove them
+                for cookie in list(self.session.cookies):
+                    if cookie.name == 'PHPSESSID':
+                        self.session.cookies.clear(cookie.domain, cookie.path, cookie.name)
+            except Exception as e:
+                # If clearing fails, just log and continue
+                self.logger.debug(f"Could not clear existing PHPSESSID cookies: {e}")
+
+            # Set the current PHPSESSID
             self.session.cookies.set('PHPSESSID', self.phpsessid)
 
         try:
@@ -560,18 +571,18 @@ class SessionAPIService:
             'sort': '[{"property":"staffedReps","direction":"ASC"}]'
         }
 
-    def get_all_planning_events(self, start_date: datetime = None, end_date: datetime = None, limit: int = 1000) -> Optional[Dict]:
+    def get_all_planning_events(self, start_date: datetime = None, end_date: datetime = None, limit: int = 5000) -> Optional[Dict]:
         """
         Get all planning events (all statuses) from Crossmark API for comprehensive database refresh.
-        This method fetches events from 1 month before to 1 month after current date by default.
+        This method fetches events from 1 month before to 3 months after current date by default.
         Args:
             start_date: Start date (defaults to 1 month before today)
-            end_date: End date (defaults to 1 month after today)
-            limit: Maximum number of records to fetch (defaults to 1000)
+            end_date: End date (defaults to 3 months after today)
+            limit: Maximum number of records to fetch (defaults to 5000)
         Returns:
             dict or None: All planning events data if successful, None otherwise
         """
-        # Calculate default date range: 1 month before to 1 month after
+        # Calculate default date range: 1 month before to 3 months after
         if start_date is None:
             start_dt = datetime.now() - timedelta(days=30)  # 1 month before
             start_date = start_dt.strftime("%Y-%m-%d")
@@ -579,7 +590,7 @@ class SessionAPIService:
             start_date = start_date.strftime("%Y-%m-%d") if isinstance(start_date, datetime) else start_date
 
         if end_date is None:
-            end_dt = datetime.now() + timedelta(days=30)  # 1 month after
+            end_dt = datetime.now() + timedelta(days=90)  # 3 months after
             end_date = end_dt.strftime("%Y-%m-%d")
         else:
             end_date = end_date.strftime("%Y-%m-%d") if isinstance(end_date, datetime) else end_date
@@ -698,18 +709,18 @@ class SessionAPIService:
             self.logger.error("Error getting unscheduled events: %s", e)
             return None
 
-    def get_all_planning_events(self, start_date: datetime = None, end_date: datetime = None, limit: int = 1000) -> Optional[Dict]:
+    def get_all_planning_events(self, start_date: datetime = None, end_date: datetime = None, limit: int = 5000) -> Optional[Dict]:
         """
         Get all planning events (all statuses) from Crossmark API for comprehensive database refresh.
-        This method fetches events from 1 month before to 1 month after current date by default.
+        This method fetches events from 1 month before to 3 months after current date by default.
         Args:
             start_date: Start date (defaults to 1 month before today)
-            end_date: End date (defaults to 1 month after today)
-            limit: Maximum number of records to fetch (defaults to 1000)
+            end_date: End date (defaults to 3 months after today)
+            limit: Maximum number of records to fetch (defaults to 5000)
         Returns:
             dict or None: All planning events data if successful, None otherwise
         """
-        # Calculate default date range: 1 month before to 1 month after
+        # Calculate default date range: 1 month before to 3 months after
         if start_date is None:
             start_dt = datetime.now() - timedelta(days=30)  # 1 month before
             start_date = start_dt.strftime("%Y-%m-%d")
@@ -717,7 +728,7 @@ class SessionAPIService:
             start_date = start_date.strftime("%Y-%m-%d") if isinstance(start_date, datetime) else start_date
 
         if end_date is None:
-            end_dt = datetime.now() + timedelta(days=30)  # 1 month after
+            end_dt = datetime.now() + timedelta(days=90)  # 3 months after
             end_date = end_dt.strftime("%Y-%m-%d")
         else:
             end_date = end_date.strftime("%Y-%m-%d") if isinstance(end_date, datetime) else end_date
@@ -973,9 +984,25 @@ class SessionAPIService:
             dict: Result of scheduling operation
         """
         try:
-            # Format datetime with timezone offset (assuming Eastern Time)
-            start_str = start_datetime.strftime("%Y-%m-%dT%H:%M:%S-04:00")
-            end_str = end_datetime.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+            # Use zoneinfo (built-in Python 3.9+) for timezone handling
+            from zoneinfo import ZoneInfo
+
+            # Get timezone from config
+            tz = ZoneInfo(self.timezone)
+
+            # If datetime is naive (no timezone info), add timezone info
+            if start_datetime.tzinfo is None:
+                start_datetime = start_datetime.replace(tzinfo=tz)
+            if end_datetime.tzinfo is None:
+                end_datetime = end_datetime.replace(tzinfo=tz)
+
+            # Format datetime with proper timezone offset
+            start_str = start_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
+            end_str = end_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+            # Insert colon in timezone offset (Python's %z gives -0500, we need -05:00)
+            start_str = start_str[:-2] + ':' + start_str[-2:]
+            end_str = end_str[:-2] + ':' + end_str[-2:]
 
             # URL-encode the datetime colons to match exact curl format
             from urllib.parse import quote
@@ -1016,11 +1043,26 @@ class SessionAPIService:
             if 200 <= response.status_code < 300:
                 result_data = self._safe_json(response)
                 self.logger.info(f"Successfully scheduled mPlan {mplan_id}")
+                self.logger.info(f"Schedule API response: {result_data}")
+
+                # Extract scheduleEventID if present
+                schedule_event_id = None
+                if result_data:
+                    schedule_event_id = (
+                        result_data.get('scheduleEventID') or
+                        result_data.get('id') or
+                        result_data.get('scheduledEventId') or
+                        result_data.get('ID')
+                    )
+                    if schedule_event_id:
+                        self.logger.info(f"Extracted scheduleEventID: {schedule_event_id}")
+
                 return {
                     'success': True,
                     'message': 'Event scheduled successfully',
                     'mplan_id': mplan_id,
                     'rep_id': rep_id,
+                    'schedule_event_id': schedule_event_id,
                     'response_data': result_data
                 }
             else:
@@ -1251,9 +1293,28 @@ class SessionAPIService:
         Fallback method for unscheduling mplan events
         """
         try:
+            # Clean up schedule_id - remove legacy formats
+            clean_schedule_id = str(schedule_id)
+
+            # Strip "_schedule" suffix if present (old format)
+            if clean_schedule_id.endswith('_schedule'):
+                clean_schedule_id = clean_schedule_id.replace('_schedule', '')
+                self.logger.warning(f"Stripped '_schedule' suffix: {schedule_id} -> {clean_schedule_id}")
+
+            # Strip anything after underscore (wrong format like "31785775_157384")
+            # The correct ID should be pure numeric like "44212583" (scheduleEventID)
+            if '_' in clean_schedule_id:
+                original = clean_schedule_id
+                clean_schedule_id = clean_schedule_id.split('_')[0]
+                self.logger.warning(
+                    f"WARNING: external_id has wrong format! Got '{original}', using '{clean_schedule_id}'. "
+                    f"This may fail. The external_id should be the scheduleEventID from Crossmark, not mPlanID_locationID. "
+                    f"Please re-sync or re-schedule to fix."
+                )
+
             # Prepare form data - only needs the scheduled event ID
             form_data = {
-                'id': str(schedule_id)
+                'id': clean_schedule_id
             }
 
             headers = {
@@ -1273,7 +1334,9 @@ class SessionAPIService:
                 'x-requested-with': 'XMLHttpRequest'
             }
 
-            self.logger.info(f"Deleting/unscheduling mPlan event with ID: {schedule_id}")
+            self.logger.info(f"Deleting/unscheduling mPlan event with ID: {clean_schedule_id} (original: {schedule_id})")
+            self.logger.debug(f"Request data: {form_data}")
+            self.logger.debug(f"Request headers: {headers}")
 
             response = self.make_request(
                 'POST',
@@ -1282,9 +1345,13 @@ class SessionAPIService:
                 headers=headers
             )
 
+            self.logger.info(f"Response status: {response.status_code}")
+            self.logger.debug(f"Response text: {response.text[:500]}")
+
             if 200 <= response.status_code < 300:
                 result_data = self._safe_json(response)
                 self.logger.info(f"Successfully deleted/unscheduled mPlan event {schedule_id}")
+                self.logger.debug(f"Response data: {result_data}")
                 return {
                     'success': True,
                     'message': 'Event unscheduled successfully - moved back to unstaffed status',
@@ -1302,7 +1369,7 @@ class SessionAPIService:
 
         except Exception as e:
             error_msg = f"Error deleting scheduled event: {str(e)}"
-            self.logger.error(error_msg)
+            self.logger.error(error_msg, exc_info=True)
             return {
                 'success': False,
                 'message': error_msg

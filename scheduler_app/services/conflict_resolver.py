@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from services.validation_types import SwapProposal
+from .validation_types import SwapProposal
 
 
 class ConflictResolver:

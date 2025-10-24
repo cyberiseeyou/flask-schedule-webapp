@@ -338,6 +338,30 @@ def approve_schedule():
             estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
             end_datetime = start_datetime + timedelta(minutes=estimated_minutes)
 
+            # CRITICAL VALIDATION: Ensure schedule is within event period
+            # This prevents scheduling events outside their valid start/due date window
+            if not (event.start_datetime <= start_datetime <= event.due_datetime):
+                error_msg = (
+                    f"Schedule datetime {start_datetime.strftime('%Y-%m-%d %H:%M')} is outside "
+                    f"event period ({event.start_datetime.strftime('%Y-%m-%d')} to "
+                    f"{event.due_datetime.strftime('%Y-%m-%d')})"
+                )
+                current_app.logger.error(
+                    f"Validation failed for event {event.project_ref_num} ({event.project_name}): {error_msg}"
+                )
+                failed_details.append({
+                    'event_ref_num': pending.event_ref_num,
+                    'event_name': event.project_name,
+                    'employee_name': employee.name,
+                    'scheduled_time': start_datetime.isoformat(),
+                    'event_period': f"{event.start_datetime.date()} to {event.due_datetime.date()}",
+                    'reason': error_msg
+                })
+                pending.status = 'validation_failed'
+                pending.api_error_details = error_msg
+                api_failed += 1
+                continue
+
             # Prepare data for Crossmark API
             # IMPORTANT: Use external_id (numeric API ID), NOT employee.id (US###### format)
             rep_id = str(employee.external_id) if employee.external_id else None
@@ -406,11 +430,30 @@ def approve_schedule():
                 )
 
                 if api_result.get('success'):
+                    # Extract the scheduled event ID from the API response
+                    # First try the direct field, then fall back to response_data
+                    scheduled_event_id = api_result.get('schedule_event_id')
+
+                    if not scheduled_event_id:
+                        response_data = api_result.get('response_data', {})
+                        if response_data:
+                            scheduled_event_id = (
+                                response_data.get('scheduleEventID') or
+                                response_data.get('id') or
+                                response_data.get('scheduledEventId') or
+                                response_data.get('ID')
+                            )
+
+                    current_app.logger.info(f"Extracted scheduled_event_id: {scheduled_event_id}")
+
                     # API submission successful - create local schedule record
                     schedule = models['Schedule'](
                         event_ref_num=pending.event_ref_num,
                         employee_id=pending.employee_id,
-                        schedule_datetime=pending.schedule_datetime
+                        schedule_datetime=pending.schedule_datetime,
+                        external_id=str(scheduled_event_id) if scheduled_event_id else None,
+                        last_synced=datetime.utcnow(),
+                        sync_status='synced'
                     )
                     db.session.add(schedule)
 

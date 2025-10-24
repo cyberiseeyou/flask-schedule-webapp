@@ -685,10 +685,47 @@ class DailyPaperworkGenerator:
         items_pdf = self.generate_item_numbers_pdf(edr_data_list, target_date)
         all_pdfs.append(items_pdf)
 
-        # 4. For each event, generate EDR, SalesTool, Activity Log, Checklist
+        # 4. For each event, generate EDR, SalesTool, and dynamic templates from database
         docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs')
-        activity_log_path = os.path.join(docs_dir, 'Event Table Activity Log.pdf')
-        checklist_path = os.path.join(docs_dir, 'Daily Task Checkoff Sheet.pdf')
+
+        # Load dynamic templates from database
+        print("📄 Loading paperwork templates from database...")
+        PaperworkTemplate = self.models.get('PaperworkTemplate')
+        dynamic_templates = []
+
+        if PaperworkTemplate:
+            try:
+                templates = PaperworkTemplate.query.filter_by(is_active=True).order_by(PaperworkTemplate.display_order).all()
+                for template in templates:
+                    template_path = os.path.join(docs_dir, template.file_path)
+                    if os.path.exists(template_path):
+                        dynamic_templates.append({
+                            'name': template.name,
+                            'path': template_path,
+                            'order': template.display_order
+                        })
+                        print(f"   ✅ Loaded template: {template.name}")
+                    else:
+                        print(f"   ⚠️ Template file not found: {template.file_path}")
+            except Exception as e:
+                print(f"   ⚠️ Could not load templates from database: {e}")
+                print(f"   ℹ️ Falling back to legacy hardcoded templates")
+                # Fallback to legacy behavior if database query fails
+                activity_log_path = os.path.join(docs_dir, 'Event Table Activity Log.pdf')
+                checklist_path = os.path.join(docs_dir, 'Daily Task Checkoff Sheet.pdf')
+                if os.path.exists(activity_log_path):
+                    dynamic_templates.append({'name': 'Activity Log', 'path': activity_log_path, 'order': 1})
+                if os.path.exists(checklist_path):
+                    dynamic_templates.append({'name': 'Checklist', 'path': checklist_path, 'order': 2})
+        else:
+            # Model not available, use legacy hardcoded paths
+            print(f"   ℹ️ PaperworkTemplate model not available, using legacy templates")
+            activity_log_path = os.path.join(docs_dir, 'Event Table Activity Log.pdf')
+            checklist_path = os.path.join(docs_dir, 'Daily Task Checkoff Sheet.pdf')
+            if os.path.exists(activity_log_path):
+                dynamic_templates.append({'name': 'Activity Log', 'path': activity_log_path, 'order': 1})
+            if os.path.exists(checklist_path):
+                dynamic_templates.append({'name': 'Checklist', 'path': checklist_path, 'order': 2})
 
         for schedule, event, employee in schedules:
             print(f"📋 Processing event {event.project_ref_num} for {employee.name}...")
@@ -720,13 +757,10 @@ class DailyPaperworkGenerator:
                         all_pdfs.append(salestool_pdf)
                         print(f"   ✅ SalesTool added")
 
-                # Add Activity Log for Core events
-                if os.path.exists(activity_log_path):
-                    all_pdfs.append(activity_log_path)
-
-                # Add Checklist for Core events
-                if os.path.exists(checklist_path):
-                    all_pdfs.append(checklist_path)
+                # Add all dynamic templates for Core events (in order)
+                for template in dynamic_templates:
+                    all_pdfs.append(template['path'])
+                    print(f"   ✅ Added template: {template['name']}")
             else:
                 print(f"   ℹ️ Skipping documents - event type is '{event.event_type}' (Core events only)")
 

@@ -169,13 +169,19 @@ class EDRReportGenerator:
         payload = {"type": "SMS_OTP", "credid": self.mfa_credential_id}
 
         print("➡️ Step 2: Requesting MFA code...")
+        print(f"🔍 DEBUG: MFA Credential ID = {self.mfa_credential_id}")
+        print(f"🔍 DEBUG: Payload = {payload}")
         try:
             response = self.session.post(send_code_url, headers=headers, json=payload)
+            print(f"🔍 DEBUG: Response status = {response.status_code}")
+            print(f"🔍 DEBUG: Response body = {response.text[:500] if response.text else 'empty'}")
             response.raise_for_status()
             print("✅ MFA code sent successfully. Check your device.")
             return True
         except requests.exceptions.RequestException as e:
             print(f"❌ Step 2 failed: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"🔍 DEBUG: Error response body = {e.response.text[:500] if e.response.text else 'empty'}")
             return False
 
     def step3_validate_mfa_code(self, code: str) -> bool:

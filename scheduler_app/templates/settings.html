@@ -110,6 +110,22 @@
             </div>
         </section>
 
+        <!-- Paperwork Templates Section -->
+        <section class="settings-section">
+            <h3>Paperwork Templates</h3>
+            <p class="section-description">Manage PDF templates that will be included in daily paperwork packages</p>
+
+            <div class="template-actions">
+                <button type="button" id="add-template-btn" class="btn btn-primary">
+                    <span>+</span> Add Template
+                </button>
+            </div>
+
+            <div id="templates-list" class="templates-list">
+                <div class="loading-message">Loading templates...</div>
+            </div>
+        </section>
+
         <!-- Form Actions -->
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -336,6 +352,138 @@
     margin-bottom: 5px;
     font-size: 0.9em;
 }
+
+.template-actions {
+    margin-bottom: 20px;
+}
+
+.templates-list {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 100px;
+}
+
+.loading-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+.template-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    background: white;
+    cursor: move;
+}
+
+.template-item:last-child {
+    border-bottom: none;
+}
+
+.template-item:hover {
+    background: #f9f9f9;
+}
+
+.template-item.dragging {
+    opacity: 0.5;
+}
+
+.template-drag-handle {
+    margin-right: 15px;
+    cursor: move;
+    color: #999;
+    font-size: 20px;
+}
+
+.template-info {
+    flex: 1;
+}
+
+.template-name {
+    font-weight: bold;
+    color: #2E4C73;
+    margin-bottom: 4px;
+}
+
+.template-details {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.template-actions-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.template-toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.template-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.template-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.template-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.template-toggle input:checked + .template-toggle-slider {
+    background-color: #28a745;
+}
+
+.template-toggle input:checked + .template-toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.btn-delete-template {
+    background: #dc3545;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-delete-template:hover {
+    background: #c82333;
+}
+
+.empty-templates {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
 </style>
 
 <script>
@@ -516,6 +664,271 @@ document.addEventListener('DOMContentLoaded', function() {
             syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with Retail Link';
         });
     });
+
+    // ===== PAPERWORK TEMPLATES MANAGEMENT =====
+    const templatesList = document.getElementById('templates-list');
+    const addTemplateBtn = document.getElementById('add-template-btn');
+    let templates = [];
+    let draggedElement = null;
+
+    // Load templates on page load
+    loadTemplates();
+
+    function loadTemplates() {
+        fetch('/api/paperwork-templates/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    templates = data.templates;
+                    renderTemplates();
+                } else {
+                    templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading templates:', error);
+                templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+            });
+    }
+
+    function renderTemplates() {
+        if (templates.length === 0) {
+            templatesList.innerHTML = '<div class="empty-templates">No templates added yet. Click "Add Template" to upload a PDF.</div>';
+            return;
+        }
+
+        templatesList.innerHTML = templates.map(template => `
+            <div class="template-item" draggable="true" data-template-id="${template.id}">
+                <span class="template-drag-handle">☰</span>
+                <div class="template-info">
+                    <div class="template-name">${escapeHtml(template.name)}</div>
+                    <div class="template-details">
+                        ${escapeHtml(template.file_path)}
+                        ${template.description ? ' - ' + escapeHtml(template.description) : ''}
+                    </div>
+                </div>
+                <div class="template-actions-group">
+                    <label class="template-toggle">
+                        <input type="checkbox" ${template.is_active ? 'checked' : ''}
+                               onchange="toggleTemplate(${template.id}, this.checked)">
+                        <span class="template-toggle-slider"></span>
+                    </label>
+                    <button type="button" class="btn-delete-template" onclick="deleteTemplate(${template.id})">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add drag and drop event listeners
+        const items = templatesList.querySelectorAll('.template-item');
+        items.forEach(item => {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragover', handleDragOver);
+            item.addEventListener('drop', handleDrop);
+            item.addEventListener('dragend', handleDragEnd);
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Drag and Drop Handlers
+    function handleDragStart(e) {
+        draggedElement = this;
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        if (this !== draggedElement) {
+            const rect = this.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (e.clientY < midpoint) {
+                this.parentNode.insertBefore(draggedElement, this);
+            } else {
+                this.parentNode.insertBefore(draggedElement, this.nextSibling);
+            }
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDragEnd(e) {
+        this.classList.remove('dragging');
+
+        // Get new order
+        const items = templatesList.querySelectorAll('.template-item');
+        const newOrder = Array.from(items).map(item => parseInt(item.dataset.templateId));
+
+        // Save new order
+        saveOrder(newOrder);
+    }
+
+    function saveOrder(templateIds) {
+        fetch('/api/paperwork-templates/reorder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ template_ids: templateIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Order saved successfully');
+                loadTemplates(); // Reload to get updated order
+            } else {
+                alert('Error saving order: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving order:', error);
+            alert('Error saving order');
+        });
+    }
+
+    // Toggle Template Active Status
+    window.toggleTemplate = function(templateId, isActive) {
+        fetch(`/api/paperwork-templates/${templateId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ is_active: isActive })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Template status updated');
+            } else {
+                alert('Error updating template: ' + data.error);
+                loadTemplates(); // Reload to reset checkbox
+            }
+        })
+        .catch(error => {
+            console.error('Error updating template:', error);
+            alert('Error updating template');
+            loadTemplates(); // Reload to reset checkbox
+        });
+    };
+
+    // Delete Template
+    window.deleteTemplate = function(templateId) {
+        const template = templates.find(t => t.id === templateId);
+        if (!confirm(`Are you sure you want to delete "${template.name}"?`)) {
+            return;
+        }
+
+        fetch(`/api/paperwork-templates/${templateId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadTemplates();
+            } else {
+                alert('Error deleting template: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting template:', error);
+            alert('Error deleting template');
+        });
+    };
+
+    // Add Template
+    addTemplateBtn.addEventListener('click', function() {
+        // Create file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.pdf';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                alert('Only PDF files are allowed');
+                return;
+            }
+
+            // Ask for template name (default to filename without extension)
+            const defaultName = file.name.replace(/\.pdf$/i, '');
+            const templateName = prompt('Enter template name:', defaultName);
+
+            if (!templateName) {
+                return; // User cancelled
+            }
+
+            // Ask for optional description
+            const description = prompt('Enter description (optional):') || '';
+
+            // Upload file
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('name', templateName);
+            formData.append('description', description);
+
+            // Show uploading state
+            addTemplateBtn.disabled = true;
+            addTemplateBtn.textContent = 'Uploading...';
+
+            fetch('/api/paperwork-templates/upload', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Template uploaded successfully!');
+                    loadTemplates();
+                } else {
+                    alert('Error uploading template: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading template:', error);
+                alert('Error uploading template');
+            })
+            .finally(() => {
+                addTemplateBtn.disabled = false;
+                addTemplateBtn.innerHTML = '<span>+</span> Add Template';
+            });
+        });
+
+        // Trigger file selection
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    });
+
+    // Helper function to get CSRF token
+    function getCsrfToken() {
+        const token = document.cookie.split('; ')
+            .find(row => row.startsWith('csrf_token='))
+            ?.split('=')[1];
+        return token || '';
+    }
 });
 </script>
 {% endblock %}

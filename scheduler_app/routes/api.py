@@ -7,9 +7,467 @@ from routes.auth import require_authentication
 from datetime import datetime, timedelta, date
 import csv
 import io
+import logging
+import time
 from io import StringIO
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+logger = logging.getLogger(__name__)
+
+# Import route registration functions for modular API endpoints
+from routes.api_availability_overrides import register_availability_override_routes
+from routes.api_employee_termination import register_termination_routes
+from routes.api_auto_scheduler_settings import register_auto_scheduler_settings_routes
+
+
+@api_bp.route('/daily-summary/<date>', methods=['GET'])
+def get_daily_summary(date):
+    """
+    Get event type counts and timeslot coverage for a specific date.
+
+    This endpoint provides summary statistics for the daily view dashboard,
+    including event type distribution and core timeslot employee coverage.
+
+    Args:
+        date: Date string in 'YYYY-MM-DD' format (URL path parameter)
+
+    Returns:
+        JSON response with event_types dict, total_events count,
+        and timeslot_coverage dict
+
+    Response Format:
+    {
+        "event_types": {
+            "Setup": 5,
+            "Demo": 3,
+            "Juicer": 2,
+            "Other": 1
+        },
+        "total_events": 11,
+        "timeslot_coverage": {
+            "09:45:00": 4,
+            "10:30:00": 2,
+            "11:00:00": 0,
+            "11:30:00": 3
+        }
+    }
+
+    Example:
+        GET /api/daily-summary/2025-10-15
+
+    Note:
+        - Timeslot matching uses exact minute match (TIME(schedule_datetime) = timeslot)
+        - Counts DISTINCT employees per timeslot to avoid double-counting
+        - Only counts active employees
+    """
+    from sqlalchemy import func, and_
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+
+    # Parse and validate date
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    # Query event type counts
+    # Join Schedule -> Event to get event types for schedules on this date
+    event_types_query = db.session.query(
+        Event.event_type,
+        func.count(Schedule.id).label('count')
+    ).join(
+        Schedule, Event.project_ref_num == Schedule.event_ref_num
+    ).filter(
+        func.date(Schedule.schedule_datetime) == selected_date
+    ).group_by(Event.event_type).all()
+
+    # Build event_types dictionary
+    type_counts = {event_type: count for event_type, count in event_types_query}
+
+    # Ensure all expected event types are present (even if count is 0)
+    for event_type in ['Setup', 'Demo', 'Juicer', 'Other']:
+        if event_type not in type_counts:
+            type_counts[event_type] = 0
+
+    # Calculate total events
+    total_events = sum(type_counts.values())
+
+    # Core timeslot coverage
+    # Count DISTINCT employees with events starting at exact timeslot times
+    core_timeslots = ['09:45:00', '10:30:00', '11:00:00', '11:30:00']
+    timeslot_coverage = {}
+
+    for timeslot in core_timeslots:
+        # Count unique employees with events starting at this exact time
+        count = db.session.query(
+            func.count(func.distinct(Schedule.employee_id))
+        ).filter(
+            and_(
+                func.date(Schedule.schedule_datetime) == selected_date,
+                func.time(Schedule.schedule_datetime) == timeslot
+            )
+        ).scalar()
+
+        timeslot_coverage[timeslot] = count or 0
+
+    return jsonify({
+        'event_types': type_counts,
+        'total_events': total_events,
+        'timeslot_coverage': timeslot_coverage
+    }), 200
+
+
+@api_bp.route('/daily-events/<date>', methods=['GET'])
+def get_daily_events(date):
+    """
+    Get all scheduled events for a specific date.
+
+    This endpoint retrieves all events scheduled for a given date, including
+    employee assignments, time ranges, event details, and status information
+    for display in the daily view event cards.
+
+    Args:
+        date: Date string in 'YYYY-MM-DD' format (URL path parameter)
+
+    Returns:
+        JSON response with events array containing schedule and event details
+
+    Response Format:
+    {
+        "events": [
+            {
+                "schedule_id": 1,
+                "event_id": 123456,
+                "employee_id": "EMP001",
+                "employee_name": "John Doe",
+                "start_time": "08:00 AM",
+                "end_time": "10:00 AM",
+                "event_type": "Setup",
+                "event_name": "Setup - Walmart Store #1234",
+                "location": "Walmart Store #1234",
+                "sales_tool_url": null,
+                "reporting_status": "scheduled",
+                "is_overdue": false
+            }
+        ]
+    }
+
+    Example:
+        GET /api/daily-events/2025-10-15
+
+    Note:
+        - Events sorted chronologically by schedule_datetime ASC
+        - End time calculated as start_time + event.estimated_time (default 120 min)
+        - Unassigned employees return null employee_id with "Unassigned" name
+        - Uses outerjoin for Employee to handle unassigned events
+        - reporting_status and sales_tool_url will be added in Story 3.4
+    """
+    from sqlalchemy import func
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    # Parse and validate date
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    # Query all schedules for the selected date with event and employee details
+    # Use outerjoin for Employee to handle unassigned events (employee_id = None)
+    schedules_query = db.session.query(
+        Schedule,
+        Event,
+        Employee
+    ).join(
+        Event, Schedule.event_ref_num == Event.project_ref_num
+    ).outerjoin(
+        Employee, Schedule.employee_id == Employee.id
+    ).filter(
+        func.date(Schedule.schedule_datetime) == selected_date
+    ).order_by(
+        Schedule.schedule_datetime.asc()
+    ).all()
+
+    # Build result array
+    result = []
+    for schedule, event, employee in schedules_query:
+        # Calculate end time based on event duration (default 120 minutes)
+        duration_minutes = event.estimated_time if event.estimated_time else 120
+        end_time = schedule.schedule_datetime + timedelta(minutes=duration_minutes)
+
+        # Convert event condition to reporting_status for the UI
+        # If condition is 'Submitted', show as 'submitted', otherwise show as 'scheduled'
+        reporting_status = 'submitted' if event.condition == 'Submitted' else 'scheduled'
+
+        # Check if event is overdue (>24 hours past and not submitted)
+        is_overdue = _is_event_overdue(schedule.schedule_datetime, reporting_status)
+
+        # Note: Attendance is now tracked separately by employee+date in the attendance section
+        # and is no longer included in event data
+
+        result.append({
+            'schedule_id': schedule.id,
+            'event_id': event.project_ref_num,
+            'employee_id': employee.id if employee else None,
+            'employee_name': employee.name if employee else 'Unassigned',
+            'start_time': schedule.schedule_datetime.strftime('%I:%M %p'),
+            'end_time': end_time.strftime('%I:%M %p'),
+            'event_type': event.event_type,
+            'event_name': event.project_name,
+            'location': event.store_name,
+            'start_date': event.start_datetime.strftime('%m/%d/%Y') if event.start_datetime else None,
+            'due_date': event.due_datetime.strftime('%m/%d/%Y') if event.due_datetime else None,
+            'sales_tool_url': getattr(event, 'sales_tool_url', None),  # Story 3.4 field
+            'reporting_status': reporting_status,
+            'is_overdue': is_overdue
+        })
+
+    return jsonify({'events': result}), 200
+
+
+def _is_event_overdue(schedule_datetime, reporting_status):
+    """
+    Check if event is overdue (>24 hours past and not submitted).
+
+    Args:
+        schedule_datetime: Scheduled datetime of the event
+        reporting_status: Current reporting status (scheduled, submitted)
+
+    Returns:
+        bool: True if overdue, False otherwise
+
+    Note:
+        This is a helper function for Story 3.3.
+        Story 3.4 will add the reporting_status field to events table.
+    """
+    if reporting_status == 'submitted':
+        return False
+
+    threshold = datetime.now() - timedelta(hours=24)
+    return schedule_datetime < threshold
+
+
+@api_bp.route('/daily-employees/<date>', methods=['GET'])
+def get_daily_employees(date):
+    """
+    Get all employees scheduled for a specific date with their earliest event time.
+
+    This endpoint groups employees by their earliest scheduled event for the day,
+    ensuring each employee appears only once regardless of how many events they have.
+    This is useful for attendance tracking where you need to know when each employee
+    needs to report to work.
+
+    Args:
+        date: Date string in 'YYYY-MM-DD' format (URL path parameter)
+
+    Returns:
+        JSON response with employees array containing employee details and earliest time
+
+    Response Format:
+    {
+        "employees": [
+            {
+                "employee_id": "EMP001",
+                "employee_name": "John Doe",
+                "earliest_time": "08:00 AM",
+                "earliest_datetime": "2025-10-15T08:00:00",
+                "event_count": 3,
+                "attendance_status": "on_time",  // or null if not recorded
+                "attendance_id": 123  // or null if not recorded
+            }
+        ],
+        "date": "2025-10-15",
+        "total_employees": 5
+    }
+
+    Example:
+        GET /api/daily-employees/2025-10-15
+    """
+    from sqlalchemy import func
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Employee = current_app.config['Employee']
+    EmployeeAttendance = current_app.config['EmployeeAttendance']
+
+    # Parse and validate date
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    # Query all schedules for the selected date with employee details
+    # Group by employee and find earliest time
+    schedules_query = db.session.query(
+        Employee.id.label('employee_id'),
+        Employee.name.label('employee_name'),
+        func.min(Schedule.schedule_datetime).label('earliest_datetime'),
+        func.count(Schedule.id).label('event_count')
+    ).join(
+        Schedule, Employee.id == Schedule.employee_id
+    ).filter(
+        func.date(Schedule.schedule_datetime) == selected_date,
+        Schedule.employee_id.isnot(None)  # Only include assigned employees
+    ).group_by(
+        Employee.id,
+        Employee.name
+    ).order_by(
+        func.min(Schedule.schedule_datetime).asc()
+    ).all()
+
+    # Build result array
+    result = []
+    for row in schedules_query:
+        # Get attendance record if exists (query by employee and date)
+        # Since we want one attendance record per employee per day,
+        # we'll look for any attendance record for this employee on this date
+        attendance = EmployeeAttendance.query.filter_by(
+            employee_id=row.employee_id,
+            attendance_date=selected_date
+        ).first()
+
+        result.append({
+            'employee_id': row.employee_id,
+            'employee_name': row.employee_name,
+            'earliest_time': row.earliest_datetime.strftime('%I:%M %p'),
+            'earliest_datetime': row.earliest_datetime.isoformat(),
+            'event_count': row.event_count,
+            'attendance_status': attendance.status if attendance else None,
+            'attendance_id': attendance.id if attendance else None,
+            'attendance_notes': attendance.notes if attendance else None
+        })
+
+    return jsonify({
+        'employees': result,
+        'date': date,
+        'total_employees': len(result)
+    }), 200
+
+
+@api_bp.route('/event/<int:schedule_id>/unschedule', methods=['POST'])
+def unschedule_event_quick(schedule_id):
+    """
+    Remove employee assignment from event by deleting schedule (Story 3.5).
+
+    This endpoint deletes a schedule record, effectively unscheduling an event
+    by removing the employee assignment. If an attendance record exists for
+    this schedule, it will be cascade deleted (if configured) and a warning
+    flag is returned.
+
+    Args:
+        schedule_id: Schedule ID to delete (integer, path parameter)
+
+    Returns:
+        JSON response with success status and warning flag
+
+    Response Format:
+        {
+            "success": true,
+            "schedule_id": 123,
+            "had_attendance": false,
+            "message": "Event unscheduled successfully"
+        }
+
+    Example:
+        POST /api/event/123/unschedule
+
+    Status Codes:
+        200: Success
+        404: Schedule not found
+        500: Database error
+
+    Note:
+        - Schedule deletion cascades to attendance records if cascade configured
+        - Event remains in events table, just becomes unassigned
+        - had_attendance flag indicates if attendance record existed
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+
+    # Query schedule
+    schedule = Schedule.query.get(schedule_id)
+
+    if not schedule:
+        return jsonify({
+            'error': 'Schedule not found',
+            'schedule_id': schedule_id
+        }), 404
+
+    # Note: Attendance is now tracked by employee+date, not by schedule_id
+    # Unscheduling an event does NOT delete attendance records since attendance
+    # is tied to the employee's day, not to specific events/schedules
+    has_attendance = False
+
+    # Store employee and event info for logging before deletion
+    employee_name = schedule.employee.name if schedule.employee else 'Unassigned'
+    event_name = schedule.event.project_name if schedule.event else 'Unknown Event'
+
+    try:
+        # Call Crossmark API BEFORE deleting local record
+        from session_api_service import session_api as external_api
+
+        # Ensure session is authenticated
+        if schedule.external_id:
+            try:
+                if not external_api.ensure_authenticated():
+                    error_msg = f'Failed to authenticate with Crossmark API for schedule {schedule_id}'
+                    logger.error(error_msg)
+                    return jsonify({
+                        'error': 'Authentication failed',
+                        'details': 'Could not authenticate with Crossmark API. Please check credentials.'
+                    }), 500
+
+                logger.info(f"Submitting unschedule to Crossmark API: schedule_id={schedule.external_id}, external_id={schedule.external_id}")
+                api_result = external_api.unschedule_mplan_event(str(schedule.external_id))
+
+                logger.info(f"API result: success={api_result.get('success')}, message={api_result.get('message')}")
+
+                if not api_result.get('success'):
+                    error_message = api_result.get('message', 'Unknown API error')
+                    logger.error(f"Crossmark API error: {error_message}")
+                    return jsonify({
+                        'error': 'Failed to unschedule in Crossmark',
+                        'details': error_message
+                    }), 500
+
+                logger.info(f"Successfully unscheduled event in Crossmark API")
+
+            except Exception as api_error:
+                logger.error(f"API submission error: {str(api_error)}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to submit to Crossmark API',
+                    'details': str(api_error)
+                }), 500
+        else:
+            logger.warning(f"Schedule {schedule_id} has no external_id, skipping Crossmark API call")
+
+        # Delete schedule (cascade will handle attendance if configured)
+        db.session.delete(schedule)
+        db.session.commit()
+
+        logger.info(
+            f'Schedule {schedule_id} deleted. Employee: {employee_name}, '
+            f'Event: {event_name}, Had attendance: {has_attendance}'
+        )
+
+        return jsonify({
+            'success': True,
+            'schedule_id': schedule_id,
+            'had_attendance': has_attendance,
+            'message': 'Event unscheduled successfully'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Failed to delete schedule {schedule_id}: {e}', exc_info=True)
+
+        return jsonify({
+            'error': 'Failed to unschedule event',
+            'details': str(e)
+        }), 500
 
 
 @api_bp.route('/core_employees_for_trade/<date>/<int:current_schedule_id>')
@@ -308,9 +766,14 @@ def reschedule():
         parsed_time = datetime.strptime(new_time, '%H:%M').time()
         new_datetime = datetime.combine(parsed_date, parsed_time)
 
-        # Validate date is within event range
-        if not (event.start_datetime.date() <= parsed_date <= event.due_datetime.date()):
-            return jsonify({'error': 'Date must be within event date range'}), 400
+        # CRITICAL VALIDATION: Ensure new datetime is within event period
+        # This prevents rescheduling events outside their valid start/due date window
+        if not (event.start_datetime <= new_datetime <= event.due_datetime):
+            return jsonify({
+                'error': f'Cannot reschedule: New date/time {new_datetime.strftime("%Y-%m-%d %H:%M")} '
+                         f'is outside the event period '
+                         f'({event.start_datetime.strftime("%Y-%m-%d")} to {event.due_datetime.strftime("%Y-%m-%d")})'
+            }), 400
 
         # Check if new employee can work this event type
         new_employee = db.session.get(Employee, new_employee_id)
@@ -407,7 +870,7 @@ def reschedule():
                 event.last_synced = datetime.utcnow()
 
                 # NEW: Check if this is a CORE event and reschedule Supervisor (Calendar Redesign - Sprint 2)
-                from scheduler_app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
+                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
                 if is_core_event_redesign(event):
                     current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
@@ -508,70 +971,337 @@ def reschedule():
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/reschedule_event', methods=['POST'])
-def reschedule_event():
-    """Reschedule an event to a new date, time, and/or employee"""
+@api_bp.route('/event/<int:schedule_id>/reschedule', methods=['POST'])
+@require_authentication()
+def reschedule_event_with_validation(schedule_id):
+    """
+    Reschedule an event with conflict validation (Story 3.6).
+
+    This endpoint reschedules an event to a new date/time while validating
+    against conflicts using the ConstraintValidator service.
+
+    Args:
+        schedule_id: Schedule ID to reschedule (path parameter)
+
+    Request Body:
+        {
+            "new_date": "2025-10-20",
+            "new_time": "10:30"
+        }
+
+    Returns:
+        JSON response with success status or conflict details
+
+    Response Format (Success):
+        {
+            "success": true,
+            "message": "Event rescheduled successfully",
+            "schedule_id": 123,
+            "new_datetime": "2025-10-20T10:30:00"
+        }
+
+    Response Format (Conflict):
+        {
+            "error": "Reschedule would create conflicts",
+            "conflicts": [
+                {
+                    "type": "time_off",
+                    "message": "Employee has requested time off on 2025-10-20",
+                    "severity": "hard"
+                }
+            ]
+        }
+
+    Status Codes:
+        200: Success
+        404: Schedule not found
+        409: Conflict - reschedule blocked by constraints
+        400: Invalid request data
+        500: Server error
+    """
     db = current_app.extensions['sqlalchemy']
     Schedule = current_app.config['Schedule']
     Event = current_app.config['Event']
     Employee = current_app.config['Employee']
 
     try:
+        # Get request data
         data = request.get_json()
-        schedule_id = data.get('schedule_id')
-        new_date = data.get('date')
-        new_time = data.get('time')
-        new_employee_id = data.get('employee_id')
+        new_date_str = data.get('new_date')
+        new_time_str = data.get('new_time')
+        override_conflicts = data.get('override_conflicts', False)
 
-        # Get the current schedule
-        schedule = db.session.get(Schedule, schedule_id)
+        # Validate required fields
+        if not new_date_str or not new_time_str:
+            return jsonify({'error': 'Missing required fields: new_date and new_time'}), 400
+
+        # Get the schedule
+        schedule = Schedule.query.get(schedule_id)
         if not schedule:
             return jsonify({'error': 'Schedule not found'}), 404
 
-        # Get the event to check type for validation
+        # Get related event and employee
         event = Event.query.filter_by(project_ref_num=schedule.event_ref_num).first()
         if not event:
             return jsonify({'error': 'Event not found'}), 404
 
-        # Parse and validate new date and time
-        parsed_date = datetime.strptime(new_date, '%Y-%m-%d').date()
-        parsed_time = datetime.strptime(new_time, '%H:%M').time()
-        new_datetime = datetime.combine(parsed_date, parsed_time)
+        employee = Employee.query.get(schedule.employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
 
-        # Validate date is within event range
-        if not (event.start_datetime.date() <= parsed_date <= event.due_datetime.date()):
-            return jsonify({'error': 'Date must be within event date range'}), 400
+        # Parse new date and time
+        try:
+            new_date = datetime.strptime(new_date_str, '%Y-%m-%d').date()
+            new_time = datetime.strptime(new_time_str, '%H:%M').time()
+            new_datetime = datetime.combine(new_date, new_time)
+        except ValueError as e:
+            return jsonify({'error': f'Invalid date or time format: {str(e)}'}), 400
 
-        # Check if new employee can work this event type
-        new_employee = db.session.get(Employee, new_employee_id)
-        if not new_employee or not new_employee.can_work_event_type(event.event_type):
-            if event.event_type == 'Juicer':
-                return jsonify({'error': 'Employee cannot work Juicer events. Only Club Supervisors and Juicer Baristas can work Juicer events.'}), 400
-            elif event.event_type in ['Supervisor', 'Freeosk', 'Digitals']:
-                return jsonify({'error': f'Employee cannot work {event.event_type} events. Only Club Supervisors and Lead Event Specialists can work this type of event.'}), 400
-            else:
-                return jsonify({'error': 'Employee cannot work this event type'}), 400
+        # Validate using ConstraintValidator
+        from services.constraint_validator import ConstraintValidator
 
-        # For Core events, check if new employee already has a Core event that day
-        if event.event_type == 'Core':
-            existing_core = Schedule.query.join(
-                Event, Schedule.event_ref_num == Event.project_ref_num
-            ).filter(
-                Schedule.employee_id == new_employee_id,
-                db.func.date(Schedule.schedule_datetime) == parsed_date,
-                Event.event_type == 'Core',
-                Schedule.id != schedule_id
-            ).first()
+        models = {
+            'Employee': Employee,
+            'Event': Event,
+            'Schedule': Schedule,
+            'EmployeeTimeOff': current_app.config.get('EmployeeTimeOff'),
+            'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+            'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability'),
+            'PendingSchedule': current_app.config.get('PendingSchedule')
+        }
 
-            if existing_core:
-                return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
+        validator = ConstraintValidator(db.session, models)
+        validation_result = validator.validate_assignment(event, employee, new_datetime)
 
-        # Submit to Crossmark API BEFORE updating local record
+        # Check for conflicts (only block if override is not set)
+        if not validation_result.is_valid and not override_conflicts:
+            conflicts = []
+            for violation in validation_result.violations:
+                conflicts.append({
+                    'type': violation.constraint_type.value if hasattr(violation.constraint_type, 'value') else str(violation.constraint_type),
+                    'message': violation.message,
+                    'severity': violation.severity.value if hasattr(violation.severity, 'value') else str(violation.severity),
+                    'details': violation.details
+                })
+
+            return jsonify({
+                'error': 'Reschedule would create conflicts',
+                'conflicts': conflicts,
+                'can_override': True
+            }), 409
+
+        # No conflicts (or overridden) - submit to external API BEFORE updating local database
         from session_api_service import session_api as external_api
+        from datetime import timedelta
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
         end_datetime = new_datetime + timedelta(minutes=estimated_minutes)
+
+        # Prepare API data
+        rep_id = str(employee.external_id) if employee.external_id else None
+        mplan_id = str(event.external_id) if event.external_id else None
+        location_id = str(event.location_mvid) if event.location_mvid else None
+
+        # Validate required API fields
+        if not rep_id:
+            return jsonify({'error': f'Missing Crossmark employee ID for {employee.name}'}), 400
+
+        if not mplan_id:
+            return jsonify({'error': 'Missing Crossmark event ID'}), 400
+
+        if not location_id:
+            return jsonify({'error': 'Missing Crossmark location ID'}), 400
+
+        # Ensure session is authenticated
+        try:
+            if not external_api.ensure_authenticated():
+                return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+        except Exception as auth_error:
+            logger.error(f"Authentication error: {str(auth_error)}")
+            return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+
+        # Submit to external API
+        try:
+            logger.info(
+                f"Submitting reschedule to Crossmark API: "
+                f"rep_id={rep_id}, mplan_id={mplan_id}, location_id={location_id}, "
+                f"start={new_datetime.isoformat()}, end={end_datetime.isoformat()}"
+            )
+
+            api_result = external_api.schedule_mplan_event(
+                rep_id=rep_id,
+                mplan_id=mplan_id,
+                location_id=location_id,
+                start_datetime=new_datetime,
+                end_datetime=end_datetime,
+                planning_override=True
+            )
+
+            if not api_result.get('success'):
+                error_message = api_result.get('message', 'Unknown API error')
+                logger.error(f"Crossmark API error: {error_message}")
+                return jsonify({'error': f'Failed to submit to Crossmark: {error_message}'}), 500
+
+            logger.info(f"Successfully submitted reschedule to Crossmark API")
+
+        except Exception as api_error:
+            logger.error(f"API submission error: {str(api_error)}")
+            return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
+
+        # API submission successful - now update local database
+        old_datetime = schedule.schedule_datetime
+        schedule.schedule_datetime = new_datetime
+
+        # Update event sync status
+        event.sync_status = 'synced'
+        event.last_synced = datetime.utcnow()
+
+        # Log if conflicts were overridden
+        if not validation_result.is_valid and override_conflicts:
+            logger.warning(
+                f'Schedule {schedule_id} rescheduled with conflict override: '
+                f'{len(validation_result.violations)} conflict(s) ignored'
+            )
+
+        db.session.commit()
+
+        logger.info(
+            f'Schedule {schedule_id} rescheduled from {old_datetime} to {new_datetime} '
+            f'for employee {employee.name} on event {event.project_name}'
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Event rescheduled successfully',
+            'schedule_id': schedule_id,
+            'new_datetime': new_datetime.isoformat()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Failed to reschedule event {schedule_id}: {e}', exc_info=True)
+        return jsonify({
+            'error': 'Failed to reschedule event',
+            'details': str(e)
+        }), 500
+
+
+@api_bp.route('/event/<int:schedule_id>/change-employee', methods=['POST'])
+@require_authentication()
+def change_employee_assignment(schedule_id):
+    """
+    Change employee assignment for an event (Story 3.7).
+
+    This endpoint changes the employee assigned to an event while keeping
+    the same date and time. Validates against conflicts using ConstraintValidator.
+
+    Args:
+        schedule_id: Schedule ID to update (path parameter)
+
+    Request Body:
+        {
+            "new_employee_id": "EMP002"
+        }
+
+    Returns:
+        JSON response with success status or conflict details
+
+    Response Format (Success):
+        {
+            "success": true,
+            "message": "Employee changed successfully",
+            "schedule_id": 123,
+            "new_employee_id": "EMP002",
+            "new_employee_name": "Jane Smith"
+        }
+
+    Response Format (Conflict):
+        {
+            "error": "Employee change would create conflicts",
+            "conflicts": [...]
+        }
+
+    Status Codes:
+        200: Success
+        404: Schedule or employee not found
+        409: Conflict - employee change blocked by constraints
+        400: Invalid request data
+        500: Server error
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        # Get request data
+        data = request.get_json()
+        new_employee_id = data.get('new_employee_id')
+        override_conflicts = data.get('override_conflicts', False)
+
+        # Validate required fields
+        if not new_employee_id:
+            return jsonify({'error': 'Missing required field: new_employee_id'}), 400
+
+        # Get the schedule
+        schedule = Schedule.query.get(schedule_id)
+        if not schedule:
+            return jsonify({'error': 'Schedule not found'}), 404
+
+        # Get related event
+        event = Event.query.filter_by(project_ref_num=schedule.event_ref_num).first()
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+
+        # Get new employee
+        new_employee = Employee.query.get(new_employee_id)
+        if not new_employee:
+            return jsonify({'error': f'Employee not found: {new_employee_id}'}), 404
+
+        # Use existing schedule datetime
+        schedule_datetime = schedule.schedule_datetime
+
+        # Validate using ConstraintValidator
+        from services.constraint_validator import ConstraintValidator
+
+        models = {
+            'Employee': Employee,
+            'Event': Event,
+            'Schedule': Schedule,
+            'EmployeeTimeOff': current_app.config.get('EmployeeTimeOff'),
+            'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+            'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability'),
+            'PendingSchedule': current_app.config.get('PendingSchedule')
+        }
+
+        validator = ConstraintValidator(db.session, models)
+        validation_result = validator.validate_assignment(event, new_employee, schedule_datetime)
+
+        # Check for conflicts (only block if override is not set)
+        if not validation_result.is_valid and not override_conflicts:
+            conflicts = []
+            for violation in validation_result.violations:
+                conflicts.append({
+                    'type': violation.constraint_type.value if hasattr(violation.constraint_type, 'value') else str(violation.constraint_type),
+                    'message': violation.message,
+                    'severity': violation.severity.value if hasattr(violation.severity, 'value') else str(violation.severity),
+                    'details': violation.details
+                })
+
+            return jsonify({
+                'error': 'Employee change would create conflicts',
+                'conflicts': conflicts,
+                'can_override': True
+            }), 409
+
+        # No conflicts (or overridden) - submit to external API BEFORE updating local database
+        from session_api_service import session_api as external_api
+        from datetime import timedelta
+
+        # Calculate end datetime
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+        end_datetime = schedule_datetime + timedelta(minutes=estimated_minutes)
 
         # Prepare API data
         rep_id = str(new_employee.external_id) if new_employee.external_id else None
@@ -593,40 +1323,41 @@ def reschedule_event():
             if not external_api.ensure_authenticated():
                 return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
         except Exception as auth_error:
-            current_app.logger.error(f"Authentication error: {str(auth_error)}")
+            logger.error(f"Authentication error: {str(auth_error)}")
             return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
 
         # Submit to external API
         try:
-            current_app.logger.info(
-                f"Submitting reschedule_event to Crossmark API: "
+            logger.info(
+                f"Submitting employee change to Crossmark API: "
                 f"rep_id={rep_id}, mplan_id={mplan_id}, location_id={location_id}, "
-                f"start={new_datetime.isoformat()}, end={end_datetime.isoformat()}"
+                f"start={schedule_datetime.isoformat()}, end={end_datetime.isoformat()}"
             )
 
             api_result = external_api.schedule_mplan_event(
                 rep_id=rep_id,
                 mplan_id=mplan_id,
                 location_id=location_id,
-                start_datetime=new_datetime,
+                start_datetime=schedule_datetime,
                 end_datetime=end_datetime,
                 planning_override=True
             )
 
             if not api_result.get('success'):
                 error_message = api_result.get('message', 'Unknown API error')
-                current_app.logger.error(f"Crossmark API error: {error_message}")
+                logger.error(f"Crossmark API error: {error_message}")
                 return jsonify({'error': f'Failed to submit to Crossmark: {error_message}'}), 500
 
-            current_app.logger.info(f"Successfully submitted reschedule_event to Crossmark API")
+            logger.info(f"Successfully submitted employee change to Crossmark API")
 
         except Exception as api_error:
-            current_app.logger.error(f"API submission error: {str(api_error)}")
+            logger.error(f"API submission error: {str(api_error)}")
             return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
 
-        # API submission successful - now update local record
+        # API submission successful - now update local database
+        old_employee_id = schedule.employee_id
+        old_employee = Employee.query.get(old_employee_id)
         schedule.employee_id = new_employee_id
-        schedule.schedule_datetime = new_datetime
 
         # Update event sync status
         event.sync_status = 'synced'
@@ -634,11 +1365,75 @@ def reschedule_event():
 
         db.session.commit()
 
-        return jsonify({'success': True, 'message': 'Event rescheduled successfully'})
+        # Log if conflicts were overridden
+        if not validation_result.is_valid and override_conflicts:
+            logger.warning(
+                f'Schedule {schedule_id} employee changed with conflict override: '
+                f'{len(validation_result.violations)} conflict(s) ignored'
+            )
+        else:
+            logger.info(
+                f'Schedule {schedule_id} employee changed from {old_employee_id} to {new_employee_id} '
+                f'for event {event.project_name} at {schedule_datetime}'
+            )
+
+        return jsonify({
+            'success': True,
+            'message': 'Employee changed successfully',
+            'schedule_id': schedule_id,
+            'new_employee_id': new_employee_id,
+            'new_employee_name': new_employee.name,
+            'old_employee_name': old_employee.name if old_employee else None
+        }), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Failed to change employee for schedule {schedule_id}: {e}', exc_info=True)
+        return jsonify({
+            'error': 'Failed to change employee',
+            'details': str(e)
+        }), 500
+
+
+@api_bp.route('/reschedule_event', methods=['POST'])
+def reschedule_event():
+    """
+    DEPRECATED: This endpoint is deprecated and redirects to /api/reschedule
+
+    This endpoint lacked CORE-Supervisor pairing logic and has been replaced by /api/reschedule.
+    It now serves as a compatibility layer that transforms old-style parameters to new-style
+    and forwards to the correct endpoint.
+    """
+    try:
+        # Get data from request
+        data = request.get_json()
+
+        # Transform old parameter names to new ones
+        transformed_data = {
+            'schedule_id': data.get('schedule_id'),
+            'new_date': data.get('date'),  # OLD: 'date' -> NEW: 'new_date'
+            'new_time': data.get('time'),  # OLD: 'time' -> NEW: 'new_time'
+            'employee_id': data.get('employee_id')
+        }
+
+        # Log deprecation warning
+        current_app.logger.warning(
+            f"DEPRECATED ENDPOINT USED: /api/reschedule_event is deprecated. "
+            f"Please update to use /api/reschedule with parameters 'new_date' and 'new_time'. "
+            f"Forwarding request to /api/reschedule."
+        )
+
+        # Forward to the correct endpoint
+        from flask import Flask
+        with current_app.test_request_context(
+            '/api/reschedule',
+            method='POST',
+            json=transformed_data
+        ):
+            return reschedule()
+
+    except Exception as e:
+        return jsonify({'error': f'Error in deprecated endpoint: {str(e)}'}), 500
 
 
 @api_bp.route('/unschedule/<int:schedule_id>', methods=['DELETE'])
@@ -694,7 +1489,7 @@ def unschedule_event(schedule_id):
                         raise Exception(f'Failed to submit to Crossmark API: {str(api_error)}')
 
                 # NEW: Check if this is a CORE event and unschedule Supervisor (Calendar Redesign - Sprint 2)
-                from scheduler_app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
+                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
                 if is_core_event_redesign(event):
                     current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
@@ -782,125 +1577,325 @@ def unschedule_event(schedule_id):
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/trade_events', methods=['POST'])
-def trade_events():
-    """Trade two Core events between employees (keeping same times)"""
+@api_bp.route('/unschedule_event/<int:event_id>', methods=['POST'])
+@require_authentication()
+def unschedule_event_by_id(event_id):
+    """
+    Unschedule all schedules for an event by event ID.
+
+    This is a convenience endpoint for the events list page where we have the event_id
+    but not the schedule_id. It will unschedule all schedule assignments for this event.
+
+    Args:
+        event_id: Event ID (from events.id, not project_ref_num)
+
+    Returns:
+        JSON response with success status
+    """
     db = current_app.extensions['sqlalchemy']
     Schedule = current_app.config['Schedule']
     Event = current_app.config['Event']
 
     try:
+        # Get the event
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+
+        # Get all schedules for this event (using project_ref_num)
+        schedules = Schedule.query.filter_by(event_ref_num=event.project_ref_num).all()
+
+        if not schedules:
+            return jsonify({'error': 'No schedules found for this event'}), 404
+
+        # Call Crossmark API BEFORE deleting local records
+        from session_api_service import session_api as external_api
+
+        # Ensure session is authenticated
+        try:
+            if not external_api.ensure_authenticated():
+                current_app.logger.warning(f'Failed to authenticate with Crossmark API for event {event_id}')
+        except Exception as auth_error:
+            current_app.logger.error(f"Authentication error: {str(auth_error)}")
+            return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+
+        # Unschedule each schedule
+        for schedule in schedules:
+            # Call API to delete/unschedule if external_id exists
+            if schedule.external_id:
+                try:
+                    current_app.logger.info(f"Submitting unschedule to Crossmark API: schedule_id={schedule.external_id}")
+                    api_result = external_api.unschedule_mplan_event(str(schedule.external_id))
+
+                    if not api_result.get('success'):
+                        error_message = api_result.get('message', 'Unknown API error')
+                        current_app.logger.error(f"Crossmark API error: {error_message}")
+                        return jsonify({
+                            'error': 'Failed to unschedule in Crossmark',
+                            'details': error_message
+                        }), 500
+
+                    current_app.logger.info(f"Successfully unscheduled schedule {schedule.external_id} in Crossmark API")
+
+                except Exception as api_error:
+                    current_app.logger.error(f"API submission error: {str(api_error)}")
+                    return jsonify({
+                        'error': 'Failed to submit to Crossmark API',
+                        'details': str(api_error)
+                    }), 500
+
+            # Delete the schedule
+            db.session.delete(schedule)
+
+        # Mark event as unscheduled
+        event.is_scheduled = False
+        event.condition = 'Unstaffed'
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Event unscheduled successfully. Removed {len(schedules)} schedule(s).',
+            'schedules_removed': len(schedules)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error unscheduling event {event_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/trade-events', methods=['POST'])
+@require_authentication()
+def trade_events():
+    """
+    Swap employee assignments between two events (Story 3.8 & 3.9).
+
+    This endpoint swaps the employee assignments between two scheduled events.
+    Works for same-day or cross-day trades. Validates both assignments for
+    conflicts before performing the atomic swap.
+
+    Request Body:
+        {
+            "schedule_1_id": 123,  # First schedule ID
+            "schedule_2_id": 456   # Second schedule ID
+        }
+
+    Returns:
+        JSON response with success status
+
+    Response Format (Success):
+        {
+            "success": true,
+            "message": "Events traded successfully"
+        }
+
+    Response Format (Conflict):
+        {
+            "error": "Trade would create conflicts",
+            "conflicts": [...]
+        }
+
+    Status Codes:
+        200: Success - events traded
+        400: Invalid request
+        404: Schedule not found
+        409: Conflict - trade would create conflicts
+        500: Server error
+
+    Note:
+        - This endpoint handles BOTH same-day and cross-day trades
+        - No date parameters needed - uses schedule_datetime from each Schedule
+        - Validates conflicts for both employees at their respective dates/times
+        - Performs atomic swap in single database transaction
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        # Get request data
         data = request.get_json()
-        schedule1_id = data.get('schedule_id')
-        schedule2_id = data.get('trade_with_schedule_id')
+        schedule_1_id = data.get('schedule_1_id')
+        schedule_2_id = data.get('schedule_2_id')
+
+        # Validate required fields
+        if not schedule_1_id or not schedule_2_id:
+            return jsonify({'error': 'Missing required fields: schedule_1_id and schedule_2_id'}), 400
 
         # Get both schedules
-        schedule1 = db.session.get(Schedule, schedule1_id)
-        schedule2 = db.session.get(Schedule, schedule2_id)
+        schedule1 = Schedule.query.get(schedule_1_id)
+        schedule2 = Schedule.query.get(schedule_2_id)
 
         if not schedule1 or not schedule2:
             return jsonify({'error': 'Schedule not found'}), 404
 
-        # Verify both are Core events
+        # Get related events
         event1 = Event.query.filter_by(project_ref_num=schedule1.event_ref_num).first()
         event2 = Event.query.filter_by(project_ref_num=schedule2.event_ref_num).first()
 
-        if not (event1.event_type == 'Core' and event2.event_type == 'Core'):
-            return jsonify({'error': 'Both events must be Core events'}), 400
+        if not event1 or not event2:
+            return jsonify({'error': 'Event not found'}), 404
 
-        # Trade the employees (keep times the same)
+        # Get employees
+        employee1 = Employee.query.get(schedule1.employee_id)
+        employee2 = Employee.query.get(schedule2.employee_id)
+
+        if not employee1 or not employee2:
+            return jsonify({'error': 'Employee not found'}), 404
+
+        # Validate using ConstraintValidator
+        # Check if employee2 can work event1's time, and employee1 can work event2's time
+        from services.constraint_validator import ConstraintValidator
+
+        models = {
+            'Employee': Employee,
+            'Event': Event,
+            'Schedule': Schedule,
+            'EmployeeTimeOff': current_app.config.get('EmployeeTimeOff'),
+            'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+            'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability'),
+            'PendingSchedule': current_app.config.get('PendingSchedule')
+        }
+
+        validator = ConstraintValidator(db.session, models)
+
+        # Validate employee2 -> event1's time
+        validation1 = validator.validate_assignment(event1, employee2, schedule1.schedule_datetime)
+
+        # Validate employee1 -> event2's time
+        validation2 = validator.validate_assignment(event2, employee1, schedule2.schedule_datetime)
+
+        # Collect all conflicts
+        all_conflicts = []
+
+        if not validation1.is_valid:
+            for violation in validation1.violations:
+                all_conflicts.append({
+                    'type': violation.constraint_type.value if hasattr(violation.constraint_type, 'value') else str(violation.constraint_type),
+                    'message': f'{employee2.name} -> Event 1: {violation.message}',
+                    'severity': violation.severity.value if hasattr(violation.severity, 'value') else str(violation.severity),
+                    'details': violation.details
+                })
+
+        if not validation2.is_valid:
+            for violation in validation2.violations:
+                all_conflicts.append({
+                    'type': violation.constraint_type.value if hasattr(violation.constraint_type, 'value') else str(violation.constraint_type),
+                    'message': f'{employee1.name} -> Event 2: {violation.message}',
+                    'severity': violation.severity.value if hasattr(violation.severity, 'value') else str(violation.severity),
+                    'details': violation.details
+                })
+
+        # If any conflicts, return 409
+        if all_conflicts:
+            return jsonify({
+                'error': 'Trade would create conflicts',
+                'conflicts': all_conflicts
+            }), 409
+
+        # No conflicts - submit to external API BEFORE performing swap
         from session_api_service import session_api as external_api
-        from models import Employee
+        from datetime import timedelta
 
-        original_emp1_id = schedule1.employee_id
-        original_emp2_id = schedule2.employee_id
-        schedule1_datetime = schedule1.schedule_datetime
-        schedule2_datetime = schedule2.schedule_datetime
+        # Calculate end datetimes for both events
+        estimated_minutes1 = event1.estimated_time or event1.get_default_duration(event1.event_type)
+        estimated_minutes2 = event2.estimated_time or event2.get_default_duration(event2.event_type)
+        end_datetime1 = schedule1.schedule_datetime + timedelta(minutes=estimated_minutes1)
+        end_datetime2 = schedule2.schedule_datetime + timedelta(minutes=estimated_minutes2)
 
-        # Get employee objects
-        employee1 = db.session.get(Employee, original_emp1_id)
-        employee2 = db.session.get(Employee, original_emp2_id)
+        # Prepare API data for both swaps
+        # Employee2 takes over Event1
+        rep2_id = str(employee2.external_id) if employee2.external_id else None
+        mplan1_id = str(event1.external_id) if event1.external_id else None
+        location1_id = str(event1.location_mvid) if event1.location_mvid else None
 
-        # Prepare API data for both events
-        # Event 1 will get Employee 2
-        rep_id_1 = str(employee2.external_id) if employee2.external_id else None
-        mplan_id_1 = str(event1.external_id) if event1.external_id else None
-        location_id_1 = str(event1.location_mvid) if event1.location_mvid else None
+        # Employee1 takes over Event2
+        rep1_id = str(employee1.external_id) if employee1.external_id else None
+        mplan2_id = str(event2.external_id) if event2.external_id else None
+        location2_id = str(event2.location_mvid) if event2.location_mvid else None
 
-        # Event 2 will get Employee 1
-        rep_id_2 = str(employee1.external_id) if employee1.external_id else None
-        mplan_id_2 = str(event2.external_id) if event2.external_id else None
-        location_id_2 = str(event2.location_mvid) if event2.location_mvid else None
+        # Validate required API fields for first swap
+        if not rep2_id:
+            return jsonify({'error': f'Missing Crossmark employee ID for {employee2.name}'}), 400
+        if not mplan1_id:
+            return jsonify({'error': f'Missing Crossmark event ID for {event1.project_name}'}), 400
+        if not location1_id:
+            return jsonify({'error': f'Missing Crossmark location ID for {event1.project_name}'}), 400
 
-        # Validate all required API fields
-        if not all([rep_id_1, mplan_id_1, location_id_1, rep_id_2, mplan_id_2, location_id_2]):
-            return jsonify({'error': 'Missing required Crossmark IDs for trade operation'}), 400
+        # Validate required API fields for second swap
+        if not rep1_id:
+            return jsonify({'error': f'Missing Crossmark employee ID for {employee1.name}'}), 400
+        if not mplan2_id:
+            return jsonify({'error': f'Missing Crossmark event ID for {event2.project_name}'}), 400
+        if not location2_id:
+            return jsonify({'error': f'Missing Crossmark location ID for {event2.project_name}'}), 400
 
         # Ensure session is authenticated
         try:
             if not external_api.ensure_authenticated():
                 return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
         except Exception as auth_error:
-            current_app.logger.error(f"Authentication error: {str(auth_error)}")
+            logger.error(f"Authentication error: {str(auth_error)}")
             return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
 
-        # Submit both trades to external API
+        # Submit both swaps to external API
         try:
-            # Calculate end datetimes
-            estimated_minutes_1 = event1.estimated_time or event1.get_default_duration(event1.event_type)
-            end_datetime_1 = schedule1_datetime + timedelta(minutes=estimated_minutes_1)
-
-            estimated_minutes_2 = event2.estimated_time or event2.get_default_duration(event2.event_type)
-            end_datetime_2 = schedule2_datetime + timedelta(minutes=estimated_minutes_2)
-
-            current_app.logger.info(
-                f"Submitting trade to Crossmark API: "
-                f"Event1({mplan_id_1}) -> Employee2({rep_id_1}), "
-                f"Event2({mplan_id_2}) -> Employee1({rep_id_2})"
+            # First swap: Employee2 -> Event1
+            logger.info(
+                f"Submitting trade swap 1 to Crossmark API: {employee2.name} -> {event1.project_name} "
+                f"(rep_id={rep2_id}, mplan_id={mplan1_id}, location_id={location1_id})"
             )
 
-            # Submit first trade
-            api_result_1 = external_api.schedule_mplan_event(
-                rep_id=rep_id_1,
-                mplan_id=mplan_id_1,
-                location_id=location_id_1,
-                start_datetime=schedule1_datetime,
-                end_datetime=end_datetime_1,
+            api_result1 = external_api.schedule_mplan_event(
+                rep_id=rep2_id,
+                mplan_id=mplan1_id,
+                location_id=location1_id,
+                start_datetime=schedule1.schedule_datetime,
+                end_datetime=end_datetime1,
                 planning_override=True
             )
 
-            if not api_result_1.get('success'):
-                error_message = api_result_1.get('message', 'Unknown API error')
-                current_app.logger.error(f"Crossmark API error (trade 1): {error_message}")
-                return jsonify({'error': f'Failed to submit first trade to Crossmark: {error_message}'}), 500
+            if not api_result1.get('success'):
+                error_message = api_result1.get('message', 'Unknown API error')
+                logger.error(f"Crossmark API error (swap 1): {error_message}")
+                return jsonify({'error': f'Failed to submit swap 1 to Crossmark: {error_message}'}), 500
 
-            # Submit second trade
-            api_result_2 = external_api.schedule_mplan_event(
-                rep_id=rep_id_2,
-                mplan_id=mplan_id_2,
-                location_id=location_id_2,
-                start_datetime=schedule2_datetime,
-                end_datetime=end_datetime_2,
+            # Second swap: Employee1 -> Event2
+            logger.info(
+                f"Submitting trade swap 2 to Crossmark API: {employee1.name} -> {event2.project_name} "
+                f"(rep_id={rep1_id}, mplan_id={mplan2_id}, location_id={location2_id})"
+            )
+
+            api_result2 = external_api.schedule_mplan_event(
+                rep_id=rep1_id,
+                mplan_id=mplan2_id,
+                location_id=location2_id,
+                start_datetime=schedule2.schedule_datetime,
+                end_datetime=end_datetime2,
                 planning_override=True
             )
 
-            if not api_result_2.get('success'):
-                error_message = api_result_2.get('message', 'Unknown API error')
-                current_app.logger.error(f"Crossmark API error (trade 2): {error_message}")
-                # Note: First trade succeeded but second failed - this is a partial failure
-                return jsonify({'error': f'Failed to submit second trade to Crossmark: {error_message}. First trade may have succeeded.'}), 500
+            if not api_result2.get('success'):
+                error_message = api_result2.get('message', 'Unknown API error')
+                logger.error(f"Crossmark API error (swap 2): {error_message}")
+                return jsonify({'error': f'Failed to submit swap 2 to Crossmark: {error_message}'}), 500
 
-            current_app.logger.info(f"Successfully submitted both trades to Crossmark API")
+            logger.info(f"Successfully submitted both trade swaps to Crossmark API")
 
         except Exception as api_error:
-            current_app.logger.error(f"API submission error: {str(api_error)}")
+            logger.error(f"API submission error during trade: {str(api_error)}")
             return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
 
-        # API submissions successful - now update local records
+        # API submission successful - now perform atomic swap in local database
+        original_emp1_id = schedule1.employee_id
+        original_emp2_id = schedule2.employee_id
+
         schedule1.employee_id = original_emp2_id
         schedule2.employee_id = original_emp1_id
 
-        # Update sync status for both events
+        # Update event sync status for both events
         event1.sync_status = 'synced'
         event1.last_synced = datetime.utcnow()
         event2.sync_status = 'synced'
@@ -908,11 +1903,41 @@ def trade_events():
 
         db.session.commit()
 
-        return jsonify({'success': True, 'message': 'Events traded successfully'})
+        logger.info(
+            f'Events traded successfully: Schedule {schedule_1_id} ({event1.project_name}) '
+            f'now has {employee2.name}, Schedule {schedule_2_id} ({event2.project_name}) '
+            f'now has {employee1.name}'
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Events traded successfully'
+        }), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Failed to trade events: {e}', exc_info=True)
+        return jsonify({
+            'error': 'Failed to trade events',
+            'details': str(e)
+        }), 500
+
+
+# Legacy endpoint for backward compatibility
+@api_bp.route('/trade_events', methods=['POST'])
+def trade_events_legacy():
+    """Legacy trade events endpoint - redirects to new endpoint"""
+    data = request.get_json()
+
+    # Transform legacy parameters to new format
+    new_data = {
+        'schedule_1_id': data.get('schedule_id'),
+        'schedule_2_id': data.get('trade_with_schedule_id')
+    }
+
+    # Make internal request to new endpoint
+    request._cached_json = (new_data, new_data)
+    return trade_events()
 
 
 @api_bp.route('/change_employee', methods=['POST'])
@@ -1398,3 +2423,802 @@ def import_scheduled_events():
 
     except Exception as e:
         return jsonify({'error': f'Error processing CSV file: {str(e)}'}), 400
+
+
+@api_bp.route('/validate-schedule', methods=['POST'])
+def validate_schedule():
+    """
+    Real-time schedule validation endpoint for AJAX conflict checking.
+
+    Epic 1, Story 1.2: Real-Time Validation API Endpoint
+
+    Request: POST /api/validate-schedule
+    Body: {"employee_id": "EMP001", "event_id": 123, "schedule_datetime": "2025-10-15T09:00:00", "duration_minutes": 120}
+
+    Response: {"success": true, "valid": bool, "conflicts": [], "warnings": [], "severity": "error"|"warning"|"success"}
+    """
+    from .api_validate_schedule import validate_schedule_endpoint
+    return validate_schedule_endpoint()
+
+
+@api_bp.route('/suggest-employees', methods=['GET'])
+def suggest_employees():
+    """
+    Employee suggestion endpoint for conflict resolution.
+
+    Epic 1, Story 1.5: Add Conflict Details with Actionable Context
+    Task 2: Create Employee Suggestion Endpoint
+
+    Request: GET /api/suggest-employees?event_id=123&date=2025-10-15&time=09:00&limit=3
+
+    Response: {"success": true, "suggestions": [{"employee_id": "EMP002", "employee_name": "Jane", "score": 95, "reason": "..."}]}
+    """
+    from .api_suggest_employees import suggest_employees_endpoint
+    return suggest_employees_endpoint()
+
+
+@api_bp.route('/schedule-event', methods=['POST'])
+def schedule_event():
+    """
+    Schedule an event via AJAX from the dashboard.
+
+    Epic 2, Story 2.4: Add AJAX Form Submission
+
+    Request: POST /api/schedule-event
+    Body: {"employee_id": "EMP001", "event_id": 606034, "schedule_datetime": "2025-10-15T09:00:00", "duration_minutes": 120}
+
+    Response: {"success": true, "message": "Event scheduled successfully", "schedule_id": 123}
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        # Get request data
+        data = request.get_json()
+        employee_id = data.get('employee_id')
+        event_id = data.get('event_id')
+        schedule_datetime_str = data.get('schedule_datetime')
+        duration_minutes = data.get('duration_minutes', 120)
+
+        # Validate required fields
+        if not employee_id or not event_id or not schedule_datetime_str:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        # Get the event
+        event = Event.query.filter_by(project_ref_num=event_id).first()
+        if not event:
+            return jsonify({'success': False, 'error': 'Event not found'}), 404
+
+        # Get the employee
+        employee = db.session.get(Employee, employee_id)
+        if not employee:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+
+        # Parse schedule datetime
+        try:
+            schedule_datetime = datetime.fromisoformat(schedule_datetime_str)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid datetime format'}), 400
+
+        # Validate date is within event range
+        schedule_date = schedule_datetime.date()
+        if not (event.start_datetime.date() <= schedule_date <= event.due_datetime.date()):
+            return jsonify({'success': False, 'error': 'Date must be within event date range'}), 400
+
+        # Check if employee can work this event type
+        if not employee.can_work_event_type(event.event_type):
+            if event.event_type == 'Juicer':
+                return jsonify({'success': False, 'error': 'Employee cannot work Juicer events. Only Club Supervisors and Juicer Baristas can work Juicer events.'}), 400
+            elif event.event_type in ['Supervisor', 'Freeosk', 'Digitals']:
+                return jsonify({'success': False, 'error': f'Employee cannot work {event.event_type} events. Only Club Supervisors and Lead Event Specialists can work this type of event.'}), 400
+            else:
+                return jsonify({'success': False, 'error': 'Employee cannot work this event type'}), 400
+
+        # For Core events, check if employee already has a Core event that day
+        if event.event_type == 'Core':
+            existing_core = Schedule.query.join(
+                Event, Schedule.event_ref_num == Event.project_ref_num
+            ).filter(
+                Schedule.employee_id == employee_id,
+                db.func.date(Schedule.schedule_datetime) == schedule_date,
+                Event.event_type == 'Core'
+            ).first()
+
+            if existing_core:
+                return jsonify({'success': False, 'error': 'Employee already has a Core event scheduled that day'}), 400
+
+        # Check if event is already scheduled
+        existing_schedule = Schedule.query.filter_by(event_ref_num=event_id).first()
+        if existing_schedule:
+            return jsonify({'success': False, 'error': 'Event is already scheduled'}), 400
+
+        # Submit to Crossmark API BEFORE creating local record
+        from session_api_service import session_api as external_api
+
+        # Calculate end datetime
+        end_datetime = schedule_datetime + timedelta(minutes=duration_minutes)
+
+        # Prepare API data
+        rep_id = str(employee.external_id) if employee.external_id else None
+        mplan_id = str(event.external_id) if event.external_id else None
+        location_id = str(event.location_mvid) if event.location_mvid else None
+
+        # Validate required API fields
+        if not rep_id:
+            return jsonify({'success': False, 'error': f'Missing Crossmark employee ID for {employee.name}'}), 400
+
+        if not mplan_id:
+            return jsonify({'success': False, 'error': 'Missing Crossmark event ID'}), 400
+
+        if not location_id:
+            return jsonify({'success': False, 'error': 'Missing Crossmark location ID'}), 400
+
+        # Ensure session is authenticated
+        try:
+            if not external_api.ensure_authenticated():
+                return jsonify({'success': False, 'error': 'Failed to authenticate with Crossmark API'}), 500
+        except Exception as auth_error:
+            current_app.logger.error(f"Authentication error: {str(auth_error)}")
+            return jsonify({'success': False, 'error': 'Failed to authenticate with Crossmark API'}), 500
+
+        # Submit to external API
+        try:
+            current_app.logger.info(
+                f"Submitting schedule to Crossmark API: "
+                f"rep_id={rep_id}, mplan_id={mplan_id}, location_id={location_id}, "
+                f"start={schedule_datetime.isoformat()}, end={end_datetime.isoformat()}"
+            )
+
+            api_result = external_api.schedule_mplan_event(
+                rep_id=rep_id,
+                mplan_id=mplan_id,
+                location_id=location_id,
+                start_datetime=schedule_datetime,
+                end_datetime=end_datetime,
+                planning_override=True
+            )
+
+            if not api_result.get('success'):
+                error_message = api_result.get('message', 'Unknown API error')
+                current_app.logger.error(f"Crossmark API error: {error_message}")
+                return jsonify({'success': False, 'error': f'Failed to submit to Crossmark: {error_message}'}), 500
+
+            current_app.logger.info(f"Successfully submitted schedule to Crossmark API")
+
+        except Exception as api_error:
+            current_app.logger.error(f"API submission error: {str(api_error)}")
+            return jsonify({'success': False, 'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
+
+        # API submission successful - now create local record with transaction
+        try:
+            # BEGIN NESTED TRANSACTION for CORE-Supervisor pairing
+            with db.session.begin_nested():
+                # Create CORE event schedule
+                new_schedule = Schedule(
+                    event_ref_num=event_id,
+                    employee_id=employee_id,
+                    schedule_datetime=schedule_datetime
+                )
+                db.session.add(new_schedule)
+                db.session.flush()  # Get the ID
+
+                # Update event status
+                event.is_scheduled = True
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
+
+                # NEW: Check if this is a CORE event and auto-schedule Supervisor (Calendar Redesign - Sprint 2)
+                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
+
+                if is_core_event_redesign(event):
+                    current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
+
+                    supervisor_status = get_supervisor_status(event)
+
+                    if supervisor_status['exists'] and not supervisor_status['is_scheduled']:
+                        supervisor_event = supervisor_status['event']
+                        current_app.logger.info(
+                            f"Found unscheduled Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                        )
+
+                        # Calculate Supervisor datetime (2 hours after CORE start)
+                        supervisor_schedule_datetime = schedule_datetime + timedelta(hours=2)
+
+                        # Prepare Supervisor API data
+                        supervisor_rep_id = rep_id  # Same employee for now
+                        supervisor_mplan_id = str(supervisor_event.external_id) if supervisor_event.external_id else None
+                        supervisor_location_id = str(supervisor_event.location_mvid) if supervisor_event.location_mvid else None
+
+                        # Validate Supervisor API fields
+                        if all([supervisor_rep_id, supervisor_mplan_id, supervisor_location_id]):
+                            # Calculate Supervisor end datetime
+                            supervisor_estimated_minutes = supervisor_event.estimated_time or supervisor_event.get_default_duration(supervisor_event.event_type)
+                            supervisor_end_datetime = supervisor_schedule_datetime + timedelta(minutes=supervisor_estimated_minutes)
+
+                            # Call Crossmark API for Supervisor
+                            current_app.logger.info(
+                                f"Calling Crossmark API for Supervisor: "
+                                f"rep_id={supervisor_rep_id}, mplan_id={supervisor_mplan_id}, "
+                                f"start={supervisor_schedule_datetime.isoformat()}"
+                            )
+
+                            supervisor_api_result = external_api.schedule_mplan_event(
+                                rep_id=supervisor_rep_id,
+                                mplan_id=supervisor_mplan_id,
+                                location_id=supervisor_location_id,
+                                start_datetime=supervisor_schedule_datetime,
+                                end_datetime=supervisor_end_datetime,
+                                planning_override=True
+                            )
+
+                            if not supervisor_api_result.get('success'):
+                                error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                                current_app.logger.error(f"Supervisor API call failed: {error_msg}")
+                                raise Exception(f"Failed to schedule Supervisor in Crossmark: {error_msg}")
+
+                            # Create Supervisor schedule
+                            supervisor_schedule = Schedule(
+                                event_ref_num=supervisor_event.project_ref_num,
+                                employee_id=employee_id,
+                                schedule_datetime=supervisor_schedule_datetime
+                            )
+                            db.session.add(supervisor_schedule)
+
+                            # Update Supervisor event status
+                            supervisor_event.is_scheduled = True
+                            supervisor_event.sync_status = 'synced'
+                            supervisor_event.last_synced = datetime.utcnow()
+
+                            current_app.logger.info(
+                                f"✅ Successfully auto-scheduled Supervisor event {supervisor_event.project_ref_num} "
+                                f"at {supervisor_schedule_datetime.isoformat()}"
+                            )
+                        else:
+                            current_app.logger.warning(
+                                f"Supervisor API fields incomplete for {supervisor_event.project_name}. "
+                                f"Skipping Supervisor schedule."
+                            )
+                    elif supervisor_status['exists']:
+                        current_app.logger.info(
+                            f"Supervisor event exists but is already scheduled (condition: {supervisor_status['condition']}). "
+                            f"No auto-schedule needed."
+                        )
+                    else:
+                        current_app.logger.info("No paired Supervisor event found for this CORE event.")
+
+            # COMMIT TRANSACTION
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': 'Event scheduled successfully',
+                'schedule_id': new_schedule.id
+            })
+
+        except Exception as nested_error:
+            db.session.rollback()
+            current_app.logger.error(f"Transaction failed during schedule: {str(nested_error)}", exc_info=True)
+            raise nested_error
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error scheduling event: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/workload', methods=['GET'])
+def get_workload():
+    """
+    Get employee workload data for date range.
+
+    Epic 2, Story 2.5: Create Workload Dashboard Backend API
+
+    Request: GET /api/workload?start_date=2025-10-15&end_date=2025-10-22
+
+    Response: {
+        "employees": [{"id": 123, "name": "John", "event_count": 15, "total_hours": 42.5, "status": "normal"}],
+        "thresholds": {"normal_max_events": 12, "high_max_events": 18, "overload_max_events": 20}
+    }
+    """
+    from services.workload_analytics import WorkloadAnalytics
+
+    try:
+        db = current_app.extensions['sqlalchemy']
+
+        # Parse query parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        # Default to current week (Monday-Sunday)
+        if not start_date_str or not end_date_str:
+            today = date.today()
+            # Calculate Monday of current week
+            start_date = today - timedelta(days=today.weekday())
+            # Calculate Sunday of current week
+            end_date = start_date + timedelta(days=6)
+        else:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+        # Validate date range
+        if end_date < start_date:
+            return jsonify({'error': 'End date must be after start date'}), 400
+
+        # Get workload data
+        analytics = WorkloadAnalytics(db)
+        workload_data = analytics.get_workload_data(start_date, end_date)
+
+        return jsonify(workload_data)
+
+    except Exception as e:
+        current_app.logger.error(f"Error fetching workload data: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Error fetching workload data: {str(e)}'}), 500
+
+
+@api_bp.route('/employee-schedule-details', methods=['GET'])
+def get_employee_schedule_details():
+    """
+    Get detailed schedule information for a specific employee.
+
+    Epic 2, Story 2.6: Workload Dashboard Drill-Down
+    Priority 1 Blocker: Required for workload dashboard drill-down modal
+
+    Request: GET /api/employee-schedule-details?employee_id=EMP001&start_date=2025-10-15&end_date=2025-10-22
+
+    Response: {
+        "success": true,
+        "employee_id": "EMP001",
+        "employee_name": "John Doe",
+        "schedules": [
+            {
+                "date": "2025-10-15",
+                "time": "09:45 AM",
+                "event_name": "Super Pretzel Demo",
+                "event_type": "Core",
+                "location": "Store #1234",
+                "duration": "2 hours"
+            }
+        ]
+    }
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        # Parse query parameters
+        employee_id = request.args.get('employee_id')
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        # Validate required parameters
+        if not employee_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required parameter: employee_id'
+            }), 400
+
+        if not start_date_str or not end_date_str:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required parameters: start_date and end_date'
+            }), 400
+
+        # Parse dates
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD.'
+            }), 400
+
+        # Get employee
+        employee = db.session.get(Employee, employee_id)
+        if not employee:
+            return jsonify({
+                'success': False,
+                'error': f'Employee not found: {employee_id}'
+            }), 404
+
+        # Query schedules for the employee within date range
+        schedules = db.session.query(
+            Schedule,
+            Event
+        ).join(
+            Event, Schedule.event_ref_num == Event.project_ref_num
+        ).filter(
+            Schedule.employee_id == employee_id,
+            db.func.date(Schedule.schedule_datetime) >= start_date,
+            db.func.date(Schedule.schedule_datetime) <= end_date
+        ).order_by(
+            Schedule.schedule_datetime
+        ).all()
+
+        # Format schedules for response
+        formatted_schedules = []
+        for schedule, event in schedules:
+            # Calculate duration
+            duration_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+            hours = duration_minutes // 60
+            minutes = duration_minutes % 60
+            if minutes > 0:
+                duration_str = f"{hours} hour{'' if hours == 1 else 's'} {minutes} min"
+            else:
+                duration_str = f"{hours} hour{'' if hours == 1 else 's'}"
+
+            # Format location
+            location = event.store_name or ''
+            if event.store_number:
+                location = f"Store #{event.store_number}" + (f" - {event.store_name}" if event.store_name else "")
+
+            formatted_schedules.append({
+                'date': schedule.schedule_datetime.strftime('%Y-%m-%d'),
+                'time': schedule.schedule_datetime.strftime('%I:%M %p'),
+                'event_name': event.project_name,
+                'event_type': event.event_type,
+                'location': location,
+                'duration': duration_str
+            })
+
+        logger.info(
+            f"Fetched {len(formatted_schedules)} schedule details for employee {employee_id} "
+            f"from {start_date} to {end_date}"
+        )
+
+        return jsonify({
+            'success': True,
+            'employee_id': employee.id,
+            'employee_name': employee.name,
+            'schedules': formatted_schedules,
+            'total_events': len(formatted_schedules)
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error fetching employee schedule details: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Error fetching schedule details: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/event/<int:schedule_id>/change-employee', methods=['POST'])
+@require_authentication()
+def change_event_employee(schedule_id):
+    """
+    Change employee assignment for an event.
+
+    This endpoint allows supervisors to change the employee assigned to a
+    scheduled event. It validates the new assignment for conflicts using
+    ConflictValidator before making the change.
+
+    Args:
+        schedule_id: Schedule ID (integer, path parameter)
+
+    Request Body:
+        {
+            "employee_id": "EMP001"
+        }
+
+    Returns:
+        JSON response with success status and updated employee IDs
+
+    Response Format (Success):
+        {
+            "success": true,
+            "schedule_id": 123,
+            "old_employee_id": "EMP001",
+            "old_employee_name": "John Doe",
+            "new_employee_id": "EMP002",
+            "new_employee_name": "Jane Smith"
+        }
+
+    Response Format (Conflict):
+        {
+            "error": "Conflict detected for selected employee",
+            "conflicts": [
+                {
+                    "type": "time_off",
+                    "severity": "error",
+                    "message": "Jane Smith has approved time-off on Oct 15"
+                }
+            ]
+        }
+
+    Status Codes:
+        200: Success - employee changed
+        400: Invalid request (missing employee_id)
+        404: Schedule not found or employee not found
+        409: Conflict - new employee has conflicts at this datetime
+        500: Server error
+
+    Example:
+        POST /api/event/123/change-employee
+        Body: {"employee_id": "EMP002"}
+
+    Note:
+        - Uses ConflictValidator from Epic 1 for conflict checking
+        - Returns 409 Conflict if validation fails
+        - Does not perform change if conflicts detected
+    """
+    from services.conflict_validation import ConflictValidator
+
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    # Get schedule
+    schedule = db.session.get(Schedule, schedule_id)
+    if not schedule:
+        return jsonify({'error': f'Schedule not found: {schedule_id}'}), 404
+
+    # Parse request body
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+
+    new_employee_id = data.get('employee_id')
+
+    if not new_employee_id:
+        return jsonify({'error': 'employee_id is required'}), 400
+
+    # Get new employee
+    new_employee = db.session.get(Employee, new_employee_id)
+    if not new_employee:
+        return jsonify({'error': f'Employee not found: {new_employee_id}'}), 404
+
+    # Get old employee info before change
+    old_employee = schedule.employee
+    old_employee_id = old_employee.id if old_employee else None
+    old_employee_name = old_employee.name if old_employee else 'Unassigned'
+
+    # Validate conflicts for new employee using ConflictValidator
+    try:
+        # Initialize ConflictValidator with models dict
+        models = {
+            'Employee': Employee,
+            'Event': Event,
+            'Schedule': Schedule,
+            'EmployeeTimeOff': current_app.config.get('EmployeeTimeOff'),
+            'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+            'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability'),
+        }
+
+        validator = ConflictValidator(db.session, models)
+
+        # Calculate duration from event estimated_time or default 120 minutes
+        duration_minutes = schedule.event.estimated_time if schedule.event and schedule.event.estimated_time else 120
+
+        # Validate new employee assignment
+        validation_result = validator.validate_schedule(
+            employee_id=new_employee_id,
+            event_id=schedule.event.project_ref_num if schedule.event else None,
+            schedule_datetime=schedule.schedule_datetime,
+            duration_minutes=duration_minutes
+        )
+
+        # Check for conflicts
+        if not validation_result.is_valid:
+            # Format conflicts for response
+            conflicts = [
+                {
+                    'type': violation.constraint_type.value,
+                    'severity': 'error' if violation.severity.value == 'HARD' else 'warning',
+                    'message': violation.message,
+                    'details': violation.details
+                }
+                for violation in validation_result.violations
+            ]
+
+            logger.warning(
+                f"Change employee conflict: schedule={schedule_id}, "
+                f"new_employee={new_employee_id}, conflicts={len(conflicts)}"
+            )
+
+            return jsonify({
+                'error': 'Conflict detected for selected employee',
+                'conflicts': conflicts
+            }), 409
+
+    except Exception as e:
+        logger.error(f"Validation error for schedule {schedule_id}: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to validate employee assignment',
+            'details': str(e)
+        }), 500
+
+    # No conflicts - proceed with change
+    try:
+        # Update schedule with new employee
+        schedule.employee_id = new_employee_id
+
+        db.session.commit()
+
+        logger.info(
+            f"Employee changed: schedule={schedule_id}, "
+            f"old={old_employee_id}, new={new_employee_id}"
+        )
+
+        return jsonify({
+            'success': True,
+            'schedule_id': schedule_id,
+            'old_employee_id': old_employee_id,
+            'old_employee_name': old_employee_name,
+            'new_employee_id': new_employee_id,
+            'new_employee_name': new_employee.name
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to change employee for schedule {schedule_id}: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to update employee assignment',
+            'details': str(e)
+        }), 500
+
+
+@api_bp.route('/available-employees', methods=['GET'])
+@require_authentication()
+def get_available_employees():
+    """
+    Get list of employees available for a specific date/time.
+
+    This endpoint returns employees who have no conflicts at the specified
+    datetime, suitable for display in the change employee dropdown.
+
+    Query Parameters:
+        date: Date string in 'YYYY-MM-DD' format (required)
+        time: Time string in 'HH:MM' format (required)
+        duration: Event duration in minutes (optional, default 120)
+        event_id: Event project_ref_num (optional, for role validation)
+        exclude_schedule_id: Schedule ID to exclude from conflict check (optional)
+
+    Returns:
+        JSON response with array of available employees
+
+    Response Format:
+        {
+            "available_employees": [
+                {
+                    "employee_id": "EMP001",
+                    "employee_name": "John Doe",
+                    "is_active": true
+                },
+                {
+                    "employee_id": "EMP002",
+                    "employee_name": "Jane Smith",
+                    "is_active": true
+                }
+            ]
+        }
+
+    Example:
+        GET /api/available-employees?date=2025-10-15&time=10:00&duration=120
+
+    Note:
+        - Queries all active employees
+        - Filters out employees with conflicts at specified datetime
+        - Uses ConflictValidator to check each employee
+        - Returns only conflict-free employees
+    """
+    from services.conflict_validation import ConflictValidator
+
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    # Parse query parameters
+    date_str = request.args.get('date')
+    time_str = request.args.get('time')
+    duration = int(request.args.get('duration', 120))
+    event_id = request.args.get('event_id')
+    exclude_schedule_id = request.args.get('exclude_schedule_id')
+
+    # Validate required parameters
+    if not date_str or not time_str:
+        return jsonify({'error': 'date and time parameters are required'}), 400
+
+    # Parse datetime
+    try:
+        datetime_str = f"{date_str} {time_str}"
+        target_datetime = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M')
+    except ValueError as e:
+        return jsonify({'error': f'Invalid date/time format: {e}'}), 400
+
+    # Get event if event_id provided (for role validation)
+    event = None
+    if event_id:
+        event = db.session.query(Event).filter_by(project_ref_num=int(event_id)).first()
+
+    # Query all active employees
+    all_employees = db.session.query(Employee).filter_by(is_active=True).all()
+
+    # Initialize ConflictValidator
+    try:
+        models = {
+            'Employee': Employee,
+            'Event': Event,
+            'Schedule': Schedule,
+            'EmployeeTimeOff': current_app.config.get('EmployeeTimeOff'),
+            'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+            'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability'),
+        }
+
+        validator = ConflictValidator(db.session, models)
+
+        # Filter employees by checking conflicts
+        available_employees = []
+
+        for employee in all_employees:
+            try:
+                # If event_id is provided, do full validation
+                if event_id and event:
+                    validation_result = validator.validate_schedule(
+                        employee_id=employee.id,
+                        event_id=int(event_id),
+                        schedule_datetime=target_datetime,
+                        duration_minutes=duration
+                    )
+
+                    # Only include if no conflicts
+                    if validation_result.is_valid:
+                        available_employees.append({
+                            'employee_id': employee.id,
+                            'employee_name': employee.name,
+                            'is_active': employee.is_active
+                        })
+                else:
+                    # No event_id provided - just check basic time conflicts
+                    # Check if employee has any schedule at this exact time
+                    existing_schedule = db.session.query(Schedule).filter_by(
+                        employee_id=employee.id,
+                        schedule_datetime=target_datetime
+                    ).first()
+
+                    if not existing_schedule:
+                        available_employees.append({
+                            'employee_id': employee.id,
+                            'employee_name': employee.name,
+                            'is_active': employee.is_active
+                        })
+
+            except ValueError as e:
+                # Event not found - skip this employee
+                logger.debug(f"Skipping employee {employee.id}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Validation failed for employee {employee.id}: {e}")
+                # Skip this employee if validation fails
+                continue
+
+        logger.info(
+            f"Available employees query: date={date_str}, time={time_str}, "
+            f"found={len(available_employees)}/{len(all_employees)}"
+        )
+
+        return jsonify({
+            'available_employees': available_employees
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to get available employees: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to retrieve available employees',
+            'details': str(e)
+        }), 500
+
+
+# Register modular API endpoint routes
+# Priority 3: Workflow Gaps - FR32, FR34, FR38
+register_availability_override_routes(api_bp)  # FR32: Temporary Availability Change
+register_termination_routes(api_bp)  # FR34: Employee Termination Workflow
+register_auto_scheduler_settings_routes(api_bp)  # FR38: Auto-Scheduler Event Type Filtering

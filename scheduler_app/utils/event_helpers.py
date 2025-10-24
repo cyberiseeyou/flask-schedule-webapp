@@ -271,7 +271,7 @@ def get_supervisor_event(core_event):
             from flask import current_app
             Event = current_app.config.get('Event')
             if not Event:
-                from scheduler_app.models import Event
+                from models import Event
         except:
             logger.error("Could not get Event model - unable to query Supervisor")
             return None

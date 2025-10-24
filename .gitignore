@@ -172,5 +172,43 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Additional cleanup patterns
+*.Zone.Identifier
+*.backup_*
+archived/
+archived_code/
+backups/
+har_files/
+tests/
+scripts/
+docs/
+.ai/
+.bmad-core/
 chrome-devtools-mcp/
-edr_downloader/temp_edrs/*.pdf
+edr_downloader/
+product_connections_manager/
+API_Integration/
+_temp_migrate/
+reference/
+mappings/
+assets/
+docker/
+awesome-claude-skills/
+
+# Production deployment
+*.pid
+*.sock
+gunicorn-*.log
+nginx-*.log
+celerybeat.pid
+celerybeat-schedule
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
+*.csr
+
+# System Service
+*.service.d/

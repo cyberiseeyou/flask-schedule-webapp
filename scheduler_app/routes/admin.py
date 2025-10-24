@@ -239,18 +239,23 @@ def refresh_database():
 
                     if employee_id:
                         try:
+                            # Get the scheduleEventID from Crossmark - this is the ID we need to unschedule
+                            scheduled_event_id = event_record.get('scheduleEventID')
+
                             # Log types before creating schedule
                             current_app.logger.info(f"Event {mplan_id}: Creating schedule with types - schedule_date type: {type(schedule_date)}, value: {schedule_date}")
+                            current_app.logger.info(f"Event {mplan_id}: Extracted scheduleEventID: {scheduled_event_id}")
 
                             schedule = Schedule(
                                 event_ref_num=int(mplan_id) if str(mplan_id).isdigit() else 0,
                                 employee_id=employee_id,
                                 schedule_datetime=schedule_date,
-                                external_id=f"{mplan_id}_schedule",
-                                last_synced=datetime.utcnow()
+                                external_id=str(scheduled_event_id) if scheduled_event_id else None,
+                                last_synced=datetime.utcnow(),
+                                sync_status='synced'
                             )
                             db.session.add(schedule)
-                            current_app.logger.info(f"Created schedule for event {mplan_id} with employee {employee_id} on {schedule_date}")
+                            current_app.logger.info(f"Created schedule for event {mplan_id} with employee {employee_id} on {schedule_date}, external_id={schedule.external_id}")
                         except Exception as schedule_error:
                             import traceback
                             current_app.logger.error(f"Event {mplan_id}: Failed to create schedule: {str(schedule_error)}")
@@ -1824,10 +1829,12 @@ def auto_schedule_event(event_id):
         if require_approval:
             # Create pending schedule
             pending = PendingSchedule(
-                event_id=event.id,
+                event_ref_num=event.project_ref_num,
                 employee_id=result['employee_id'],
                 scheduler_run_id=run.id,
-                status='pending'
+                schedule_datetime=result['schedule_datetime'],
+                schedule_time=result['schedule_datetime'].time(),
+                status='proposed'
             )
             db.session.add(pending)
             run.events_scheduled = 1
@@ -1840,14 +1847,29 @@ def auto_schedule_event(event_id):
                 'requires_approval': True
             })
         else:
-            # Auto-approve and submit
+            # Auto-approve and submit - create actual Schedule record
+            Schedule = current_app.config['Schedule']
+
+            # Create the schedule
+            schedule = Schedule(
+                event_ref_num=event.project_ref_num,
+                employee_id=result['employee_id'],
+                schedule_datetime=result['schedule_datetime']
+            )
+            db.session.add(schedule)
+
+            # Update event status
+            event.is_scheduled = True
+            event.condition = 'Scheduled'
+
             run.events_scheduled = 1
             db.session.commit()
 
             return jsonify({
                 'success': True,
-                'message': f'Event auto-scheduled for {result["employee_name"]}',
+                'message': f'Event auto-scheduled for {result["employee_name"]} on {result["schedule_datetime"].strftime("%m/%d/%Y at %I:%M %p")}',
                 'employee_name': result['employee_name'],
+                'schedule_datetime': result['schedule_datetime'].isoformat(),
                 'requires_approval': False
             })
 

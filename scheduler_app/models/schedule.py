@@ -30,6 +30,12 @@ def create_schedule_model(db):
             db.Index('idx_schedules_date', 'schedule_datetime'),
         )
 
+        # Relationships
+        employee = db.relationship('Employee', backref='schedules', lazy=True)
+        event = db.relationship('Event', foreign_keys=[event_ref_num],
+                               primaryjoin="Schedule.event_ref_num==Event.project_ref_num",
+                               backref='schedules', lazy=True)
+
         def __repr__(self):
             return f'<Schedule {self.id}: Event {self.event_ref_num} -> Employee {self.employee_id}>'
 

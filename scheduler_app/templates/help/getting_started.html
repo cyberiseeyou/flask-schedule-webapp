@@ -31,6 +31,26 @@
                 <span class="help-icon">✅</span>
                 Review & Approve
             </a>
+            <a href="{{ url_for('help.daily_validation') }}" class="help-nav-item">
+                <span class="help-icon">📋</span>
+                Daily Validation
+            </a>
+            <a href="{{ url_for('help.printing_reports') }}" class="help-nav-item">
+                <span class="help-icon">🖨️</span>
+                Printing & Reports
+            </a>
+            <a href="{{ url_for('help.edr_sync') }}" class="help-nav-item">
+                <span class="help-icon">🔄</span>
+                EDR Sync & Paperwork
+            </a>
+            <a href="{{ url_for('help.attendance') }}" class="help-nav-item">
+                <span class="help-icon">📊</span>
+                Attendance & Time Off
+            </a>
+            <a href="{{ url_for('help.workload_analytics') }}" class="help-nav-item">
+                <span class="help-icon">📈</span>
+                Workload Analytics
+            </a>
         </nav>
     </aside>
 
@@ -148,6 +168,30 @@
                     Allows managers to review and adjust schedules before submission
                 </li>
                 <li>
+                    <strong>Daily Validation Dashboard:</strong>
+                    Real-time monitoring of daily schedules with validation warnings and alerts
+                </li>
+                <li>
+                    <strong>EDR Integration:</strong>
+                    Syncs sales data from Walmart Retail Link for event-specific paperwork
+                </li>
+                <li>
+                    <strong>Attendance Tracking:</strong>
+                    Track employee attendance via QR codes and manual entry
+                </li>
+                <li>
+                    <strong>Time Off Management:</strong>
+                    Manage employee time-off requests and availability overrides
+                </li>
+                <li>
+                    <strong>Workload Analytics:</strong>
+                    Comprehensive analytics for team performance and capacity planning
+                </li>
+                <li>
+                    <strong>Printing & Reports:</strong>
+                    Generate professional schedules and paperwork packages
+                </li>
+                <li>
                     <strong>API Integration:</strong>
                     Automatically submits approved schedules back to Walmart's system
                 </li>
@@ -160,25 +204,40 @@
 
             <ul class="nav-overview">
                 <li>
-                    <strong>Dashboard:</strong> Overview of scheduling status and pending actions
+                    <strong>Dashboard:</strong> Overview of scheduling status, pending actions, and quick stats
+                </li>
+                <li>
+                    <strong>Daily Validation:</strong> Real-time monitoring of daily schedules with warnings
                 </li>
                 <li>
                     <strong>Events:</strong> View and manage unscheduled events
                 </li>
                 <li>
-                    <strong>Calendar:</strong> Visual calendar view of scheduled events
+                    <strong>Unreported Events:</strong> Track events that haven't been reported yet
                 </li>
                 <li>
-                    <strong>Employee Management:</strong> Add and manage team members
+                    <strong>Calendar:</strong> Visual calendar view of all scheduled events
                 </li>
                 <li>
-                    <strong>Analytics:</strong> Employee performance and scheduling statistics
+                    <strong>Attendance Calendar:</strong> Employee attendance tracking and history
                 </li>
                 <li>
-                    <strong>Printing:</strong> Print schedules and reports
+                    <strong>Employee Management:</strong> Add and manage team members, availability, time off
                 </li>
                 <li>
-                    <strong>Settings (in user dropdown):</strong> Configure system settings and credentials
+                    <strong>Auto Scheduler:</strong> Automated scheduling with review and approval workflow
+                </li>
+                <li>
+                    <strong>Workload Analytics:</strong> Team performance and capacity planning dashboards
+                </li>
+                <li>
+                    <strong>Printing:</strong> Print schedules, paperwork, and generate reports
+                </li>
+                <li>
+                    <strong>Settings (in user dropdown):</strong> Configure system settings, credentials, and integrations
+                </li>
+                <li>
+                    <strong>Admin:</strong> Database sync, EDR configuration, and system management
                 </li>
             </ul>
         </div>

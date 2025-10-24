@@ -18,6 +18,12 @@ def employees():
     return render_template('employees.html', employees=employees)
 
 
+@employees_bp.route('/time-off')
+def time_off_requests():
+    """Display time off requests management page"""
+    return render_template('time_off_requests.html')
+
+
 @employees_bp.route('/api/employees', methods=['GET', 'POST'])
 @employees_bp.route('/api/employees/<employee_id>', methods=['DELETE'])
 def manage_employees(employee_id=None):

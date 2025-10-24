@@ -35,10 +35,14 @@ def schedule_event(event_id):
         action_type = "Reschedule"
         action_verb = "reschedule"
 
+    # Get return_url from query params (where to go after scheduling)
+    return_url = request.args.get('return_url', '')
+
     return render_template('schedule.html',
                          event=event,
                          action_type=action_type,
-                         action_verb=action_verb)
+                         action_verb=action_verb,
+                         return_url=return_url)
 
 
 def get_allowed_times_for_event_type(event_type):
@@ -79,6 +83,9 @@ def available_employees(date, event_id=None):
     EmployeeTimeOff = current_app.config['EmployeeTimeOff']
     EmployeeWeeklyAvailability = current_app.config['EmployeeWeeklyAvailability']
 
+    # Check if override constraints is enabled
+    override_constraints = request.args.get('override', 'false').lower() == 'true'
+
     # Validate date format
     try:
         parsed_date = datetime.strptime(date, '%Y-%m-%d').date()
@@ -88,8 +95,47 @@ def available_employees(date, event_id=None):
     # Get all active employees
     all_employees = Employee.query.filter_by(is_active=True).all()
 
+    # If override is enabled, skip all availability filtering and only check role-based restrictions
+    if override_constraints:
+        current_app.logger.info(
+            f"[AVAILABLE_EMPLOYEES] Override enabled - showing all qualified employees for date {date}"
+        )
+
+        # Get event type for role-based filtering
+        event_type = None
+        if event_id:
+            event = db.session.get(Event, event_id)
+            if event:
+                event_type = event.event_type
+
+        # Only filter by role - show all employees who CAN work this event type
+        available_employees_list = []
+        for emp in all_employees:
+            # Check role-based restrictions if we have an event type
+            if event_type and not emp.can_work_event_type(event_type):
+                continue
+
+            available_employees_list.append({
+                'id': emp.id,
+                'name': emp.name,
+                'is_supervisor': emp.is_supervisor,
+                'job_title': emp.job_title,
+                'adult_beverage_trained': emp.adult_beverage_trained
+            })
+
+        current_app.logger.info(
+            f"[AVAILABLE_EMPLOYEES] Override mode: {len(available_employees_list)} employees qualified by role"
+        )
+
+        return jsonify(available_employees_list)
+
     # Get employees scheduled for Core events on the specified date
-    core_scheduled_employees = db.session.query(Schedule.employee_id).join(
+    # Also query the schedule datetime for debugging
+    core_scheduled_employees = db.session.query(
+        Schedule.employee_id,
+        Schedule.schedule_datetime,
+        Event.project_name
+    ).join(
         Event, Schedule.event_ref_num == Event.project_ref_num
     ).filter(
         db.func.date(Schedule.schedule_datetime) == parsed_date,
@@ -97,6 +143,17 @@ def available_employees(date, event_id=None):
     ).all()
 
     core_scheduled_employee_ids = {emp[0] for emp in core_scheduled_employees}
+
+    # Debug: Log which employees are scheduled for Core events
+    if core_scheduled_employee_ids:
+        current_app.logger.info(
+            f"[AVAILABLE_EMPLOYEES] Core scheduled employees on {date}: {list(core_scheduled_employee_ids)}"
+        )
+        # Log each schedule for debugging
+        for emp_id, sched_dt, event_name in core_scheduled_employees:
+            current_app.logger.info(
+                f"[AVAILABLE_EMPLOYEES]   - {emp_id} has Core event '{event_name}' at {sched_dt}"
+            )
 
     # Get employees marked as unavailable on the specified date
     unavailable_employees = db.session.query(EmployeeAvailability.employee_id).filter(
@@ -130,6 +187,12 @@ def available_employees(date, event_id=None):
         if not emp[1]  # is_available_weekly is False
     }
 
+    # Debug: Log which employees are weekly unavailable
+    if weekly_unavailable_ids:
+        current_app.logger.info(
+            f"[AVAILABLE_EMPLOYEES] Weekly unavailable on {day_column}: {list(weekly_unavailable_ids)}"
+        )
+
     # Get event type for role-based filtering
     event_type = None
     if event_id:
@@ -137,22 +200,44 @@ def available_employees(date, event_id=None):
         if event:
             event_type = event.event_type
 
+    # Debug logging
+    current_app.logger.info(
+        f"[AVAILABLE_EMPLOYEES] Date: {date}, Event ID: {event_id}, Event Type: {event_type}, "
+        f"Day: {day_column}, Total Active Employees: {len(all_employees)}"
+    )
+    current_app.logger.info(
+        f"[AVAILABLE_EMPLOYEES] Filters - Core scheduled: {len(core_scheduled_employee_ids)}, "
+        f"Unavailable: {len(unavailable_employee_ids)}, Time off: {len(time_off_employee_ids)}, "
+        f"Weekly unavailable: {len(weekly_unavailable_ids)}"
+    )
+
     # Filter available employees
     available_employees_list = []
     for emp in all_employees:
-        if (emp.id not in core_scheduled_employee_ids and
-            emp.id not in unavailable_employee_ids and
-            emp.id not in time_off_employee_ids and
-            emp.id not in weekly_unavailable_ids):
+        # Track why each employee is excluded
+        exclusion_reason = None
 
-            # Special handling for "Other" events - only Lead Event Specialist and Club Supervisor
-            if event_type == 'Other':
-                if emp.job_title not in ['Lead Event Specialist', 'Club Supervisor']:
-                    continue
-            # Check role-based restrictions if we have an event type
-            elif event_type and not emp.can_work_event_type(event_type):
-                continue
+        if emp.id in core_scheduled_employee_ids:
+            exclusion_reason = "already scheduled for Core event"
+        elif emp.id in unavailable_employee_ids:
+            exclusion_reason = "marked unavailable on this date"
+        elif emp.id in time_off_employee_ids:
+            exclusion_reason = "has time off on this date"
+        elif emp.id in weekly_unavailable_ids:
+            exclusion_reason = f"weekly unavailable on {day_column}"
+        elif event_type == 'Other' and emp.job_title not in ['Lead Event Specialist', 'Club Supervisor']:
+            exclusion_reason = f"job title '{emp.job_title}' cannot work Other events"
+        elif event_type and not emp.can_work_event_type(event_type):
+            exclusion_reason = f"job title '{emp.job_title}' cannot work {event_type} events"
 
+        if exclusion_reason:
+            current_app.logger.debug(
+                f"[AVAILABLE_EMPLOYEES] Excluded {emp.name} ({emp.id}): {exclusion_reason}"
+            )
+        else:
+            current_app.logger.info(
+                f"[AVAILABLE_EMPLOYEES] [OK] Available: {emp.name} ({emp.id}) - {emp.job_title}"
+            )
             available_employees_list.append({
                 'id': emp.id,
                 'name': emp.name,
@@ -161,20 +246,35 @@ def available_employees(date, event_id=None):
                 'adult_beverage_trained': emp.adult_beverage_trained
             })
 
+    current_app.logger.info(
+        f"[AVAILABLE_EMPLOYEES] Result: {len(available_employees_list)} available employees"
+    )
+
     return jsonify(available_employees_list)
 
 
 @scheduling_bp.route('/api/check_conflicts', methods=['POST'])
 def check_scheduling_conflicts():
-    """Check for potential scheduling conflicts in real-time"""
+    """
+    Check for potential scheduling conflicts in real-time.
+
+    Uses ConflictValidator service for validation logic.
+    Refactored from inline validation code as part of Epic 1, Story 1.1.
+    """
     from flask import current_app
+    from services.conflict_validation import ConflictValidator
+
     db = current_app.extensions['sqlalchemy']
-    Employee = current_app.config['Employee']
-    Event = current_app.config['Event']
-    Schedule = current_app.config['Schedule']
-    EmployeeAvailability = current_app.config['EmployeeAvailability']
-    EmployeeTimeOff = current_app.config['EmployeeTimeOff']
-    EmployeeWeeklyAvailability = current_app.config['EmployeeWeeklyAvailability']
+
+    # Get all models
+    models = {
+        'Employee': current_app.config['Employee'],
+        'Event': current_app.config['Event'],
+        'Schedule': current_app.config['Schedule'],
+        'EmployeeAvailability': current_app.config.get('EmployeeAvailability'),
+        'EmployeeTimeOff': current_app.config['EmployeeTimeOff'],
+        'EmployeeWeeklyAvailability': current_app.config.get('EmployeeWeeklyAvailability')
+    }
 
     # Get parameters
     data = request.get_json()
@@ -182,140 +282,64 @@ def check_scheduling_conflicts():
     scheduled_date = data.get('scheduled_date')
     scheduled_time = data.get('scheduled_time')
     event_id = data.get('event_id')
-    event_type = data.get('event_type')
 
-    conflicts = []
-    warnings = []
+    # Validate required parameters
+    if not all([employee_id, scheduled_date, scheduled_time, event_id]):
+        return jsonify({'error': 'Missing required parameters'}), 400
 
     try:
-        # Parse date
-        parsed_date = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
-        parsed_datetime = datetime.strptime(f"{scheduled_date} {scheduled_time}", '%Y-%m-%d %H:%M')
+        # Parse datetime
+        parsed_datetime = datetime.strptime(
+            f"{scheduled_date} {scheduled_time}",
+            '%Y-%m-%d %H:%M'
+        )
     except ValueError:
         return jsonify({'error': 'Invalid date or time format'}), 400
 
-    # Get employee
-    employee = db.session.get(Employee, employee_id)
-    if not employee:
-        return jsonify({'error': 'Employee not found'}), 404
+    try:
+        # Initialize validator
+        validator = ConflictValidator(db.session, models)
 
-    # Check 1: Employee already scheduled for Core event on same day
-    existing_core_schedule = db.session.query(Schedule).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).filter(
-        Schedule.employee_id == employee_id,
-        db.func.date(Schedule.schedule_datetime) == parsed_date,
-        Event.event_type == 'Core'
-    ).first()
+        # Validate schedule
+        result = validator.validate_schedule(
+            employee_id=employee_id,
+            event_id=event_id,
+            schedule_datetime=parsed_datetime,
+            duration_minutes=data.get('duration_minutes', 120)
+        )
 
-    if existing_core_schedule:
-        conflicts.append({
-            'type': 'core_already_scheduled',
-            'severity': 'error',
-            'message': f'{employee.name} is already scheduled for a Core event on {parsed_date.strftime("%Y-%m-%d")}',
-            'detail': 'Employees can only work one Core event per day'
+        # Map ValidationResult to API response format
+        conflicts = []
+        warnings = []
+
+        for violation in result.violations:
+            violation_dict = {
+                'type': violation.details.get('type', violation.constraint_type.value),
+                'severity': 'error' if violation.severity.value == 'hard' else 'warning',
+                'message': violation.message,
+                'detail': violation.details.get('detail', '')
+            }
+
+            if violation.severity.value == 'hard':
+                conflicts.append(violation_dict)
+            else:
+                warnings.append(violation_dict)
+
+        return jsonify({
+            'has_conflicts': len(conflicts) > 0,
+            'has_warnings': len(warnings) > 0,
+            'conflicts': conflicts,
+            'warnings': warnings,
+            'can_proceed': len(conflicts) == 0  # Can proceed if only warnings
         })
 
-    # Check 2: Employee marked as unavailable
-    unavailable = db.session.query(EmployeeAvailability).filter(
-        EmployeeAvailability.employee_id == employee_id,
-        EmployeeAvailability.date == parsed_date,
-        EmployeeAvailability.is_available == False
-    ).first()
-
-    if unavailable:
-        conflicts.append({
-            'type': 'employee_unavailable',
-            'severity': 'error',
-            'message': f'{employee.name} is marked as unavailable on {parsed_date.strftime("%Y-%m-%d")}',
-            'detail': 'Employee has explicitly marked this date as unavailable'
-        })
-
-    # Check 3: Employee has time off
-    time_off = db.session.query(EmployeeTimeOff).filter(
-        EmployeeTimeOff.employee_id == employee_id,
-        EmployeeTimeOff.start_date <= parsed_date,
-        EmployeeTimeOff.end_date >= parsed_date
-    ).first()
-
-    if time_off:
-        conflicts.append({
-            'type': 'time_off',
-            'severity': 'error',
-            'message': f'{employee.name} has time off from {time_off.start_date.strftime("%Y-%m-%d")} to {time_off.end_date.strftime("%Y-%m-%d")}',
-            'detail': 'Employee has approved time off for this date'
-        })
-
-    # Check 4: Weekly availability
-    day_of_week = parsed_date.weekday()
-    day_columns = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    day_column = day_columns[day_of_week]
-
-    weekly_avail = db.session.query(EmployeeWeeklyAvailability).filter(
-        EmployeeWeeklyAvailability.employee_id == employee_id
-    ).first()
-
-    if weekly_avail and not getattr(weekly_avail, day_column):
-        warnings.append({
-            'type': 'weekly_unavailable',
-            'severity': 'warning',
-            'message': f'{employee.name} is typically not available on {day_columns[day_of_week].capitalize()}s',
-            'detail': 'Check with employee before scheduling'
-        })
-
-    # Check 5: Role-based restrictions
-    if event_type and not employee.can_work_event_type(event_type):
-        role_requirement = 'supervisor role' if event_type == 'Supervisor' else 'adult beverage training'
-        conflicts.append({
-            'type': 'role_restriction',
-            'severity': 'error',
-            'message': f'{employee.name} cannot work {event_type} events',
-            'detail': f'Employee does not have required {role_requirement}'
-        })
-
-    # Check 6: Overlapping time slots (employees scheduled within 2 hours)
-    time_window_start = parsed_datetime - timedelta(hours=2)
-    time_window_end = parsed_datetime + timedelta(hours=2)
-
-    nearby_schedules = db.session.query(Schedule, Event).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).filter(
-        Schedule.employee_id == employee_id,
-        Schedule.schedule_datetime.between(time_window_start, time_window_end)
-    ).all()
-
-    for schedule, nearby_event in nearby_schedules:
-        time_diff = abs((schedule.schedule_datetime - parsed_datetime).total_seconds() / 3600)
-        if time_diff < 2:
-            warnings.append({
-                'type': 'time_proximity',
-                'severity': 'warning',
-                'message': f'{employee.name} has another event scheduled {int(time_diff * 60)} minutes away',
-                'detail': f'{nearby_event.project_name} at {schedule.schedule_datetime.strftime("%I:%M %p")}'
-            })
-
-    # Check 7: Event date validation
-    if event_id:
-        event = db.session.get(Event, event_id)
-        if event:
-            event_start_date = event.start_datetime.date()
-            event_due_date = event.due_datetime.date()
-
-            if not (event_start_date <= parsed_date <= event_due_date):
-                conflicts.append({
-                    'type': 'date_out_of_range',
-                    'severity': 'error',
-                    'message': f'Selected date is outside event window',
-                    'detail': f'Event must be scheduled between {event_start_date.strftime("%Y-%m-%d")} and {event_due_date.strftime("%Y-%m-%d")}'
-                })
-
-    return jsonify({
-        'has_conflicts': len(conflicts) > 0,
-        'has_warnings': len(warnings) > 0,
-        'conflicts': conflicts,
-        'warnings': warnings,
-        'can_proceed': len(conflicts) == 0  # Can proceed if only warnings
-    })
+    except ValueError as e:
+        # Employee or event not found
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        # Log unexpected errors
+        current_app.logger.error(f"Error in check_scheduling_conflicts: {str(e)}")
+        return jsonify({'error': 'An error occurred during validation'}), 500
 
 
 def auto_schedule_supervisor_event(db, Event, Schedule, Employee, core_project_ref_num, core_date, core_employee_id):
@@ -457,6 +481,7 @@ def save_schedule():
     start_time = request.form.get('start_time')
     start_time_dropdown = request.form.get('start_time_dropdown')
     override_constraints = request.form.get('override_constraints') == 'true'
+    return_url = request.form.get('return_url')  # URL to return to after scheduling
 
     # Use dropdown time if available, otherwise use regular time input
     actual_start_time = start_time_dropdown if start_time_dropdown else start_time
@@ -597,6 +622,22 @@ def save_schedule():
 
             current_app.logger.info(f"Successfully submitted to Crossmark API")
 
+            # Extract the scheduled event ID from the API response
+            # First try the direct field, then fall back to response_data
+            scheduled_event_id = api_result.get('schedule_event_id')
+
+            if not scheduled_event_id:
+                response_data = api_result.get('response_data', {})
+                if response_data:
+                    scheduled_event_id = (
+                        response_data.get('scheduleEventID') or
+                        response_data.get('id') or
+                        response_data.get('scheduledEventId') or
+                        response_data.get('ID')
+                    )
+
+            current_app.logger.info(f"Extracted scheduled_event_id: {scheduled_event_id}")
+
         except Exception as api_error:
             current_app.logger.error(f"API submission error: {str(api_error)}")
             flash(f'Failed to submit to Crossmark API: {str(api_error)}', 'error')
@@ -606,7 +647,10 @@ def save_schedule():
         new_schedule = Schedule(
             event_ref_num=event.project_ref_num,
             employee_id=employee_id,
-            schedule_datetime=schedule_datetime
+            schedule_datetime=schedule_datetime,
+            external_id=str(scheduled_event_id) if scheduled_event_id else None,
+            last_synced=datetime.utcnow(),
+            sync_status='synced'
         )
         db.session.add(new_schedule)
 
@@ -647,7 +691,11 @@ def save_schedule():
 
         flash(action_message, 'success')
 
-        return redirect(url_for('main.dashboard'))
+        # Redirect back to the return URL if provided, otherwise to dashboard
+        if return_url:
+            return redirect(return_url)
+        else:
+            return redirect(url_for('main.unscheduled_events'))
 
     except Exception as e:
         db.session.rollback()

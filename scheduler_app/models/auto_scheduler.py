@@ -249,4 +249,36 @@ def create_auto_scheduler_models(db):
         def __repr__(self):
             return f'<ScheduleException {self.exception_date} {self.rotation_type}: {self.employee_id}>'
 
-    return RotationAssignment, PendingSchedule, SchedulerRunHistory, ScheduleException
+    class EventSchedulingOverride(db.Model):
+        """
+        Per-event override to control auto-scheduler behavior
+
+        Allows marking specific events as "do not auto-schedule" or changing
+        their scheduling priority. Useful for VIP events, complex events that
+        require manual assignment, or events with special requirements.
+
+        FR38: Scenario 8 - Auto-Scheduler Event Type Filtering
+        """
+        __tablename__ = 'event_scheduling_overrides'
+
+        id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+        event_ref_num = db.Column(
+            db.Integer,
+            db.ForeignKey('events.project_ref_num'),
+            nullable=False,
+            unique=True  # One override per event
+        )
+        allow_auto_schedule = db.Column(db.Boolean, nullable=False, default=True)
+        override_reason = db.Column(db.Text, nullable=True)
+        set_by = db.Column(db.String(100), nullable=True)
+        set_at = db.Column(db.DateTime, default=datetime.utcnow)
+        updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+        # Relationships
+        event = db.relationship('Event', backref='scheduling_override')
+
+        def __repr__(self):
+            status = "allowed" if self.allow_auto_schedule else "blocked"
+            return f'<EventSchedulingOverride Event {self.event_ref_num}: {status}>'
+
+    return RotationAssignment, PendingSchedule, SchedulerRunHistory, ScheduleException, EventSchedulingOverride

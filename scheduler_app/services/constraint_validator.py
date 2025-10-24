@@ -7,7 +7,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from services.validation_types import (
+from .validation_types import (
     ValidationResult,
     ConstraintViolation,
     ConstraintType,
@@ -61,7 +61,7 @@ class ConstraintValidator:
         self.current_run_id = run_id
 
     def validate_assignment(self, event: object, employee: object,
-                           schedule_datetime: datetime) -> ValidationResult:
+                           schedule_datetime: datetime, duration_minutes: int = None) -> ValidationResult:
         """
         Validate a proposed schedule assignment against all constraints
 
@@ -69,18 +69,23 @@ class ConstraintValidator:
             event: Event model instance
             employee: Employee model instance
             schedule_datetime: Proposed datetime for the event
+            duration_minutes: Event duration in minutes (uses event's duration if not provided)
 
         Returns:
             ValidationResult with is_valid flag and list of violations
         """
         result = ValidationResult(is_valid=True)
 
+        # Get duration from event if not provided
+        if duration_minutes is None:
+            duration_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+
         # Check all constraints
         self._check_time_off(employee, schedule_datetime, result)
         self._check_availability(employee, schedule_datetime, result)
         self._check_role_requirements(event, employee, result)
-        self._check_daily_limit(employee, schedule_datetime, result)
-        self._check_already_scheduled(employee, schedule_datetime, result)
+        self._check_daily_limit(event, employee, schedule_datetime, result)
+        self._check_already_scheduled(employee, schedule_datetime, duration_minutes, result)
         self._check_due_date(event, schedule_datetime, result)
 
         return result
@@ -163,9 +168,14 @@ class ConstraintValidator:
                 details={'event_type': event.event_type}
             ))
 
-    def _check_daily_limit(self, employee: object, schedule_datetime: datetime,
+    def _check_daily_limit(self, event: object, employee: object, schedule_datetime: datetime,
                           result: ValidationResult) -> None:
-        """Check if employee already has max core events for this day"""
+        """
+        Check if employee already has max core events for this day
+
+        Note: Juicer events are handled separately - if employee has Core event and needs to do Juicer,
+        the Core event will be bumped/unscheduled in Wave 1.
+        """
         target_date = schedule_datetime.date()
 
         # Count existing core events for this employee on this day
@@ -199,38 +209,75 @@ class ConstraintValidator:
             ))
 
     def _check_already_scheduled(self, employee: object, schedule_datetime: datetime,
-                                 result: ValidationResult) -> None:
-        """Check if employee already has a schedule at this exact datetime"""
-        # Check existing schedules
-        existing = self.db.query(self.Schedule).filter_by(
-            employee_id=employee.id,
-            schedule_datetime=schedule_datetime
-        ).first()
+                                 duration_minutes: int, result: ValidationResult) -> None:
+        """Check if employee already has a schedule that overlaps with the proposed time"""
+        from datetime import timedelta
 
-        if existing:
-            result.add_violation(ConstraintViolation(
-                constraint_type=ConstraintType.ALREADY_SCHEDULED,
-                message=f"Employee {employee.name} already scheduled at {schedule_datetime}",
-                severity=ConstraintSeverity.HARD,
-                details={'schedule_id': existing.id, 'datetime': str(schedule_datetime)}
-            ))
-            return
+        # Calculate proposed event's end time
+        proposed_end = schedule_datetime + timedelta(minutes=duration_minutes)
 
-        # Check pending schedules from current run
-        if self.current_run_id and self.PendingSchedule:
-            pending = self.db.query(self.PendingSchedule).filter_by(
-                scheduler_run_id=self.current_run_id,
-                employee_id=employee.id,
-                schedule_datetime=schedule_datetime
+        # Check existing schedules for overlaps
+        existing_schedules = self.db.query(self.Schedule).filter_by(
+            employee_id=employee.id
+        ).all()
+
+        for existing in existing_schedules:
+            # Get the existing event to determine its duration
+            existing_event = self.db.query(self.Event).filter_by(
+                project_ref_num=existing.event_ref_num
             ).first()
 
-            if pending:
-                result.add_violation(ConstraintViolation(
-                    constraint_type=ConstraintType.ALREADY_SCHEDULED,
-                    message=f"Employee {employee.name} already assigned at {schedule_datetime} in this run",
-                    severity=ConstraintSeverity.HARD,
-                    details={'pending_schedule_id': pending.id, 'datetime': str(schedule_datetime)}
-                ))
+            if existing_event:
+                existing_duration = existing_event.estimated_time or existing_event.get_default_duration(existing_event.event_type)
+                existing_end = existing.schedule_datetime + timedelta(minutes=existing_duration)
+
+                # Check if times overlap:
+                # Overlap if: (proposed_start < existing_end) AND (proposed_end > existing_start)
+                if schedule_datetime < existing_end and proposed_end > existing.schedule_datetime:
+                    result.add_violation(ConstraintViolation(
+                        constraint_type=ConstraintType.ALREADY_SCHEDULED,
+                        message=f"Employee {employee.name} already scheduled for {existing_event.project_name} from {existing.schedule_datetime.strftime('%I:%M %p')} to {existing_end.strftime('%I:%M %p')}",
+                        severity=ConstraintSeverity.HARD,
+                        details={
+                            'schedule_id': existing.id,
+                            'datetime': str(schedule_datetime),
+                            'conflicting_event': existing_event.project_name,
+                            'conflicting_time': f"{existing.schedule_datetime.strftime('%I:%M %p')} - {existing_end.strftime('%I:%M %p')}"
+                        }
+                    ))
+                    return  # Found a conflict, no need to check further
+
+        # Check pending schedules from current run for overlaps
+        if self.current_run_id and self.PendingSchedule:
+            pending_schedules = self.db.query(self.PendingSchedule).filter_by(
+                scheduler_run_id=self.current_run_id,
+                employee_id=employee.id
+            ).all()
+
+            for pending in pending_schedules:
+                # Get the pending event to determine its duration
+                pending_event = self.db.query(self.Event).filter_by(
+                    project_ref_num=pending.event_ref_num
+                ).first()
+
+                if pending_event:
+                    pending_duration = pending_event.estimated_time or pending_event.get_default_duration(pending_event.event_type)
+                    pending_end = pending.schedule_datetime + timedelta(minutes=pending_duration)
+
+                    # Check if times overlap
+                    if schedule_datetime < pending_end and proposed_end > pending.schedule_datetime:
+                        result.add_violation(ConstraintViolation(
+                            constraint_type=ConstraintType.ALREADY_SCHEDULED,
+                            message=f"Employee {employee.name} already assigned to {pending_event.project_name} from {pending.schedule_datetime.strftime('%I:%M %p')} to {pending_end.strftime('%I:%M %p')} in this run",
+                            severity=ConstraintSeverity.HARD,
+                            details={
+                                'pending_schedule_id': pending.id,
+                                'datetime': str(schedule_datetime),
+                                'conflicting_event': pending_event.project_name,
+                                'conflicting_time': f"{pending.schedule_datetime.strftime('%I:%M %p')} - {pending_end.strftime('%I:%M %p')}"
+                            }
+                        ))
+                        return  # Found a conflict, no need to check further
 
     def _check_due_date(self, event: object, schedule_datetime: datetime,
                        result: ValidationResult) -> None:

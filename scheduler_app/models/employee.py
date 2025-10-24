@@ -36,6 +36,7 @@ def create_employee_model(db):
         job_title = db.Column(db.String(50), nullable=False, default='Event Specialist')
         adult_beverage_trained = db.Column(db.Boolean, nullable=False, default=False)
         created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+        termination_date = db.Column(db.Date, nullable=True)  # FR34: Track employee termination date
 
         # Sync fields for API integration
         external_id = db.Column(db.String(100), unique=True)

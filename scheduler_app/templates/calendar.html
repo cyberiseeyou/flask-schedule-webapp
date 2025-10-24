@@ -6,27 +6,31 @@
 {% block extra_head %}
 <style>
     .calendar-container {
-        max-width: 1200px;
-        margin: 0 auto;
+        width: 100%;
+        margin: 0;
+        padding: 0;
     }
     
     .calendar-header {
         display: flex;
-        justify-content: space-between;
+        justify-content: center;
         align-items: center;
         margin-bottom: var(--spacing-lg);
         padding: var(--spacing-md);
         background: var(--bg-secondary);
         border-radius: var(--border-radius-md);
         border: 1px solid rgba(46, 76, 115, 0.1);
+        position: relative;
     }
-    
+
     .calendar-nav {
+        position: absolute;
+        left: var(--spacing-md);
         display: flex;
         align-items: center;
         gap: var(--spacing-md);
     }
-    
+
     .month-nav {
         display: flex;
         align-items: center;
@@ -65,12 +69,14 @@
     
     .calendar-day {
         background: var(--bg-primary);
-        min-height: 120px;
+        min-height: 140px;
         padding: var(--spacing-xs);
         cursor: pointer;
         transition: all 0.2s ease;
         position: relative;
         border: 2px solid transparent;
+        display: flex;
+        flex-direction: column;
     }
     
     .calendar-day:hover {
@@ -96,47 +102,75 @@
         font-weight: var(--font-weight-bold);
         color: var(--text-primary);
         margin-bottom: var(--spacing-xs);
+        font-size: 1.1rem;
     }
-    
+
     .day-events {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+        gap: 4px;
+        padding: 4px 0;
     }
-    
-    .event-dot {
-        height: 6px;
-        border-radius: 3px;
-        margin-bottom: 2px;
-        opacity: 0.8;
-    }
-    
-    .event-preview {
-        font-size: 10px;
-        background: var(--secondary-color);
-        color: var(--text-white);
-        padding: 1px 4px;
-        border-radius: var(--border-radius-sm);
-        margin-bottom: 1px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    .events-count {
-        position: absolute;
-        top: 2px;
-        right: 4px;
-        background: var(--primary-color);
-        color: var(--text-white);
-        border-radius: 50%;
-        width: 18px;
-        height: 18px;
+
+    .event-badge {
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 10px;
+        border-radius: var(--border-radius-sm);
+        font-size: 0.75rem;
         font-weight: var(--font-weight-bold);
+        color: var(--text-white);
+        padding: 4px;
+        min-height: 28px;
+        position: relative;
+    }
+
+    .event-badge.badge-core {
+        background: #dc3545;
+    }
+
+    .event-badge.badge-juicer {
+        background: #28a745;
+    }
+
+    .event-badge.badge-supervisor {
+        background: #6610f2;
+    }
+
+    .event-badge.badge-freeosk {
+        background: #fd7e14;
+    }
+
+    .event-badge.badge-digitals {
+        background: #007bff;
+    }
+
+    .event-badge.badge-other {
+        background: #6c757d;
+    }
+
+    .event-badge.empty {
+        background: transparent;
+        border: 1px dashed rgba(46, 76, 115, 0.2);
+        color: transparent;
+    }
+
+    .unscheduled-warning {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 1.2rem;
+        color: #ffc107;
+        text-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .unscheduled-warning:hover {
+        transform: scale(1.2);
     }
     
     /* Day Detail Modal */
@@ -357,25 +391,153 @@
     .hidden {
         display: none !important;
     }
+
+    /* Calendar Legend */
+    .calendar-legend {
+        background: var(--bg-primary);
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-lg);
+        border: 1px solid rgba(46, 76, 115, 0.1);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .legend-title {
+        font-size: var(--font-size-body);
+        font-weight: var(--font-weight-bold);
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-sm);
+        text-align: center;
+    }
+
+    .legend-content {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: var(--spacing-lg);
+        flex-wrap: wrap;
+    }
+
+    .legend-section {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        font-size: var(--font-size-small);
+    }
+
+    .legend-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 24px;
+        border-radius: var(--border-radius-sm);
+        font-size: 0.7rem;
+        font-weight: var(--font-weight-bold);
+        color: var(--text-white);
+        padding: 2px 6px;
+    }
+
+    .legend-separator {
+        width: 1px;
+        height: 24px;
+        background: rgba(46, 76, 115, 0.2);
+    }
+
+    .legend-symbol {
+        font-size: 1.2rem;
+    }
+
+    /* Legend Badge Colors */
+    .legend-badge.badge-core {
+        background: #dc3545;
+    }
+
+    .legend-badge.badge-juicer {
+        background: #28a745;
+    }
+
+    .legend-badge.badge-supervisor {
+        background: #6610f2;
+    }
+
+    .legend-badge.badge-freeosk {
+        background: #fd7e14;
+    }
+
+    .legend-badge.badge-digitals {
+        background: #007bff;
+    }
+
+    .legend-badge.badge-other {
+        background: #6c757d;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-    <!-- Page Header -->
-    <div class="page-header" style="text-align: center; margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-md); border-bottom: 2px solid var(--pc-light-blue);">
-        <h1 class="page-title" style="font-size: var(--font-size-h1); font-weight: var(--font-weight-heading); color: var(--pc-navy); margin: 0; letter-spacing: -0.02em;">Calendar</h1>
-    </div>
-
     <div class="calendar-container">
+        <!-- Calendar Legend -->
+        <div class="calendar-legend">
+            <div class="legend-title">Calendar Key</div>
+            <div class="legend-content">
+                <!-- Event Type Badges -->
+                <div class="legend-section">
+                    <div class="legend-item">
+                        <span class="legend-badge badge-core">C</span>
+                        <span>Core</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-badge badge-juicer">J</span>
+                        <span>Juicer</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-badge badge-supervisor">S</span>
+                        <span>Supervisor</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-badge badge-freeosk">F</span>
+                        <span>Freeosk</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-badge badge-digitals">D</span>
+                        <span>Digitals</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-badge badge-other">O</span>
+                        <span>Other</span>
+                    </div>
+                </div>
+
+                <!-- Separator -->
+                <div class="legend-separator"></div>
+
+                <!-- Symbols -->
+                <div class="legend-section">
+                    <div class="legend-item">
+                        <span class="legend-symbol">⚠️</span>
+                        <span><strong>Unscheduled Events:</strong> This symbol means there are events that are not scheduled whose due date is on this day. This means that the event must be completed prior to the date with the symbol.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Calendar Header -->
         <div class="calendar-header">
+            <div class="calendar-nav">
+                <button class="btn btn-secondary" onclick="goToToday()">Today</button>
+            </div>
             <div class="month-nav">
                 <button class="btn btn-outline" onclick="changeMonth(-1)">‹ Previous</button>
                 <h2 class="month-title" id="month-title">{{ selected_date.strftime('%B %Y') }}</h2>
                 <button class="btn btn-outline" onclick="changeMonth(1)">Next ›</button>
-            </div>
-            <div class="calendar-nav">
-                <button class="btn btn-secondary" onclick="goToToday()">Today</button>
             </div>
         </div>
 
@@ -553,7 +715,9 @@
 <script>
     let currentDate = new Date('{{ selected_date.strftime('%Y-%m-%d') }}');
     let eventsData = {{ events_by_date | tojson }};
-    
+    let eventCountsData = {{ event_counts_by_date | tojson }};
+    let unscheduledData = {{ unscheduled_by_date | tojson }};
+
     // Initialize calendar
     document.addEventListener('DOMContentLoaded', function() {
         generateCalendar();
@@ -604,22 +768,53 @@
             
             // Check if day has events
             const dayEvents = eventsData[dayStr] || [];
+            const eventCounts = eventCountsData[dayStr] || {
+                'Core': 0, 'Juicer': 0, 'Supervisor': 0,
+                'Freeosk': 0, 'Digitals': 0, 'Other': 0
+            };
+            const unscheduledCount = unscheduledData[dayStr] || 0;
+
             if (dayEvents.length > 0) {
                 dayElement.classList.add('has-events');
             }
-            
+
+            // Build badge grid HTML
+            const badges = [
+                { label: 'C', count: eventCounts.Core, class: 'badge-core' },
+                { label: 'S', count: eventCounts.Supervisor, class: 'badge-supervisor' },
+                { label: 'J', count: eventCounts.Juicer, class: 'badge-juicer' },
+                { label: 'F', count: eventCounts.Freeosk, class: 'badge-freeosk' },
+                { label: 'D', count: eventCounts.Digitals, class: 'badge-digitals' },
+                { label: 'O', count: eventCounts.Other, class: 'badge-other' }
+            ];
+
+            const badgesHtml = badges.map(badge => {
+                const isEmpty = badge.count === 0;
+                const classes = isEmpty ? 'event-badge empty' : `event-badge ${badge.class}`;
+                const content = isEmpty ? '' : `${badge.label} | ${badge.count}`;
+                return `<div class="${classes}">${content}</div>`;
+            }).join('');
+
             dayElement.innerHTML = `
+                ${unscheduledCount > 0 ? `<div class="unscheduled-warning" data-date="${dayStr}" title="${unscheduledCount} unscheduled event(s)">⚠️</div>` : ''}
                 <div class="day-number">${dayDate.getDate()}</div>
                 <div class="day-events">
-                    ${dayEvents.slice(0, 3).map(event => 
-                        `<div class="event-preview">${event.time}</div>`
-                    ).join('')}
+                    ${badgesHtml}
                 </div>
-                ${dayEvents.length > 3 ? `<div class="events-count">${dayEvents.length}</div>` : ''}
             `;
-            
+
+            // Add click handler for the warning symbol if it exists
+            if (unscheduledCount > 0) {
+                const warningSymbol = dayElement.querySelector('.unscheduled-warning');
+                warningSymbol.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent day click event
+                    const date = this.dataset.date;
+                    window.location.href = `/unscheduled?due_date=${date}`;
+                });
+            }
+
             dayElement.addEventListener('click', function() {
-                showDayDetail(dayStr);
+                window.location.href = `/schedule/daily/${dayStr}`;
             });
             
             grid.appendChild(dayElement);
@@ -636,9 +831,8 @@
     
     function goToToday() {
         const today = new Date();
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('date', today.toISOString().split('T')[0]);
-        window.location.href = newUrl.toString();
+        const todayStr = today.toISOString().split('T')[0];
+        window.location.href = `/schedule/daily/${todayStr}`;
     }
     
     function showDayDetail(dateStr) {
@@ -656,12 +850,24 @@
             .then(data => {
                 // Store the current day's data for printing
                 currentDayData = data;
-                
-                title.textContent = data.formatted_date;
-                
+
+                // Build title with Primary Lead and Juicer info
+                let titleHtml = `<div>${data.formatted_date}</div>`;
+                if (data.primary_lead || data.juicer) {
+                    titleHtml += '<div style="font-size: 0.9rem; color: var(--text-muted); margin-top: var(--spacing-xs);">';
+                    if (data.primary_lead) {
+                        titleHtml += `<span style="margin-right: var(--spacing-md);">👔 Primary Lead: <strong>${data.primary_lead}</strong></span>`;
+                    }
+                    if (data.juicer) {
+                        titleHtml += `<span>🧃 Juicer: <strong>${data.juicer}</strong></span>`;
+                    }
+                    titleHtml += '</div>';
+                }
+                title.innerHTML = titleHtml;
+
                 // Update event statistics
                 updateEventStatistics(data.events);
-                
+
                 if (data.events.length === 0) {
                     eventsList.innerHTML = '<div class="no-events">No events scheduled for this day</div>';
                 } else {
@@ -674,6 +880,7 @@
                                 <span>👤 ${event.employee_name}</span>
                                 ${event.store_name ? `<span>🏪 ${event.store_name}</span>` : ''}
                                 ${event.estimated_time ? `<span>⏱️ ${event.estimated_time} min</span>` : ''}
+                                ${event.supervisor_name ? `<span style="color: #6610f2; font-weight: bold;">👨‍💼 Supervisor: ${event.supervisor_name} (${event.supervisor_time})</span>` : ''}
                             </div>
                             <div class="event-dates" style="font-size: var(--font-size-small); color: var(--text-muted); margin-top: var(--spacing-xs); display: flex; gap: var(--spacing-md);">
                                 <span>📅 Start: ${event.start_date}</span>
@@ -1286,15 +1493,15 @@
             return;
         }
         
-        fetch('/api/reschedule_event', {
+        fetch('/api/reschedule', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 schedule_id: parseInt(scheduleId),
-                date: date,
-                time: time,
+                new_date: date,
+                new_time: time,
                 employee_id: employeeId
             })
         })

@@ -49,3 +49,38 @@ def auto_scheduler_guide():
 def review_approve():
     """Display review and approval workflow guide"""
     return render_template('help/review_approve.html')
+
+
+@help_bp.route('/daily-validation')
+@require_authentication()
+def daily_validation():
+    """Display daily validation dashboard guide"""
+    return render_template('help/daily_validation.html')
+
+
+@help_bp.route('/printing-reports')
+@require_authentication()
+def printing_reports():
+    """Display printing and reports guide"""
+    return render_template('help/printing_reports.html')
+
+
+@help_bp.route('/edr-sync')
+@require_authentication()
+def edr_sync():
+    """Display EDR sync and paperwork generation guide"""
+    return render_template('help/edr_sync.html')
+
+
+@help_bp.route('/attendance')
+@require_authentication()
+def attendance():
+    """Display attendance tracking and time off management guide"""
+    return render_template('help/attendance.html')
+
+
+@help_bp.route('/workload-analytics')
+@require_authentication()
+def workload_analytics():
+    """Display workload analytics and performance dashboard guide"""
+    return render_template('help/workload_analytics.html')

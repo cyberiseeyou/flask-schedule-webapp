@@ -56,14 +56,52 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production configuration"""
+    """Production configuration with enterprise security features"""
     DEBUG = False
     TESTING = False
-    # Production should always use environment variables for sensitive data
-    # Using default values to prevent import errors, will be validated at runtime
+
+    # Security - Production should always use environment variables for sensitive data
     SECRET_KEY = config('SECRET_KEY', default='prod-secret-key-must-be-set')
     EXTERNAL_API_USERNAME = config('EXTERNAL_API_USERNAME', default='')
     EXTERNAL_API_PASSWORD = config('EXTERNAL_API_PASSWORD', default='')
+
+    # Session Security
+    SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=True, cast=bool)
+    SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
+    SESSION_COOKIE_SAMESITE = config('SESSION_COOKIE_SAMESITE', default='Lax')
+    PERMANENT_SESSION_LIFETIME = config('PERMANENT_SESSION_LIFETIME', default=3600, cast=int)
+
+    # CSRF Protection
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = config('WTF_CSRF_TIME_LIMIT', default=3600, cast=int)
+
+    # Database Connection Pool (for production databases)
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': config('DB_POOL_SIZE', default=10, cast=int),
+        'pool_recycle': config('DB_POOL_RECYCLE', default=3600, cast=int),
+        'pool_pre_ping': True,
+        'max_overflow': config('DB_MAX_OVERFLOW', default=20, cast=int),
+    }
+
+    # Security Headers
+    SECURITY_HEADERS = {
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN',
+        'X-XSS-Protection': '1; mode=block',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    }
+
+    # Rate Limiting
+    RATELIMIT_ENABLED = config('RATELIMIT_ENABLED', default=True, cast=bool)
+    RATELIMIT_DEFAULT = config('RATELIMIT_DEFAULT', default='100 per hour')
+
+    # Logging
+    LOG_LEVEL = config('LOG_LEVEL', default='WARNING')
+    LOG_FORMAT = 'json'  # JSON format for production logging
+
+    # Performance
+    SEND_FILE_MAX_AGE_DEFAULT = config('SEND_FILE_MAX_AGE_DEFAULT', default=31536000, cast=int)
 
 
 # Configuration mapping
