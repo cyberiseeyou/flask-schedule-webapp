@@ -3289,6 +3289,9 @@ def reissue_event():
         if not session_api.ensure_authenticated():
             return jsonify({'error': 'Failed to authenticate with external system'}), 500
 
+        # Get the employee's external ID (rep ID in Crossmark system)
+        rep_id = employee.external_id if employee.external_id else employee.id
+
         # Prepare reissue data matching the curl command structure
         reissue_data = {
             'workLogEntryID': '',  # Empty for reissue
@@ -3302,22 +3305,32 @@ def reissue_event():
             'excludeReps': 'false',
             'excludedRepIDs': '[]',
             'overrideReps': 'true',
-            'overriddenRepIDs': f'[{employee.id}]',  # Use employee ID
+            'overriddenRepIDs': f'[{rep_id}]',  # Use external rep ID
             'expirationDate': expiration_date.strftime('%Y-%m-%dT00:00:00'),
             'additionalEmail': ''
         }
 
+        logger.info(f"Reissue request data: storeID={reissue_data['storeID']}, mPlanID={reissue_data['mPlanID']}, repID={rep_id}, includeResponses={reissue_data['includeResponses']}, expirationDate={reissue_data['expirationDate']}")
+
         # Make the reissue request
         try:
+            # Build headers matching the curl command
+            request_headers = {
+                'accept': '*/*',
+                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'origin': 'https://crossmark.mvretail.com',
+                'referer': 'https://crossmark.mvretail.com/planning/',
+                'x-requested-with': 'XMLHttpRequest'
+            }
+
             response = session_api.make_request(
                 'POST',
                 '/pendingworkextcontroller/createPendingWork/',
                 data=reissue_data,
-                headers={
-                    'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'x-requested-with': 'XMLHttpRequest'
-                }
+                headers=request_headers
             )
+
+            logger.info(f"Reissue API response: status={response.status_code}, body={response.text[:500]}")
 
             if response.status_code == 200:
                 # Update event condition to Reissued
