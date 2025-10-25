@@ -3292,8 +3292,8 @@ def reissue_event():
         # Prepare reissue data matching the curl command structure
         reissue_data = {
             'workLogEntryID': '',  # Empty for reissue
-            'storeID': event.store_id or '',
-            'mPlanID': event.mplan_id or '',
+            'storeID': str(event.store_number) if event.store_number else '',
+            'mPlanID': str(event.project_ref_num) if event.project_ref_num else '',
             'reissueBulkJson': '[]',  # Empty array for single reissue
             'action': 'reissue',
             'includeResponses': 'true' if include_responses else 'false',
@@ -3302,7 +3302,7 @@ def reissue_event():
             'excludeReps': 'false',
             'excludedRepIDs': '[]',
             'overrideReps': 'true',
-            'overriddenRepIDs': f'[{employee.rep_id or employee_id}]',  # Use rep_id if available
+            'overriddenRepIDs': f'[{employee.id}]',  # Use employee ID
             'expirationDate': expiration_date.strftime('%Y-%m-%dT00:00:00'),
             'additionalEmail': ''
         }
