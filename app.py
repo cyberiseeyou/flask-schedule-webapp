@@ -98,6 +98,9 @@ app.config['RotationAssignment'] = RotationAssignment
 app.config['PendingSchedule'] = PendingSchedule
 app.config['SchedulerRunHistory'] = SchedulerRunHistory
 app.config['ScheduleException'] = ScheduleException
+
+# Make external API service available
+app.config['SESSION_API_SERVICE'] = external_api
 app.config['SystemSetting'] = SystemSetting
 app.config['AuditLog'] = AuditLog
 app.config['AuditNotificationSettings'] = AuditNotificationSettings
