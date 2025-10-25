@@ -330,7 +330,11 @@
             <td>
                 <button
                     class="btn-reissue"
-                    onclick="openReissueModal({{ item.schedule.id }}, '{{ item.event.project_name }}', {{ item.employee.id }}, '{{ item.employee.name }}', '{{ (item.event.due_datetime + timedelta(days=1)).strftime('%Y-%m-%d') }}')"
+                    data-schedule-id="{{ item.schedule.id }}"
+                    data-event-name="{{ item.event.project_name|escape }}"
+                    data-employee-id="{{ item.employee.id }}"
+                    data-employee-name="{{ item.employee.name|escape }}"
+                    data-expiration-date="{{ (item.event.due_datetime + timedelta(days=1)).strftime('%Y-%m-%d') }}"
                 >
                     Reissue
                 </button>
@@ -393,10 +397,26 @@
 
 {% endblock %}
 
-{% block extra_scripts %}
+{% block scripts %}
 <script>
 let currentScheduleId = null;
 let currentEmployeeId = null;
+
+// Add event listeners to all reissue buttons when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const reissueButtons = document.querySelectorAll('.btn-reissue');
+    reissueButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const scheduleId = this.dataset.scheduleId;
+            const eventName = this.dataset.eventName;
+            const employeeId = this.dataset.employeeId;
+            const employeeName = this.dataset.employeeName;
+            const expirationDate = this.dataset.expirationDate;
+
+            openReissueModal(scheduleId, eventName, employeeId, employeeName, expirationDate);
+        });
+    });
+});
 
 function openReissueModal(scheduleId, eventName, employeeId, employeeName, expirationDate) {
     currentScheduleId = scheduleId;
