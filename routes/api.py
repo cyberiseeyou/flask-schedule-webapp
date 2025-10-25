@@ -3218,7 +3218,7 @@ def get_available_employees():
 
 
 @api_bp.route('/reissue-event', methods=['POST'])
-@require_authentication
+@require_authentication()
 def reissue_event():
     """
     Reissue an event to Crossmark system
