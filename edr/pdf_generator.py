@@ -44,15 +44,10 @@ except ImportError as e:
 # Import report generator and constants
 from .report_generator import EDRReportGenerator
 
-# Import mapping files
-mappings_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'mappings')
-if mappings_path not in sys.path:
-    sys.path.insert(0, mappings_path)
-
+# Import mapping data from constants module
 try:
-    from demo_class_codes import DEMO_CLASS_CODES
-    from event_status_codes import EVENT_STATUS_CODES
-    from department_codes import DEPARTMENT_CODES
+    from constants import DEMO_CLASS_CODES, EVENT_STATUS_CODES, DEPARTMENT_CODES
+    logging.info("✓ Mapping constants loaded successfully")
 except ImportError as e:
     logging.warning(f"Could not import mapping files: {e}")
     DEMO_CLASS_CODES = ([], )  # Tuple with empty list to match expected format
