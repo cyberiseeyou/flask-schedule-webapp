@@ -2656,7 +2656,8 @@ def generate_daily_paperwork():
         models_dict = {
             'Event': current_app.config['Event'],
             'Schedule': current_app.config['Schedule'],
-            'Employee': current_app.config['Employee']
+            'Employee': current_app.config['Employee'],
+            'PaperworkTemplate': current_app.config['PaperworkTemplate']
         }
 
         # Get authenticated SessionAPIService for downloading SalesTools

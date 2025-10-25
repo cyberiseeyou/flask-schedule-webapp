@@ -30,7 +30,7 @@ def get_templates():
     Get all paperwork templates ordered by display_order
 
     Returns:
-        JSON: List of templates with their properties
+        JSON: List of templates with their properties including file_exists status
     """
     try:
         db = current_app.extensions['sqlalchemy']
@@ -38,9 +38,20 @@ def get_templates():
 
         templates = PaperworkTemplate.query.order_by(PaperworkTemplate.display_order).all()
 
+        # Get docs directory path
+        docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs')
+
+        # Add file_exists flag to each template
+        templates_with_status = []
+        for template in templates:
+            template_dict = template.to_dict()
+            template_path = os.path.join(docs_dir, template.file_path)
+            template_dict['file_exists'] = os.path.exists(template_path)
+            templates_with_status.append(template_dict)
+
         return jsonify({
             'success': True,
-            'templates': [template.to_dict() for template in templates]
+            'templates': templates_with_status
         })
 
     except Exception as e:

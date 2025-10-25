@@ -34,8 +34,28 @@
                     <ul class="text-muted small">
                         <li>Daily Schedule</li>
                         <li>Daily Item List</li>
-                        <li>For each event: EDR, Instructions, Activity Log, and Checkoff Sheet</li>
+                        <li>For each Core event: EDR, Instructions, and active templates</li>
                     </ul>
+
+                    <!-- Active Templates Preview -->
+                    <div class="alert alert-info" id="templates-preview-section" style="display: none;">
+                        <h6 class="mb-2"><i class="fas fa-file-pdf"></i> Active Templates (included for each Core event):</h6>
+                        <ul id="active-templates-list" class="mb-2 small"></ul>
+                        <a href="{{ url_for('main.settings') }}#paperwork-templates" class="small">Manage Templates in Settings</a>
+                    </div>
+
+                    <div class="alert alert-warning" id="no-templates-warning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>No templates configured.</strong>
+                        Only EDR and Instructions will be included for each event.
+                        <a href="{{ url_for('main.settings') }}#paperwork-templates">Add templates in Settings</a>
+                    </div>
+
+                    <div class="alert alert-danger" id="missing-files-warning" style="display: none;">
+                        <i class="fas fa-exclamation-circle"></i> <strong>Warning:</strong> Some template files are missing.
+                        <span id="missing-files-list"></span>
+                        <a href="{{ url_for('main.settings') }}#paperwork-templates">Fix in Settings</a>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <label for="complete-paperwork-date" class="form-label">Select Date</label>
@@ -2493,6 +2513,48 @@ function generateCompletePaperworkAfterAuth(date) {
             alert('Error generating complete paperwork: ' + (error.message || error.error || error));
         });
 }
+
+// Load and display active templates on page load
+function loadActiveTemplates() {
+    fetch('/api/paperwork-templates/')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Failed to load templates:', data.error);
+                return;
+            }
+
+            const activeTemplates = data.templates.filter(t => t.is_active);
+            const missingFiles = data.templates.filter(t => t.is_active && !t.file_exists);
+
+            // Show appropriate alert
+            if (activeTemplates.length === 0) {
+                document.getElementById('no-templates-warning').style.display = 'block';
+            } else {
+                // Show active templates list
+                const list = document.getElementById('active-templates-list');
+                list.innerHTML = activeTemplates.map(t => {
+                    const icon = t.file_exists ? '✓' : '⚠';
+                    const style = t.file_exists ? '' : 'color: red;';
+                    return `<li style="${style}">${icon} ${t.name}</li>`;
+                }).join('');
+                document.getElementById('templates-preview-section').style.display = 'block';
+
+                // Show missing files warning if any
+                if (missingFiles.length > 0) {
+                    const missingList = missingFiles.map(t => t.name).join(', ');
+                    document.getElementById('missing-files-list').textContent = missingList;
+                    document.getElementById('missing-files-warning').style.display = 'block';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading templates:', error);
+        });
+}
+
+// Call on page load
+document.addEventListener('DOMContentLoaded', loadActiveTemplates);
 
 function generateEventPaperwork() {
     const eventNumber = document.getElementById('event-paperwork-number').value.trim();
