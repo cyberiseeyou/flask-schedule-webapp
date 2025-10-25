@@ -41,19 +41,19 @@
                     <div class="alert alert-info" id="templates-preview-section" style="display: none;">
                         <h6 class="mb-2"><i class="fas fa-file-pdf"></i> Active Templates (included for each Core event):</h6>
                         <ul id="active-templates-list" class="mb-2 small"></ul>
-                        <a href="{{ url_for('main.settings') }}#paperwork-templates" class="small">Manage Templates in Settings</a>
+                        <a href="{{ url_for('admin.settings_page') }}#paperwork-templates" class="small">Manage Templates in Settings</a>
                     </div>
 
                     <div class="alert alert-warning" id="no-templates-warning" style="display: none;">
                         <i class="fas fa-exclamation-triangle"></i> <strong>No templates configured.</strong>
                         Only EDR and Instructions will be included for each event.
-                        <a href="{{ url_for('main.settings') }}#paperwork-templates">Add templates in Settings</a>
+                        <a href="{{ url_for('admin.settings_page') }}#paperwork-templates">Add templates in Settings</a>
                     </div>
 
                     <div class="alert alert-danger" id="missing-files-warning" style="display: none;">
                         <i class="fas fa-exclamation-circle"></i> <strong>Warning:</strong> Some template files are missing.
                         <span id="missing-files-list"></span>
-                        <a href="{{ url_for('main.settings') }}#paperwork-templates">Fix in Settings</a>
+                        <a href="{{ url_for('admin.settings_page') }}#paperwork-templates">Fix in Settings</a>
                     </div>
 
                     <div class="row">
