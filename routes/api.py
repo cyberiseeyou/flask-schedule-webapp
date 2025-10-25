@@ -3292,10 +3292,13 @@ def reissue_event():
         # Get the employee's external ID (rep ID in Crossmark system)
         rep_id = employee.external_id if employee.external_id else employee.id
 
+        # Get store ID from store_number or location_mvid
+        store_id = str(event.store_number) if event.store_number else (str(event.location_mvid) if event.location_mvid else '')
+
         # Prepare reissue data matching the curl command structure
         reissue_data = {
             'workLogEntryID': '',  # Empty for reissue
-            'storeID': str(event.store_number) if event.store_number else '',
+            'storeID': store_id,
             'mPlanID': str(event.project_ref_num) if event.project_ref_num else '',
             'reissueBulkJson': '[]',  # Empty array for single reissue
             'action': 'reissue',
@@ -3310,6 +3313,8 @@ def reissue_event():
             'additionalEmail': ''
         }
 
+        # Log the request data
+        print(f"[REISSUE] Request data: storeID={reissue_data['storeID']}, mPlanID={reissue_data['mPlanID']}, repID={rep_id}, includeResponses={reissue_data['includeResponses']}, expirationDate={reissue_data['expirationDate']}")
         logger.info(f"Reissue request data: storeID={reissue_data['storeID']}, mPlanID={reissue_data['mPlanID']}, repID={rep_id}, includeResponses={reissue_data['includeResponses']}, expirationDate={reissue_data['expirationDate']}")
 
         # Make the reissue request
@@ -3330,6 +3335,9 @@ def reissue_event():
                 headers=request_headers
             )
 
+            # Log the response
+            print(f"[REISSUE] API response: status={response.status_code}")
+            print(f"[REISSUE] Response body: {response.text[:500]}")
             logger.info(f"Reissue API response: status={response.status_code}, body={response.text[:500]}")
 
             if response.status_code == 200:
