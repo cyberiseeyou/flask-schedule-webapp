@@ -3217,6 +3217,149 @@ def get_available_employees():
         }), 500
 
 
+@api_bp.route('/reissue-event', methods=['POST'])
+@require_authentication
+def reissue_event():
+    """
+    Reissue an event to Crossmark system
+
+    Request JSON:
+    {
+        "schedule_id": int,         # Schedule ID to reissue
+        "employee_id": int,         # Employee ID (defaults to currently scheduled employee)
+        "include_responses": bool,  # Include previous responses (default: false)
+        "expiration_date": str      # Optional expiration date (YYYY-MM-DD)
+    }
+
+    Returns:
+        JSON response with success status and message
+    """
+    try:
+        data = request.get_json()
+        schedule_id = data.get('schedule_id')
+        employee_id = data.get('employee_id')
+        include_responses = data.get('include_responses', False)
+        expiration_date_str = data.get('expiration_date')
+
+        if not schedule_id:
+            return jsonify({'error': 'schedule_id is required'}), 400
+
+        # Get models
+        db = current_app.extensions['sqlalchemy']
+        Schedule = current_app.config['Schedule']
+        Event = current_app.config['Event']
+        Employee = current_app.config['Employee']
+
+        # Get the schedule
+        schedule = db.session.query(Schedule).filter_by(id=schedule_id).first()
+        if not schedule:
+            return jsonify({'error': 'Schedule not found'}), 404
+
+        # Get the event
+        event = db.session.query(Event).filter_by(
+            project_ref_num=schedule.event_ref_num
+        ).first()
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+
+        # Get employee (use provided or default to scheduled employee)
+        if not employee_id:
+            employee_id = schedule.employee_id
+
+        employee = db.session.query(Employee).filter_by(id=employee_id).first()
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+
+        # Parse expiration date or use event due date + 1 day
+        if expiration_date_str:
+            try:
+                expiration_date = datetime.strptime(expiration_date_str, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid expiration_date format. Use YYYY-MM-DD'}), 400
+        else:
+            # Default to due date + 1 day
+            expiration_date = event.due_datetime + timedelta(days=1)
+
+        # Get SessionAPIService instance
+        session_api = current_app.config.get('SESSION_API_SERVICE')
+        if not session_api:
+            return jsonify({'error': 'External API service not configured'}), 500
+
+        # Ensure authenticated
+        if not session_api.ensure_authenticated():
+            return jsonify({'error': 'Failed to authenticate with external system'}), 500
+
+        # Prepare reissue data matching the curl command structure
+        reissue_data = {
+            'workLogEntryID': '',  # Empty for reissue
+            'storeID': event.store_id or '',
+            'mPlanID': event.mplan_id or '',
+            'reissueBulkJson': '[]',  # Empty array for single reissue
+            'action': 'reissue',
+            'includeResponses': 'true' if include_responses else 'false',
+            'pendingWorkReasonComments': '',
+            'public': 'true',
+            'excludeReps': 'false',
+            'excludedRepIDs': '[]',
+            'overrideReps': 'true',
+            'overriddenRepIDs': f'[{employee.rep_id or employee_id}]',  # Use rep_id if available
+            'expirationDate': expiration_date.strftime('%Y-%m-%dT00:00:00'),
+            'additionalEmail': ''
+        }
+
+        # Make the reissue request
+        try:
+            response = session_api.make_request(
+                'POST',
+                '/pendingworkextcontroller/createPendingWork/',
+                data=reissue_data,
+                headers={
+                    'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'x-requested-with': 'XMLHttpRequest'
+                }
+            )
+
+            if response.status_code == 200:
+                # Update event condition to Reissued
+                event.condition = 'Reissued'
+
+                # Update schedule if employee changed
+                if employee_id != schedule.employee_id:
+                    schedule.employee_id = employee_id
+
+                db.session.commit()
+
+                logger.info(f"Successfully reissued event {event.project_name} (ID: {event.id}) to {employee.name}")
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully reissued {event.project_name} to {employee.name}',
+                    'event_id': event.id,
+                    'employee_name': employee.name
+                }), 200
+            else:
+                logger.error(f"Reissue failed: {response.status_code} - {response.text}")
+                return jsonify({
+                    'error': 'Failed to reissue event',
+                    'details': response.text
+                }), 500
+
+        except Exception as api_error:
+            logger.error(f"API request failed: {api_error}", exc_info=True)
+            return jsonify({
+                'error': 'Failed to communicate with external system',
+                'details': str(api_error)
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Failed to reissue event: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'error': 'Failed to reissue event',
+            'details': str(e)
+        }), 500
+
+
 # Register modular API endpoint routes
 # Priority 3: Workflow Gaps - FR32, FR34, FR38
 register_availability_override_routes(api_bp)  # FR32: Temporary Availability Change

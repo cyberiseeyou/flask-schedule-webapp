@@ -543,7 +543,8 @@ def unreported_events():
 
     return render_template('unreported_events.html',
                          unreported_events=unreported_with_days,
-                         total_count=len(unreported_with_days))
+                         total_count=len(unreported_with_days),
+                         timedelta=timedelta)
 
 
 @main_bp.route('/calendar')

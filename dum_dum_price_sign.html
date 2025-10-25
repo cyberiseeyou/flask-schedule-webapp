@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dum Dum Pops Price Sign</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 8.5in;
+            height: 11in;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial Black', Arial, sans-serif;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 50%, #6bcf7f 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative circles */
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.2;
+        }
+
+        .circle1 {
+            width: 200px;
+            height: 200px;
+            background: #fff;
+            top: -50px;
+            left: -50px;
+        }
+
+        .circle2 {
+            width: 150px;
+            height: 150px;
+            background: #fff;
+            bottom: 50px;
+            right: 50px;
+        }
+
+        .circle3 {
+            width: 100px;
+            height: 100px;
+            background: #fff;
+            top: 200px;
+            right: 100px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 30px;
+            padding: 60px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 90%;
+            position: relative;
+            z-index: 1;
+            border: 8px solid #ff1744;
+        }
+
+        .product-name {
+            font-size: 72px;
+            font-weight: 900;
+            color: #ff1744;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+        }
+
+        .product-subtitle {
+            font-size: 42px;
+            color: #333;
+            margin-bottom: 40px;
+            font-weight: 700;
+        }
+
+        .price-main {
+            font-size: 180px;
+            font-weight: 900;
+            color: #ff1744;
+            line-height: 1;
+            margin: 30px 0;
+            text-shadow: 4px 4px 0px rgba(255,23,68,0.2);
+        }
+
+        .dollar-sign {
+            font-size: 120px;
+            vertical-align: super;
+        }
+
+        .price-details {
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 5px solid #ff1744;
+        }
+
+        .detail-item {
+            text-align: center;
+        }
+
+        .detail-label {
+            font-size: 32px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .detail-value {
+            font-size: 56px;
+            color: #333;
+            font-weight: 900;
+        }
+
+        .unit-price {
+            color: #ff6b00;
+        }
+
+        .quantity {
+            color: #2196f3;
+        }
+
+        @media print {
+            body {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="circle circle1"></div>
+    <div class="circle circle2"></div>
+    <div class="circle circle3"></div>
+
+    <div class="container">
+        <div class="product-name">Dum Dum</div>
+        <div class="product-subtitle">Original Mix Pops</div>
+
+        <div class="price-main">
+            <span class="dollar-sign">$</span>18.63
+        </div>
+
+        <div class="price-details">
+            <div class="detail-item">
+                <div class="detail-label">Unit Price</div>
+                <div class="detail-value unit-price">$0.03/ea</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Quantity</div>
+                <div class="detail-value quantity">500 pcs</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

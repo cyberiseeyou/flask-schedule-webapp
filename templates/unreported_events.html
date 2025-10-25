@@ -155,6 +155,124 @@
         font-weight: var(--font-weight-bold);
         color: var(--pc-navy);
     }
+
+    .btn-reissue {
+        padding: 6px 12px;
+        background: var(--pc-blue);
+        color: white;
+        border: none;
+        border-radius: var(--border-radius-sm);
+        font-size: var(--font-size-small);
+        font-weight: var(--font-weight-medium);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-reissue:hover {
+        background: var(--pc-navy);
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-lg);
+        max-width: 500px;
+        width: 90%;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+        font-size: var(--font-size-h3);
+        font-weight: var(--font-weight-bold);
+        color: var(--pc-navy);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .modal-body {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .form-group {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .form-label {
+        display: block;
+        font-weight: var(--font-weight-medium);
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: var(--spacing-sm);
+        border: 1px solid #ddd;
+        border-radius: var(--border-radius-sm);
+        font-size: var(--font-size-body);
+    }
+
+    .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--spacing-sm);
+    }
+
+    .btn-secondary {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: var(--border-radius-sm);
+        cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .btn-primary {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: var(--pc-blue);
+        color: white;
+        border: none;
+        border-radius: var(--border-radius-sm);
+        cursor: pointer;
+    }
+
+    .btn-primary:hover {
+        background: var(--pc-navy);
+    }
+
+    .event-info-text {
+        background: var(--bg-secondary);
+        padding: var(--spacing-sm);
+        border-radius: var(--border-radius-sm);
+        margin-bottom: var(--spacing-md);
+    }
 </style>
 {% endblock %}
 
@@ -177,6 +295,7 @@
             <th>Scheduled Date & Time</th>
             <th>Event Period</th>
             <th>Days Overdue</th>
+            <th>Action</th>
         </tr>
     </thead>
     <tbody>
@@ -208,6 +327,14 @@
                 <span class="days-overdue days-overdue-8plus">{{ item.days_overdue }} days</span>
                 {% endif %}
             </td>
+            <td>
+                <button
+                    class="btn-reissue"
+                    onclick="openReissueModal({{ item.schedule.id }}, '{{ item.event.project_name }}', {{ item.employee.id }}, '{{ item.employee.name }}', '{{ (item.event.due_datetime + timedelta(days=1)).strftime('%Y-%m-%d') }}')"
+                >
+                    Reissue
+                </button>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
@@ -221,4 +348,171 @@
 </div>
 {% endif %}
 
+<!-- Reissue Modal -->
+<div id="reissueModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">Reissue Event</div>
+        <div class="modal-body">
+            <div class="event-info-text" id="eventInfo"></div>
+
+            <form id="reissueForm">
+                <input type="hidden" id="scheduleId" name="schedule_id">
+
+                <div class="form-group">
+                    <label class="form-label" for="employeeSelect">Assign To Employee:</label>
+                    <select id="employeeSelect" name="employee_id" class="form-control" required>
+                        <!-- Will be populated by JavaScript -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="expirationDate">Expiration Date:</label>
+                    <input
+                        type="date"
+                        id="expirationDate"
+                        name="expiration_date"
+                        class="form-control"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="includeResponses" name="include_responses">
+                        <span>Include Previous Responses</span>
+                    </label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeReissueModal()">Cancel</button>
+            <button type="button" class="btn-primary" onclick="submitReissue()">Reissue Event</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentScheduleId = null;
+let currentEmployeeId = null;
+
+function openReissueModal(scheduleId, eventName, employeeId, employeeName, expirationDate) {
+    currentScheduleId = scheduleId;
+    currentEmployeeId = employeeId;
+
+    // Set event info
+    document.getElementById('eventInfo').innerHTML = `
+        <strong>Event:</strong> ${eventName}<br>
+        <strong>Currently Scheduled To:</strong> ${employeeName}
+    `;
+
+    // Set form values
+    document.getElementById('scheduleId').value = scheduleId;
+    document.getElementById('expirationDate').value = expirationDate;
+    document.getElementById('includeResponses').checked = false;
+
+    // Load employees
+    loadEmployees(employeeId);
+
+    // Show modal
+    document.getElementById('reissueModal').classList.add('active');
+}
+
+function closeReissueModal() {
+    document.getElementById('reissueModal').classList.remove('active');
+}
+
+async function loadEmployees(defaultEmployeeId) {
+    try {
+        const response = await fetch('/api/employees');
+        const employees = await response.json();
+
+        const select = document.getElementById('employeeSelect');
+        select.innerHTML = '';
+
+        // Filter for active employees only
+        const activeEmployees = employees.filter(emp => emp.is_active);
+
+        activeEmployees.forEach(emp => {
+            const option = document.createElement('option');
+            option.value = emp.id;
+            option.textContent = emp.name;
+            if (emp.id === defaultEmployeeId) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load employees:', error);
+        alert('Failed to load employees. Please try again.');
+    }
+}
+
+async function submitReissue() {
+    const scheduleId = document.getElementById('scheduleId').value;
+    const employeeId = document.getElementById('employeeSelect').value;
+    const expirationDate = document.getElementById('expirationDate').value;
+    const includeResponses = document.getElementById('includeResponses').checked;
+
+    if (!employeeId || !expirationDate) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    try {
+        // Disable submit button to prevent double-submission
+        const submitButton = event.target;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Reissuing...';
+
+        const response = await fetch('/api/reissue-event', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                schedule_id: parseInt(scheduleId),
+                employee_id: parseInt(employeeId),
+                include_responses: includeResponses,
+                expiration_date: expirationDate
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(data.message || 'Event reissued successfully!');
+            closeReissueModal();
+            // Reload page to show updated status
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to reissue event'));
+            submitButton.disabled = false;
+            submitButton.textContent = 'Reissue Event';
+        }
+    } catch (error) {
+        console.error('Failed to reissue event:', error);
+        alert('Failed to reissue event. Please try again.');
+        const submitButton = event.target;
+        submitButton.disabled = false;
+        submitButton.textContent = 'Reissue Event';
+    }
+}
+
+// Close modal when clicking outside
+document.getElementById('reissueModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeReissueModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeReissueModal();
+    }
+});
+</script>
 {% endblock %}
