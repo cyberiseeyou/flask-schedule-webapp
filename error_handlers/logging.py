@@ -118,13 +118,16 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def internal_error(error):
         """Handle 500 Internal Server Error"""
+        from utils.validators import sanitize_request_data
+
         error_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
         app.logger.error(f"Internal Server Error [{error_id}]: {str(error)}")
         app.logger.error(f"Traceback [{error_id}]: {traceback.format_exc()}")
 
-        # Log request details for debugging
+        # Log request details for debugging (SANITIZED to prevent credential leakage)
         app.logger.error(f"Request details [{error_id}]: {request.method} {request.url}")
-        app.logger.error(f"Request data [{error_id}]: {request.get_data(as_text=True)[:1000]}")
+        request_data = sanitize_request_data(request.get_data(as_text=True)[:1000])
+        app.logger.error(f"Request data [{error_id}]: {request_data}")
 
         if request.is_json or request.content_type == 'application/json':
             return jsonify({
@@ -138,9 +141,15 @@ def register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
         """Handle any unexpected errors"""
+        from utils.validators import sanitize_request_data
+
         error_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
         app.logger.critical(f"Unexpected error [{error_id}]: {str(error)}")
         app.logger.critical(f"Traceback [{error_id}]: {traceback.format_exc()}")
+
+        # Log sanitized request data for security
+        request_data = sanitize_request_data(request.get_data(as_text=True)[:1000])
+        app.logger.critical(f"Request data [{error_id}]: {request_data}")
 
         if request.is_json or request.content_type == 'application/json':
             return jsonify({

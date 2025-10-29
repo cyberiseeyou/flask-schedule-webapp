@@ -11,6 +11,7 @@ from .system_setting import create_system_setting_model
 from .audit import create_audit_models
 from .employee_attendance import create_employee_attendance_model
 from .paperwork_template import create_paperwork_template_model
+from .user_session import create_user_session_model
 
 
 def init_models(db):
@@ -32,6 +33,7 @@ def init_models(db):
     AuditLog, AuditNotificationSettings = create_audit_models(db)
     EmployeeAttendance = create_employee_attendance_model(db)
     PaperworkTemplate = create_paperwork_template_model(db)
+    UserSession = create_user_session_model(db)
 
     return {
         'Employee': Employee,
@@ -50,7 +52,8 @@ def init_models(db):
         'AuditLog': AuditLog,
         'AuditNotificationSettings': AuditNotificationSettings,
         'EmployeeAttendance': EmployeeAttendance,
-        'PaperworkTemplate': PaperworkTemplate
+        'PaperworkTemplate': PaperworkTemplate,
+        'UserSession': UserSession
     }
 
 
@@ -64,5 +67,13 @@ __all__ = [
     'create_system_setting_model',
     'create_audit_models',
     'create_employee_attendance_model',
-    'create_paperwork_template_model'
+    'create_paperwork_template_model',
+    'create_user_session_model',
+    # Model registry exports
+    'model_registry',
+    'get_models',
+    'get_db'
 ]
+
+# Import registry for convenience
+from .registry import model_registry, get_models, get_db

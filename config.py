@@ -1,15 +1,21 @@
 """
 Configuration management for Flask Schedule Webapp
 Handles environment-based settings and external API configuration
+
+Updated with lazy validation pattern to avoid requiring all credentials
+during development and testing.
 """
 import os
+import secrets
 from decouple import config
+from typing import Optional
 
 
 class Config:
     """Base configuration class"""
     # Flask settings
-    SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-in-production')
+    # Development: Generate random key on startup (non-persistent OK for dev)
+    SECRET_KEY = config('SECRET_KEY', default=secrets.token_hex(32))
     SQLALCHEMY_DATABASE_URI = config('DATABASE_URL', default='sqlite:///instance/scheduler.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -41,11 +47,54 @@ class Config:
     # Settings encryption key (should be set in environment for production)
     SETTINGS_ENCRYPTION_KEY = config('SETTINGS_ENCRYPTION_KEY', default=None)
 
+    @classmethod
+    def validate(cls, validate_walmart: bool = True) -> None:
+        """
+        Validate configuration - can be called explicitly or on-demand
+
+        This allows development without all credentials, while ensuring
+        production has everything configured.
+
+        Args:
+            validate_walmart: Whether to validate Walmart EDR credentials
+
+        Raises:
+            ValueError: If required configuration is missing
+
+        Example:
+            >>> config = get_config()
+            >>> config.validate()  # Validate all settings
+            >>> config.validate(validate_walmart=False)  # Skip Walmart validation
+        """
+        pass  # Base config has no required validation
+
+    @classmethod
+    def is_feature_enabled(cls, feature: str) -> bool:
+        """
+        Check if a specific feature is enabled
+
+        Args:
+            feature: Feature name (e.g., 'edr', 'sync')
+
+        Returns:
+            bool: True if feature is enabled
+        """
+        feature_flags = {
+            'edr': config('ENABLE_EDR_FEATURES', default=False, cast=bool),
+            'sync': cls.SYNC_ENABLED,
+        }
+        return feature_flags.get(feature.lower(), False)
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
     TESTING = False
+
+    @classmethod
+    def validate(cls, validate_walmart: bool = True) -> None:
+        """Development mode: no validation required"""
+        pass
 
 
 class TestingConfig(Config):
@@ -54,14 +103,20 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     SYNC_ENABLED = False
 
+    @classmethod
+    def validate(cls, validate_walmart: bool = True) -> None:
+        """Testing mode: no validation required"""
+        pass
+
 
 class ProductionConfig(Config):
     """Production configuration with enterprise security features"""
     DEBUG = False
     TESTING = False
 
-    # Security - Production should always use environment variables for sensitive data
-    SECRET_KEY = config('SECRET_KEY', default='prod-secret-key-must-be-set')
+    # Security - Production REQUIRES environment variables (no defaults)
+    # Will raise error if SECRET_KEY is not set - see get_config() validation
+    SECRET_KEY = config('SECRET_KEY')  # No default - required in production
     EXTERNAL_API_USERNAME = config('EXTERNAL_API_USERNAME', default='')
     EXTERNAL_API_PASSWORD = config('EXTERNAL_API_PASSWORD', default='')
 
@@ -103,6 +158,47 @@ class ProductionConfig(Config):
     # Performance
     SEND_FILE_MAX_AGE_DEFAULT = config('SEND_FILE_MAX_AGE_DEFAULT', default=31536000, cast=int)
 
+    @classmethod
+    def validate(cls, validate_walmart: bool = True) -> None:
+        """
+        Production mode: validate all required settings
+
+        Args:
+            validate_walmart: Whether to validate Walmart EDR credentials
+
+        Raises:
+            ValueError: If any required configuration is missing
+        """
+        # Validate SECRET_KEY
+        try:
+            secret_key = config('SECRET_KEY')
+        except Exception:
+            raise ValueError(
+                "SECRET_KEY environment variable must be set in production. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+
+        if len(secret_key) < 32:
+            raise ValueError(
+                f"SECRET_KEY must be at least 32 characters in production (current: {len(secret_key)}). "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+
+        # Validate Walmart credentials only if feature is enabled
+        if validate_walmart and cls.is_feature_enabled('edr'):
+            walmart_vars = {
+                'WALMART_EDR_USERNAME': config('WALMART_EDR_USERNAME', default=''),
+                'WALMART_EDR_PASSWORD': config('WALMART_EDR_PASSWORD', default=''),
+                'WALMART_EDR_MFA_CREDENTIAL_ID': config('WALMART_EDR_MFA_CREDENTIAL_ID', default='')
+            }
+
+            missing = [var for var, value in walmart_vars.items() if not value]
+            if missing:
+                raise ValueError(
+                    f"EDR features require: {', '.join(missing)}. "
+                    f"Please set these in your .env file or disable EDR features (ENABLE_EDR_FEATURES=False)."
+                )
+
 
 # Configuration mapping
 config_mapping = {
@@ -113,38 +209,41 @@ config_mapping = {
 }
 
 
-def get_config(config_name=None):
+def get_config(config_name: Optional[str] = None, validate: bool = False) -> type:
     """
     Get configuration class based on environment.
 
-    Validates that required environment variables are set for non-testing environments.
+    Updated with lazy validation pattern - credentials are only validated
+    when explicitly requested or when features that need them are used.
 
     Args:
         config_name: Environment name ('development', 'testing', 'production')
+        validate: Whether to validate configuration immediately (default: False)
 
     Returns:
         Config class for the specified environment
 
     Raises:
-        ValueError: If required environment variables are missing
+        ValueError: If validation is enabled and required variables are missing
+
+    Example:
+        >>> # Development - no validation
+        >>> config = get_config()
+
+        >>> # Production - validate on startup
+        >>> config = get_config('production', validate=True)
+
+        >>> # Validate later when needed
+        >>> config = get_config()
+        >>> config.validate()  # Validate when actually needed
     """
     if config_name is None:
         config_name = config('FLASK_ENV', default='development')
 
-    # Validate critical credentials are set (except for testing environment)
-    if config_name != 'testing':
-        required_vars = {
-            'WALMART_EDR_USERNAME': config('WALMART_EDR_USERNAME', default=''),
-            'WALMART_EDR_PASSWORD': config('WALMART_EDR_PASSWORD', default=''),
-            'WALMART_EDR_MFA_CREDENTIAL_ID': config('WALMART_EDR_MFA_CREDENTIAL_ID', default='')
-        }
+    config_class = config_mapping.get(config_name, DevelopmentConfig)
 
-        missing = [var for var, value in required_vars.items() if not value]
-        if missing:
-            raise ValueError(
-                f"Missing required environment variables: {', '.join(missing)}. "
-                f"Please set these in your .env file or environment. "
-                f"See .env.example for reference."
-            )
+    # Only validate if explicitly requested
+    if validate:
+        config_class.validate()
 
-    return config_mapping.get(config_name, DevelopmentConfig)
+    return config_class

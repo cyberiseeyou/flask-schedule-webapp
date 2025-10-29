@@ -43,6 +43,20 @@ def create_employee_model(db):
         last_synced = db.Column(db.DateTime)
         sync_status = db.Column(db.String(20), default='pending')
 
+        __table_args__ = (
+            # Index for active employee queries
+            db.Index('idx_employees_active', 'is_active'),
+
+            # Index for job title filtering
+            db.Index('idx_employees_job_title', 'job_title'),
+
+            # Index for supervisor queries
+            db.Index('idx_employees_supervisor', 'is_supervisor'),
+
+            # Index for termination date queries
+            db.Index('idx_employees_termination', 'termination_date'),
+        )
+
         def can_work_event_type(self, event_type):
             """
             Check if employee can work events of the given type based on job title

@@ -2,6 +2,8 @@ from flask import Flask, render_template, abort, jsonify, request, redirect, url
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from datetime import datetime, time, date, timedelta
 import os
 import csv
@@ -50,6 +52,16 @@ csrf = CSRFProtect(app)
 external_api.init_app(app)
 sync_engine.init_app(app, db)
 
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[app.config.get('RATELIMIT_DEFAULT', '100 per hour')],
+    storage_uri="memory://",  # TODO: Use Redis in production for distributed rate limiting
+    enabled=app.config.get('RATELIMIT_ENABLED', True),
+    strategy="fixed-window"  # Count requests in fixed time windows
+)
+
 # Enable foreign key constraints for SQLite
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -67,8 +79,14 @@ setup_logging(app)
 register_error_handlers(app)
 
 # Initialize database models from models module
-from models import init_models
+from models import init_models, model_registry
 models = init_models(db)
+
+# Initialize model registry (NEW: Flask extension pattern)
+model_registry.init_app(app)
+model_registry.register(models)
+
+# Extract commonly used models for convenience
 Employee = models['Employee']
 Event = models['Event']
 Schedule = models['Schedule']
@@ -82,12 +100,18 @@ ScheduleException = models['ScheduleException']
 SystemSetting = models['SystemSetting']
 EmployeeAttendance = models['EmployeeAttendance']
 PaperworkTemplate = models['PaperworkTemplate']
+UserSession = models['UserSession']
 
 # Extract audit models (if available)
 AuditLog = models.get('AuditLog')
 AuditNotificationSettings = models.get('AuditNotificationSettings')
 
-# Make models available in app config for blueprints
+# Make limiter available to blueprints for custom rate limits
+app.config['limiter'] = limiter
+
+# DEPRECATED: Models in app.config - kept for backward compatibility during transition
+# NEW: Use model_registry or get_models() instead (see models/registry.py)
+# TODO: Remove these after all blueprints are updated to use model_registry
 app.config['Employee'] = Employee
 app.config['Event'] = Event
 app.config['Schedule'] = Schedule
@@ -98,14 +122,15 @@ app.config['RotationAssignment'] = RotationAssignment
 app.config['PendingSchedule'] = PendingSchedule
 app.config['SchedulerRunHistory'] = SchedulerRunHistory
 app.config['ScheduleException'] = ScheduleException
-
-# Make external API service available
-app.config['SESSION_API_SERVICE'] = external_api
 app.config['SystemSetting'] = SystemSetting
 app.config['AuditLog'] = AuditLog
 app.config['AuditNotificationSettings'] = AuditNotificationSettings
 app.config['EmployeeAttendance'] = EmployeeAttendance
 app.config['PaperworkTemplate'] = PaperworkTemplate
+app.config['UserSession'] = UserSession
+
+# Make external API service available
+app.config['SESSION_API_SERVICE'] = external_api
 
 # Import authentication helpers and blueprint from routes
 from routes import (
@@ -198,19 +223,30 @@ if 'auth.login' in app.view_functions:
 if 'admin.webhook_schedule_update' in app.view_functions:
     csrf.exempt(app.view_functions['admin.webhook_schedule_update'])
 
-# Setup Walmart API session cleanup
+# Setup Walmart API session cleanup using APScheduler (more efficient than threading.Timer)
 from walmart_api import session_manager
-import threading
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 def cleanup_walmart_sessions():
     """Background task to cleanup expired Walmart sessions."""
     with app.app_context():
         session_manager.cleanup_expired_sessions()
-    # Schedule next cleanup in 60 seconds
-    threading.Timer(60.0, cleanup_walmart_sessions).start()
 
-# Start session cleanup background task
-cleanup_walmart_sessions()
+# Create and start background scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=cleanup_walmart_sessions,
+    trigger=IntervalTrigger(seconds=60),
+    id='walmart_session_cleanup',
+    name='Cleanup expired Walmart sessions',
+    replace_existing=True
+)
+scheduler.start()
+
+# Ensure scheduler shuts down when app exits
+import atexit
+atexit.register(lambda: scheduler.shutdown())
 
 @app.context_processor
 def inject_user():

@@ -27,7 +27,17 @@ def create_schedule_model(db):
         sync_status = db.Column(db.String(20), default='pending')
 
         __table_args__ = (
+            # Existing index
             db.Index('idx_schedules_date', 'schedule_datetime'),
+
+            # NEW: Composite index for common query pattern (employee + date)
+            db.Index('idx_schedules_employee_date', 'employee_id', 'schedule_datetime'),
+
+            # NEW: Index for event lookups
+            db.Index('idx_schedules_event', 'event_ref_num'),
+
+            # NEW: Index for sync status queries
+            db.Index('idx_schedules_sync', 'sync_status', 'last_synced'),
         )
 
         # Relationships

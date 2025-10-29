@@ -56,6 +56,23 @@ def create_event_model(db):
             nullable=True
         )
 
+        __table_args__ = (
+            # Index for filtering scheduled/unscheduled events
+            db.Index('idx_events_scheduled', 'is_scheduled', 'condition'),
+
+            # Index for date range queries (start/due date filtering)
+            db.Index('idx_events_date_range', 'start_datetime', 'due_datetime'),
+
+            # Index for event type filtering
+            db.Index('idx_events_type', 'event_type'),
+
+            # Index for location-based queries
+            db.Index('idx_events_location', 'location_mvid'),
+
+            # Index for sync operations
+            db.Index('idx_events_sync', 'sync_status'),
+        )
+
         def detect_event_type(self):
             """
             Automatically detect event type based on project name
