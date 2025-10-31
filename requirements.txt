@@ -3,6 +3,7 @@ Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
 Flask-WTF==1.2.1
+Flask-Limiter==4.0.0
 alembic==1.16.5
 
 # Configuration Management
@@ -17,9 +18,10 @@ PyPDF2==3.0.1
 reportlab==4.2.5
 xhtml2pdf==0.2.16
 
-# Task Queue (Celery)
+# Task Queue & Scheduling
 celery==5.3.6
 redis==5.0.3
+APScheduler==3.11.0
 
 # Security
 cryptography==42.0.5

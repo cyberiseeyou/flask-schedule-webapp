@@ -23,12 +23,15 @@ sys.path.insert(0, str(base_dir))
 if 'FLASK_ENV' not in os.environ:
     os.environ['FLASK_ENV'] = 'production'
 
-# Import the Flask application
-from app import app, init_db
+# Import the Flask application factory
+from app import create_app, init_db
+
+# Create the application instance
+app = create_app()
 
 # Initialize database if needed
 try:
-    init_db()
+    init_db(app)
 except Exception as e:
     app.logger.warning(f"Database initialization skipped or failed: {e}")
 

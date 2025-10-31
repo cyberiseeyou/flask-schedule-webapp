@@ -50,7 +50,6 @@ scheduler.db
 # Logs
 *.log
 logs/
-scheduler_app/logs/
 
 # IDEs
 .vscode/
@@ -72,9 +71,10 @@ docs/_build/
 docs/_static/
 docs/_templates/
 
-# Uploads and temporary files
-uploads/
-scheduler_app/uploads/
+# Data directory (generated/uploaded files)
+data/
+
+# Temporary files
 temp/
 tmp/
 *.tmp
@@ -180,9 +180,6 @@ archived/
 archived_code/
 backups/
 har_files/
-tests/
-scripts/
-docs/
 .ai/
 .bmad-core/
 chrome-devtools-mcp/
@@ -193,7 +190,6 @@ _temp_migrate/
 reference/
 mappings/
 assets/
-docker/
 awesome-claude-skills/
 
 # Production deployment

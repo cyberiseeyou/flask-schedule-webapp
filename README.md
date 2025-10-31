@@ -56,7 +56,7 @@ The setup script automatically:
 - ✅ Builds and starts all containers
 - ✅ Runs database migrations
 
-See [DOCKER.md](DOCKER.md) for detailed Docker deployment guide.
+See [DOCKER.md](docs/deployment/DOCKER.md) for detailed Docker deployment guide.
 
 ### Local Development
 
@@ -76,11 +76,77 @@ source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 
 # Run application
-cd scheduler_app
-python app.py
+python wsgi.py
+# or use Gunicorn for production
+gunicorn --config gunicorn_config.py wsgi:app
 ```
 
 **Access:** http://localhost:5000
+
+## Project Structure
+
+The application follows Flask best practices with the application factory pattern:
+
+```
+flask-schedule-webapp/
+├── app/                          # Main application package
+│   ├── __init__.py              # Application factory (create_app)
+│   ├── extensions.py            # Flask extensions (db, migrate, csrf, limiter)
+│   ├── config.py                # Configuration classes
+│   ├── constants.py             # Application constants
+│   │
+│   ├── models/                  # Database models
+│   ├── routes/                  # Flask blueprints (views)
+│   ├── services/                # Business logic layer
+│   ├── utils/                   # Utility functions
+│   ├── error_handlers/          # Error handling and logging
+│   │
+│   ├── integrations/            # External integrations
+│   │   ├── edr/                # EDR reporting
+│   │   ├── walmart_api/        # Walmart Retail Link
+│   │   └── external_api/       # Crossmark API sync
+│   │
+│   ├── static/                  # CSS, JS, images
+│   └── templates/               # Jinja2 templates
+│
+├── tests/                       # Test suite
+│   ├── integration/            # Integration tests
+│   └── unit/                   # Unit tests
+│
+├── scripts/                     # Utility scripts
+│   ├── update_db.py            # Database management
+│   └── list_routes.py          # Route debugging
+│
+├── docs/                        # Documentation
+│   ├── deployment/             # Deployment guides
+│   ├── architecture/           # Architecture docs
+│   ├── operations/             # Operations guides
+│   └── testing/                # Test reports
+│
+├── deployment/                  # Deployment configurations
+│   ├── docker/                 # Dockerfile and compose files
+│   ├── nginx/                  # Nginx configs
+│   └── systemd/                # System service files
+│
+├── data/                        # Application data (gitignored)
+│   ├── paperwork/              # Generated paperwork
+│   ├── barcodes/               # Generated barcodes
+│   └── uploads/                # User uploads
+│
+├── instance/                    # Instance-specific files (gitignored)
+│   └── scheduler.db            # SQLite database
+│
+├── migrations/                  # Alembic database migrations
+├── wsgi.py                      # WSGI entry point
+├── celery_worker.py            # Celery worker entry point
+└── requirements.txt             # Python dependencies
+```
+
+**Key Design Patterns:**
+- **Application Factory**: Enables testing with different configs
+- **Blueprints**: Modular route organization
+- **Service Layer**: Business logic separated from routes
+- **Model Registry**: Centralized model management
 
 ## Usage
 
