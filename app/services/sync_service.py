@@ -61,7 +61,7 @@ def sync_schedule_to_crossmark(self, schedule_id):
     """
     try:
         from app import db, Schedule, Event, Employee
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         logger.info(f"Starting background sync for schedule {schedule_id}")
 
@@ -166,7 +166,7 @@ def sync_schedule_update_to_crossmark(self, schedule_id, new_employee_id=None, n
     """
     try:
         from app import db, Schedule, Event, Employee
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         logger.info(f"Starting background sync update for schedule {schedule_id}")
 
@@ -260,7 +260,7 @@ def sync_schedule_deletion_to_crossmark(self, external_id):
         dict: Result of the sync operation
     """
     try:
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         logger.info(f"Starting background sync deletion for external_id {external_id}")
 
@@ -329,7 +329,7 @@ def refresh_events_from_crossmark():
     """
     try:
         from app import app, db, Event
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         logger.info("Starting periodic event refresh from Crossmark")
 

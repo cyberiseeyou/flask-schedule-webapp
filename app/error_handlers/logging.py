@@ -118,7 +118,7 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def internal_error(error):
         """Handle 500 Internal Server Error"""
-        from utils.validators import sanitize_request_data
+        from app.utils.validators import sanitize_request_data
 
         error_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
         app.logger.error(f"Internal Server Error [{error_id}]: {str(error)}")
@@ -141,7 +141,7 @@ def register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
         """Handle any unexpected errors"""
-        from utils.validators import sanitize_request_data
+        from app.utils.validators import sanitize_request_data
 
         error_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
         app.logger.critical(f"Unexpected error [{error_id}]: {str(error)}")

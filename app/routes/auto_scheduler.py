@@ -276,7 +276,7 @@ def edit_pending_schedule(pending_id):
 @auto_scheduler_bp.route('/approve', methods=['POST'])
 def approve_schedule():
     """Approve proposed schedule and submit to Crossmark API"""
-    from session_api_service import session_api as external_api
+    from app.integrations.external_api.session_api_service import session_api as external_api
 
     db = current_app.extensions['sqlalchemy']
 

@@ -70,7 +70,7 @@ def login():
 
     Rate Limit: 5 attempts per minute to prevent brute force attacks
     """
-    from session_api_service import session_api as external_api
+    from app.integrations.external_api.session_api_service import session_api as external_api
 
     # Apply strict rate limiting to login endpoint (5 per minute)
     # Note: Using dynamic application pattern to avoid circular imports with app.py
@@ -241,7 +241,7 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Handle user logout"""
-    from session_api_service import session_api as external_api
+    from app.integrations.external_api.session_api_service import session_api as external_api
 
     session_id = request.cookies.get('session_id')
 

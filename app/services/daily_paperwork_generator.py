@@ -645,7 +645,7 @@ class DailyPaperworkGenerator:
         edr_data_list = []
 
         if self.edr_generator:
-            from utils.event_helpers import extract_event_number
+            from app.utils.event_helpers import extract_event_number
 
             # Check if we need to authenticate
             if not self.edr_generator.auth_token:
@@ -732,7 +732,7 @@ class DailyPaperworkGenerator:
 
             # Only process documents for Core events
             if event.event_type == 'Core':
-                from utils.event_helpers import extract_event_number
+                from app.utils.event_helpers import extract_event_number
                 event_num = extract_event_number(event.project_name)
 
                 # Get EDR PDF if we have cached data

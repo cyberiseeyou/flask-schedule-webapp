@@ -62,8 +62,8 @@ def get_daily_summary(date):
         - Uses optimized date range filtering for better index usage
     """
     from sqlalchemy import func, and_
-    from utils.validators import validate_date_param
-    from utils.db_helpers import get_models, get_date_range
+    from app.utils.validators import validate_date_param
+    from app.utils.db_helpers import get_models, get_date_range
 
     # Validate and parse date using utility
     selected_date = validate_date_param(date)
@@ -171,8 +171,8 @@ def get_daily_events(date):
         - reporting_status and sales_tool_url will be added in Story 3.4
     """
     from sqlalchemy.orm import joinedload
-    from utils.validators import validate_date_param, handle_validation_errors
-    from utils.db_helpers import get_models, get_date_range
+    from app.utils.validators import validate_date_param, handle_validation_errors
+    from app.utils.db_helpers import get_models, get_date_range
 
     # Validate and parse date using utility
     selected_date = validate_date_param(date)
@@ -413,7 +413,7 @@ def unschedule_event_quick(schedule_id):
 
     try:
         # Call Crossmark API BEFORE deleting local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Ensure session is authenticated
         if schedule.external_id:
@@ -806,7 +806,7 @@ def reschedule():
                 return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
 
         # Submit to Crossmark API BEFORE updating local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
@@ -876,7 +876,7 @@ def reschedule():
                 event.last_synced = datetime.utcnow()
 
                 # NEW: Check if this is a CORE event and reschedule Supervisor (Calendar Redesign - Sprint 2)
-                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
+                from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
                 if is_core_event_redesign(event):
                     current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
@@ -1097,7 +1097,7 @@ def reschedule_event_with_validation(schedule_id):
             }), 409
 
         # No conflicts (or overridden) - submit to external API BEFORE updating local database
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
         from datetime import timedelta
 
         # Calculate end datetime
@@ -1302,7 +1302,7 @@ def change_employee_assignment(schedule_id):
             }), 409
 
         # No conflicts (or overridden) - submit to external API BEFORE updating local database
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
         from datetime import timedelta
 
         # Calculate end datetime
@@ -1461,7 +1461,7 @@ def unschedule_event(schedule_id):
             return jsonify({'error': 'Related event not found'}), 404
 
         # Call Crossmark API BEFORE deleting local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Ensure session is authenticated
         try:
@@ -1495,7 +1495,7 @@ def unschedule_event(schedule_id):
                         raise Exception(f'Failed to submit to Crossmark API: {str(api_error)}')
 
                 # NEW: Check if this is a CORE event and unschedule Supervisor (Calendar Redesign - Sprint 2)
-                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
+                from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
                 if is_core_event_redesign(event):
                     current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
@@ -1615,7 +1615,7 @@ def unschedule_event_by_id(event_id):
             return jsonify({'error': 'No schedules found for this event'}), 404
 
         # Call Crossmark API BEFORE deleting local records
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Ensure session is authenticated
         try:
@@ -1802,7 +1802,7 @@ def trade_events():
             }), 409
 
         # No conflicts - submit to external API BEFORE performing swap
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
         from datetime import timedelta
 
         # Calculate end datetimes for both events
@@ -1995,7 +1995,7 @@ def change_employee():
                 return jsonify({'error': 'Employee already has a Core event scheduled that day'}), 400
 
         # Submit to Crossmark API BEFORE updating local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Calculate end datetime
         estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
@@ -2541,7 +2541,7 @@ def schedule_event():
             return jsonify({'success': False, 'error': 'Event is already scheduled'}), 400
 
         # Submit to Crossmark API BEFORE creating local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Calculate end datetime
         end_datetime = schedule_datetime + timedelta(minutes=duration_minutes)
@@ -2616,7 +2616,7 @@ def schedule_event():
                 event.last_synced = datetime.utcnow()
 
                 # NEW: Check if this is a CORE event and auto-schedule Supervisor (Calendar Redesign - Sprint 2)
-                from utils.event_helpers import is_core_event_redesign, get_supervisor_status
+                from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
                 if is_core_event_redesign(event):
                     current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")

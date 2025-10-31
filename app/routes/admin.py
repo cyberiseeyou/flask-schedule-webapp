@@ -50,7 +50,7 @@ def refresh_database():
         Event = current_app.config['Event']
         Schedule = current_app.config['Schedule']
         Employee = current_app.config['Employee']
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         current_app.logger.info("Starting complete database refresh from Crossmark API")
 
@@ -376,7 +376,7 @@ def delete_event(event_id):
 def sync_health():
     """Check sync system health and API connectivity"""
     try:
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         health_status = external_api.health_check()
         return jsonify({
@@ -776,15 +776,15 @@ def test_request():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# DEPRECATED: Use extract_event_number from utils.event_helpers instead
+# DEPRECATED: Use extract_event_number from app.utils.event_helpers instead
 # Kept for backward compatibility
 def extract_event_number(project_name):
     """
     Extract the first 6 digits from a Core event's project name
 
-    DEPRECATED: Import from utils.event_helpers instead
+    DEPRECATED: Import from app.utils.event_helpers instead
     """
-    from utils.event_helpers import extract_event_number as _extract_event_number
+    from app.utils.event_helpers import extract_event_number as _extract_event_number
     return _extract_event_number(project_name)
 
 def _extract_event_number_legacy(project_name):
@@ -2274,7 +2274,7 @@ def sync_employees_from_api():
         db = current_app.extensions['sqlalchemy']
         Employee = current_app.config['Employee']
         Event = current_app.config['Event']
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Ensure authenticated
         if not external_api.ensure_authenticated():

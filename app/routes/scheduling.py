@@ -360,7 +360,7 @@ def auto_schedule_supervisor_event(db, Event, Schedule, Employee, core_project_r
     """
     try:
         # Get the CORE event to extract its 6-digit event number
-        from utils.event_helpers import extract_event_number
+        from app.utils.event_helpers import extract_event_number
 
         core_event = Event.query.filter_by(project_ref_num=core_project_ref_num).first()
         if not core_event:
@@ -564,7 +564,7 @@ def save_schedule():
                 return redirect(url_for('scheduling.schedule_event', event_id=event_id))
 
         # Submit to Crossmark API BEFORE creating local record
-        from session_api_service import session_api as external_api
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
         # Calculate end datetime using event's default duration if not set
         end_datetime = event.calculate_end_datetime(schedule_datetime)

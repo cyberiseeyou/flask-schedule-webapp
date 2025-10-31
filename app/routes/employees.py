@@ -456,7 +456,7 @@ def delete_time_off(time_off_id):
 @employees_bp.route('/api/get_available_reps', methods=['GET'])
 def get_available_reps():
     """Get available representatives from MVRetail/Crossmark API"""
-    from session_api_service import session_api as external_api
+    from app.integrations.external_api.session_api_service import session_api as external_api
 
     try:
         # Get available representatives from the API
@@ -511,7 +511,7 @@ def lookup_employee_id():
     Lookup employee's external_id (numeric ID for scheduling) from MVRetail API
     This is called after saving an employee to get their scheduling ID
     """
-    from session_api_service import session_api as external_api
+    from app.integrations.external_api.session_api_service import session_api as external_api
 
     data = request.get_json()
     employee_name = data.get('name')
