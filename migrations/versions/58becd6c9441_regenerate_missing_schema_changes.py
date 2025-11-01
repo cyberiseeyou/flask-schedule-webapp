@@ -53,8 +53,9 @@ def upgrade():
                type_=sa.DateTime(),
                existing_nullable=False,
                existing_server_default=sa.text('(CURRENT_TIMESTAMP)'))
-        batch_op.drop_index(batch_op.f('idx_paperwork_templates_active'))
-        batch_op.drop_index(batch_op.f('idx_paperwork_templates_order'))
+        # Skip dropping indexes that may not exist
+        # batch_op.drop_index(batch_op.f('idx_paperwork_templates_active'))
+        # batch_op.drop_index(batch_op.f('idx_paperwork_templates_order'))
         batch_op.create_unique_constraint('uix_paperwork_templates_name', ['name'])
 
     with op.batch_alter_table('schedules', schema=None) as batch_op:
@@ -74,8 +75,9 @@ def downgrade():
 
     with op.batch_alter_table('paperwork_templates', schema=None) as batch_op:
         batch_op.drop_constraint('uix_paperwork_templates_name', type_='unique')
-        batch_op.create_index(batch_op.f('idx_paperwork_templates_order'), ['display_order'], unique=False)
-        batch_op.create_index(batch_op.f('idx_paperwork_templates_active'), ['is_active'], unique=False)
+        # Skip creating indexes that weren't dropped in upgrade
+        # batch_op.create_index(batch_op.f('idx_paperwork_templates_order'), ['display_order'], unique=False)
+        # batch_op.create_index(batch_op.f('idx_paperwork_templates_active'), ['is_active'], unique=False)
         batch_op.alter_column('updated_at',
                existing_type=sa.DateTime(),
                type_=sa.TIMESTAMP(),
