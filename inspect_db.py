@@ -46,6 +46,10 @@ def inspect_database():
     has_condition = any(col[1] == 'condition' for col in columns)
     print(f"\n'condition' column exists: {has_condition}")
 
+    # Check if 'parent_event_ref_num' column exists
+    has_parent_event_ref_num = any(col[1] == 'parent_event_ref_num' for col in columns)
+    print(f"'parent_event_ref_num' column exists: {has_parent_event_ref_num}")
+
     conn.close()
 
 if __name__ == '__main__':
