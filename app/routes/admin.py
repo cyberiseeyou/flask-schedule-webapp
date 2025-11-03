@@ -993,7 +993,7 @@ def generate_edr_documents(event_numbers, credentials=None):
 
     # Import EDR reporting functionality
     try:
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
         edr_available = True
     except ImportError:
         edr_available = False
@@ -1091,7 +1091,7 @@ def edr_request_code():
     This must be called BEFORE showing the MFA popup
     """
     try:
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
         from flask import session as flask_session
 
         # Clear any existing EDR session data
@@ -1153,7 +1153,7 @@ def edr_authenticate():
     Does a complete authentication flow from scratch with the MFA code
     """
     try:
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
         from flask import session as flask_session
 
         data = request.get_json()
@@ -1270,7 +1270,7 @@ def edr_sync_cache():
     """
     try:
         from flask import session as flask_session
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
 
         # Check if authenticated
         if not flask_session.get('edr_auth_token'):
@@ -1346,7 +1346,7 @@ def edr_cache_status():
     Returns cache age, event count, date range, etc.
     """
     try:
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
 
         # Create EDR generator to check cache
         edr_gen = EDRReportGenerator(enable_caching=True)
@@ -1426,7 +1426,7 @@ def print_paperwork_internal(paperwork_type, target_date_override=None):
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_CENTER
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
         from flask import session as flask_session
 
         db = current_app.extensions['sqlalchemy']
@@ -1794,7 +1794,7 @@ def auto_schedule_event(event_id):
             return jsonify({'error': f'Event {event_id} is already scheduled'}), 400
 
         # Initialize SchedulingEngine
-        from services.scheduling_engine import SchedulingEngine
+        from app.services.scheduling_engine import SchedulingEngine
         models = {k: current_app.config[k] for k in [
             'Employee', 'Event', 'Schedule', 'SchedulerRunHistory',
             'PendingSchedule', 'RotationAssignment', 'ScheduleException',
@@ -2377,7 +2377,7 @@ def generate_edr_reports_by_date():
     """
     try:
         from flask import session as flask_session
-        from edr import EDRReportGenerator
+        from app.integrations.edr import EDRReportGenerator
         from reportlab.lib.pagesizes import letter
         from reportlab.platypus import SimpleDocTemplate, PageBreak
         from reportlab.lib.units import inch
@@ -2583,8 +2583,8 @@ def generate_daily_paperwork():
     """
     try:
         from flask import session as flask_session
-        from services.daily_paperwork_generator import DailyPaperworkGenerator
-        from edr import EDRReportGenerator
+        from app.services.daily_paperwork_generator import DailyPaperworkGenerator
+        from app.integrations.edr import EDRReportGenerator
         import pickle
 
         data = request.get_json()
@@ -2717,3 +2717,23 @@ def generate_daily_paperwork():
         import traceback
         current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/schedule-verification')
+@require_authentication()
+def schedule_verification():
+    """
+    Schedule Verification page
+
+    Allows managers to verify schedules for any date and identify potential issues.
+    Runs 8 validation rules to catch scheduling problems proactively.
+    """
+    from datetime import date, timedelta
+
+    # Default to tomorrow
+    tomorrow = date.today() + timedelta(days=1)
+
+    return render_template(
+        'schedule_verification.html',
+        default_date=tomorrow.isoformat()
+    )

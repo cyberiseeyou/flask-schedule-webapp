@@ -74,6 +74,10 @@
                                class="nav-dropdown-item {% if request.endpoint and request.endpoint.startswith('auto_scheduler.') %}active{% endif %}">
                                 Auto-Scheduler
                             </a>
+                            <a href="{{ url_for('admin.schedule_verification') }}"
+                               class="nav-dropdown-item {% if request.endpoint == 'admin.schedule_verification' %}active{% endif %}">
+                                Schedule Verification
+                            </a>
                         </div>
                     </div>
 

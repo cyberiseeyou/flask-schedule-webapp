@@ -1064,7 +1064,7 @@ def reschedule_event_with_validation(schedule_id):
             return jsonify({'error': f'Invalid date or time format: {str(e)}'}), 400
 
         # Validate using ConstraintValidator
-        from services.constraint_validator import ConstraintValidator
+        from app.services.constraint_validator import ConstraintValidator
 
         models = {
             'Employee': Employee,
@@ -1269,7 +1269,7 @@ def change_employee_assignment(schedule_id):
         schedule_datetime = schedule.schedule_datetime
 
         # Validate using ConstraintValidator
-        from services.constraint_validator import ConstraintValidator
+        from app.services.constraint_validator import ConstraintValidator
 
         models = {
             'Employee': Employee,
@@ -1753,7 +1753,7 @@ def trade_events():
 
         # Validate using ConstraintValidator
         # Check if employee2 can work event1's time, and employee1 can work event2's time
-        from services.constraint_validator import ConstraintValidator
+        from app.services.constraint_validator import ConstraintValidator
 
         models = {
             'Employee': Employee,
@@ -2728,7 +2728,7 @@ def get_workload():
         "thresholds": {"normal_max_events": 12, "high_max_events": 18, "overload_max_events": 20}
     }
     """
-    from services.workload_analytics import WorkloadAnalytics
+    from app.services.workload_analytics import WorkloadAnalytics
 
     try:
         db = current_app.extensions['sqlalchemy']
@@ -2954,7 +2954,7 @@ def change_event_employee(schedule_id):
         - Returns 409 Conflict if validation fails
         - Does not perform change if conflicts detected
     """
-    from services.conflict_validation import ConflictValidator
+    from app.services.conflict_validation import ConflictValidator
 
     db = current_app.extensions['sqlalchemy']
     Schedule = current_app.config['Schedule']
@@ -3115,7 +3115,7 @@ def get_available_employees():
         - Uses ConflictValidator to check each employee
         - Returns only conflict-free employees
     """
-    from services.conflict_validation import ConflictValidator
+    from app.services.conflict_validation import ConflictValidator
 
     db = current_app.extensions['sqlalchemy']
     Schedule = current_app.config['Schedule']
@@ -3383,6 +3383,90 @@ def reissue_event():
         db.session.rollback()
         return jsonify({
             'error': 'Failed to reissue event',
+            'details': str(e)
+        }), 500
+
+
+@api_bp.route('/verify-schedule', methods=['POST'])
+def verify_schedule():
+    """
+    Verify schedule for a specific date
+
+    Runs 8 validation rules to check for scheduling issues:
+    1. Juicer event verification
+    2. Core events per person limit
+    3. Supervisor event assignment
+    4. Supervisor event time
+    5. Shift balance across 4 timeslots
+    6. Lead Event Specialist coverage
+    7. Employee work limits
+    8. Event date range validation
+
+    Request Body:
+        {
+            "date": "2025-11-04"  # Date to verify in YYYY-MM-DD format
+        }
+
+    Returns:
+        JSON response with verification results:
+        {
+            "status": "pass" | "warning" | "fail",
+            "issues": [
+                {
+                    "severity": "critical" | "warning" | "info",
+                    "rule_name": "Rule name",
+                    "message": "Descriptive message",
+                    "details": {...}
+                }
+            ],
+            "summary": {
+                "date": "2025-11-04",
+                "total_issues": 3,
+                "critical_issues": 1,
+                "warnings": 2,
+                "total_events": 12,
+                "total_employees": 8
+            }
+        }
+
+    Example:
+        POST /api/verify-schedule
+        Body: {"date": "2025-11-04"}
+    """
+    from app.services.schedule_verification import ScheduleVerificationService
+    from app.utils.db_helpers import get_models
+
+    try:
+        # Get date from request
+        data = request.get_json()
+        if not data or 'date' not in data:
+            return jsonify({'error': 'Missing required field: date'}), 400
+
+        date_str = data['date']
+
+        # Parse date
+        try:
+            verify_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+        # Get models and db session
+        m = get_models()
+        db = m['db']
+
+        # Create service
+        service = ScheduleVerificationService(db.session, m)
+
+        # Run verification
+        result = service.verify_schedule(verify_date)
+
+        # Return results
+        return jsonify(result.to_dict()), 200
+
+    except Exception as e:
+        logger.error(f"Failed to verify schedule: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to verify schedule',
             'details': str(e)
         }), 500
 
