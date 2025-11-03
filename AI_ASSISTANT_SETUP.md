@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Assistant is a natural language interface for the scheduling system that allows managers to interact with the application using conversational queries. It supports both **OpenAI GPT-4o-mini** and **Anthropic Claude 3.5 Haiku**.
+The AI Assistant is a natural language interface for the scheduling system that allows managers to interact with the application using conversational queries. It supports **OpenAI GPT-4o-mini**, **Anthropic Claude 3.5 Haiku**, and **Google Gemini 1.5 Flash**.
 
 ---
 
@@ -33,24 +33,32 @@ All write operations require user confirmation before execution for safety.
 Add AI packages to your requirements:
 
 ```bash
-# For OpenAI (Recommended - Cheapest & Fastest)
+# For Google Gemini (Recommended - CHEAPEST!)
+pip install google-generativeai
+
+# OR for OpenAI (Fast & Affordable)
 pip install openai
 
 # OR for Anthropic Claude
 pip install anthropic
 
-# Both can be installed if you want flexibility
-pip install openai anthropic
+# All can be installed if you want flexibility
+pip install google-generativeai openai anthropic
 ```
 
 ### 2. Get API Keys
 
-#### Option A: OpenAI (Recommended)
+#### Option A: Google Gemini (Recommended - CHEAPEST!)
+1. Go to https://aistudio.google.com/app/apikey
+2. Create a new API key
+3. Cost: **~$0.075 per 1M tokens (~$0.11/month for 50 queries/day)** ⭐ BEST VALUE!
+
+#### Option B: OpenAI
 1. Go to https://platform.openai.com/api-keys
 2. Create a new API key
 3. Cost: ~$0.15 per 1M tokens (~$0.23/month for 50 queries/day)
 
-#### Option B: Anthropic Claude
+#### Option C: Anthropic Claude
 1. Go to https://console.anthropic.com/
 2. Create an API key
 3. Cost: ~$0.25 per 1M tokens (~$0.38/month for 50 queries/day)
@@ -60,7 +68,11 @@ pip install openai anthropic
 Add to your `.env` file or environment:
 
 ```bash
-# For OpenAI
+# For Google Gemini (Recommended)
+AI_PROVIDER=gemini
+AI_API_KEY=your-gemini-api-key-here
+
+# OR for OpenAI
 AI_PROVIDER=openai
 AI_API_KEY=sk-proj-your-openai-api-key-here
 
@@ -81,7 +93,7 @@ The AI assistant configuration is automatically loaded from environment variable
 
 ```python
 # AI Assistant Configuration
-AI_PROVIDER = os.getenv('AI_PROVIDER', 'openai')  # 'openai' or 'anthropic'
+AI_PROVIDER = os.getenv('AI_PROVIDER', 'gemini')  # 'gemini', 'openai', or 'anthropic'
 AI_API_KEY = os.getenv('AI_API_KEY')
 ```
 
@@ -203,13 +215,15 @@ Check AI configuration status
 - 500 tokens average per query
 - 30 days per month
 
-| Provider | Model | Cost per 1M Tokens | Monthly Cost |
-|----------|-------|-------------------|--------------|
-| OpenAI | GPT-4o-mini | $0.30 | $0.23/month |
-| Anthropic | Claude 3.5 Haiku | $0.50 | $0.38/month |
-| Google | Gemini 1.5 Flash | $0.15 | $0.11/month |
+| Provider | Model | Cost per 1M Tokens | Monthly Cost | Recommendation |
+|----------|-------|-------------------|--------------|----------------|
+| **Google** ⭐ | **Gemini 1.5 Flash** | **$0.15** | **$0.11/month** | **BEST VALUE** |
+| OpenAI | GPT-4o-mini | $0.30 | $0.23/month | Fast & Reliable |
+| Anthropic | Claude 3.5 Haiku | $0.50 | $0.38/month | High Quality |
 
 **Annual cost: $1.32 - $4.56/year** (incredibly affordable!)
+
+**🏆 Winner: Google Gemini 1.5 Flash - 50% cheaper than OpenAI, excellent function calling!**
 
 ---
 

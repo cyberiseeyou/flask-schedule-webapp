@@ -2,7 +2,7 @@
 AI Assistant Service
 
 Natural language interface for scheduling operations using LLM function calling.
-Supports both OpenAI and Anthropic Claude providers.
+Supports OpenAI, Anthropic Claude, and Google Gemini providers.
 """
 from typing import Dict, List, Any, Optional
 from datetime import datetime, date, timedelta
@@ -37,7 +37,7 @@ class AIAssistant:
         Initialize AI Assistant
 
         Args:
-            provider: LLM provider ('openai' or 'anthropic')
+            provider: LLM provider ('openai', 'anthropic', or 'gemini')
             api_key: API key for the provider
             db_session: SQLAlchemy database session
             models: Dictionary of database models
@@ -71,6 +71,13 @@ class AIAssistant:
                 return anthropic.Anthropic(api_key=self.api_key)
             except ImportError:
                 raise ImportError("Anthropic package not installed. Run: pip install anthropic")
+        elif self.provider == 'gemini':
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=self.api_key)
+                return genai
+            except ImportError:
+                raise ImportError("Google Generative AI package not installed. Run: pip install google-generativeai")
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
@@ -98,6 +105,8 @@ class AIAssistant:
                 response = self._call_openai(messages)
             elif self.provider == 'anthropic':
                 response = self._call_anthropic(messages)
+            elif self.provider == 'gemini':
+                response = self._call_gemini(messages)
             else:
                 raise ValueError(f"Unsupported provider: {self.provider}")
 
@@ -226,6 +235,123 @@ Be friendly, professional, and proactive. Suggest related actions when appropria
         except Exception as e:
             logger.error(f"Anthropic API error: {str(e)}", exc_info=True)
             raise
+
+    def _call_gemini(self, messages: List[Dict[str, str]]) -> AssistantResponse:
+        """Call Google Gemini API with function calling"""
+        try:
+            # Convert tool schemas to Gemini format
+            gemini_tools = self._convert_tools_to_gemini_format()
+
+            # Extract system message and conversation
+            system_message = messages[0]['content'] if messages[0]['role'] == 'system' else None
+            conversation_messages = messages[1:] if system_message else messages
+
+            # Convert messages to Gemini format
+            gemini_messages = []
+            for msg in conversation_messages:
+                role = 'user' if msg['role'] == 'user' else 'model'
+                gemini_messages.append({
+                    'role': role,
+                    'parts': [msg['content']]
+                })
+
+            # Create model
+            model = self.client.GenerativeModel(
+                model_name='gemini-1.5-flash',
+                system_instruction=system_message,
+                tools=gemini_tools
+            )
+
+            # Generate response
+            response = model.generate_content(
+                gemini_messages,
+                generation_config={'temperature': 0.1}
+            )
+
+            # Check for function calls
+            if response.candidates[0].content.parts:
+                function_calls = [
+                    part.function_call
+                    for part in response.candidates[0].content.parts
+                    if hasattr(part, 'function_call')
+                ]
+
+                if function_calls:
+                    return self._handle_gemini_function_calls(function_calls, messages)
+
+            # Text response
+            text = response.text if hasattr(response, 'text') else "I'm not sure how to help with that."
+            return AssistantResponse(
+                response=text,
+                data=None
+            )
+
+        except Exception as e:
+            logger.error(f"Gemini API error: {str(e)}", exc_info=True)
+            raise
+
+    def _convert_tools_to_gemini_format(self) -> List[Dict[str, Any]]:
+        """Convert OpenAI tool format to Gemini function declarations"""
+        gemini_tools = []
+
+        for tool in self.tool_schemas:
+            if tool['type'] == 'function':
+                func = tool['function']
+                gemini_tools.append({
+                    'name': func['name'],
+                    'description': func['description'],
+                    'parameters': func['parameters']
+                })
+
+        return gemini_tools
+
+    def _handle_gemini_function_calls(
+        self,
+        function_calls: List[Any],
+        messages: List[Dict[str, str]]
+    ) -> AssistantResponse:
+        """Execute function calls and format response (Gemini format)"""
+        results = []
+        all_data = {}
+        requires_confirmation = False
+        confirmation_data = None
+
+        for function_call in function_calls:
+            function_name = function_call.name
+            function_args = dict(function_call.args)
+
+            logger.info(f"Executing tool: {function_name} with args: {function_args}")
+
+            # Execute the tool
+            result = self.tools.execute_tool(function_name, function_args)
+            results.append(result)
+
+            # Merge data
+            if result.get('data'):
+                all_data.update(result['data'])
+
+            # Check if confirmation is needed
+            if result.get('requires_confirmation'):
+                requires_confirmation = True
+                confirmation_data = result.get('confirmation_data')
+
+        # Generate natural language response
+        final_response = self._format_tool_results(results)
+
+        # Extract suggested actions
+        actions = self._extract_actions(results)
+
+        return AssistantResponse(
+            response=final_response,
+            data=all_data,
+            actions=actions,
+            requires_confirmation=requires_confirmation,
+            confirmation_data=confirmation_data,
+            tool_calls=[{
+                'name': fc.name,
+                'args': dict(fc.args)
+            } for fc in function_calls]
+        )
 
     def _handle_tool_calls(
         self,
