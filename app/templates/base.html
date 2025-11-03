@@ -251,6 +251,9 @@
     <!-- Notifications -->
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
 
+    <!-- AI Assistant Chat Bubble -->
+    {% include 'components/ai_chat_bubble.html' %}
+
     {% block scripts %}{% endblock %}
 </body>
 </html>
