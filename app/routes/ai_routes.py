@@ -44,13 +44,18 @@ def process_query():
         if not query:
             return jsonify({'error': 'Missing query parameter'}), 400
 
-        # Get AI provider settings from config/environment
-        provider = current_app.config.get('AI_PROVIDER', 'openai')
-        api_key = current_app.config.get('AI_API_KEY')
+        # Get AI provider settings from SystemSettings first, then config/environment
+        SystemSetting = current_app.config.get('SystemSetting')
+        if SystemSetting:
+            provider = SystemSetting.get_setting('ai_provider') or current_app.config.get('AI_PROVIDER', 'gemini')
+            api_key = SystemSetting.get_setting('ai_api_key') or current_app.config.get('AI_API_KEY')
+        else:
+            provider = current_app.config.get('AI_PROVIDER', 'gemini')
+            api_key = current_app.config.get('AI_API_KEY')
 
         if not api_key:
             return jsonify({
-                'error': 'AI assistant not configured. Please set AI_API_KEY in environment.'
+                'error': 'AI assistant not configured. Please configure AI settings in Settings page or set AI_API_KEY in environment.'
             }), 503
 
         # Get database session and models
@@ -119,13 +124,18 @@ def confirm_action():
         if not confirmation_data:
             return jsonify({'error': 'Missing confirmation_data'}), 400
 
-        # Get AI provider settings
-        provider = current_app.config.get('AI_PROVIDER', 'openai')
-        api_key = current_app.config.get('AI_API_KEY')
+        # Get AI provider settings from SystemSettings first, then config/environment
+        SystemSetting = current_app.config.get('SystemSetting')
+        if SystemSetting:
+            provider = SystemSetting.get_setting('ai_provider') or current_app.config.get('AI_PROVIDER', 'openai')
+            api_key = SystemSetting.get_setting('ai_api_key') or current_app.config.get('AI_API_KEY')
+        else:
+            provider = current_app.config.get('AI_PROVIDER', 'openai')
+            api_key = current_app.config.get('AI_API_KEY')
 
         if not api_key:
             return jsonify({
-                'error': 'AI assistant not configured'
+                'error': 'AI assistant not configured. Please configure AI settings in Settings page or set AI_API_KEY in environment.'
             }), 503
 
         # Get database session and models
@@ -237,3 +247,39 @@ def health_check():
         'configured': bool(api_key),
         'message': 'AI assistant ready' if api_key else 'AI_API_KEY not configured'
     }), 200
+
+
+@ai_bp.route('/current-model', methods=['GET'])
+@require_authentication()
+def get_current_model():
+    """
+    Get the currently configured AI model/provider
+
+    Returns:
+        {
+            "provider": "openai" | "anthropic" | "gemini",
+            "configured": bool
+        }
+    """
+    try:
+        # Get AI provider settings from SystemSettings first, then config/environment
+        SystemSetting = current_app.config.get('SystemSetting')
+        if SystemSetting:
+            provider = SystemSetting.get_setting('ai_provider') or current_app.config.get('AI_PROVIDER', 'openai')
+            api_key = SystemSetting.get_setting('ai_api_key') or current_app.config.get('AI_API_KEY')
+        else:
+            provider = current_app.config.get('AI_PROVIDER', 'openai')
+            api_key = current_app.config.get('AI_API_KEY')
+
+        return jsonify({
+            'provider': provider,
+            'configured': bool(api_key)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting current model: {str(e)}")
+        return jsonify({
+            'provider': 'openai',
+            'configured': False,
+            'error': str(e)
+        }), 500

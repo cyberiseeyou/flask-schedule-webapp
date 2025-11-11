@@ -23,187 +23,9 @@ def index():
 @main_bp.route('/dashboard')
 @require_authentication()
 def dashboard():
-    """Main dashboard view with today's schedule and statistics"""
-    from flask import current_app
-    db = current_app.extensions['sqlalchemy']
-
-    # Get models
-    Employee = current_app.config['Employee']
-    Event = current_app.config['Event']
-    Schedule = current_app.config['Schedule']
-
-    # Get today's date - always use current system date
+    """Redirect to today's daily schedule view"""
     today = date.today()
-    two_weeks_from_now = today + timedelta(days=14)
-
-    # Get Club Supervisor name for welcome message
-    supervisor = Employee.query.filter_by(job_title='Club Supervisor', is_active=True).first()
-    supervisor_first_name = None
-    if supervisor:
-        supervisor_first_name = supervisor.name.split()[0] if supervisor.name else None
-
-    # Get Primary Lead for today (Lead scheduled for any event today)
-    primary_lead_today = None
-    lead_schedule = db.session.query(
-        Employee
-    ).join(
-        Schedule, Schedule.employee_id == Employee.id
-    ).filter(
-        db.func.date(Schedule.schedule_datetime) == today,
-        Employee.job_title == 'Lead',
-        Employee.is_active == True
-    ).first()
-    if lead_schedule:
-        primary_lead_today = lead_schedule.name
-
-    # Get Juicer for today (Employee scheduled for Juicer Production)
-    juicer_today = None
-    juicer_schedule = db.session.query(
-        Employee, Event
-    ).join(
-        Schedule, Schedule.employee_id == Employee.id
-    ).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).filter(
-        db.func.date(Schedule.schedule_datetime) == today,
-        Event.event_type == 'Juicer',
-        Event.project_name.contains('Production'),
-        Employee.is_active == True
-    ).first()
-    if juicer_schedule:
-        juicer_today = juicer_schedule[0].name
-
-    # Get today's Core events and Juicer Production events (scheduled)
-    today_core_events = db.session.query(
-        Schedule, Event, Employee
-    ).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).outerjoin(
-        Employee, db.or_(
-            Schedule.employee_id == Employee.id,
-            Schedule.employee_id == Employee.name
-        )
-    ).filter(
-        db.func.date(Schedule.schedule_datetime) == today,
-        db.or_(
-            Event.event_type == 'Core',
-            db.and_(
-                Event.event_type == 'Juicer',
-                Event.project_name.contains('Production'),
-                ~Event.project_name.contains('Survey')
-            )
-        )
-    ).order_by(
-        Schedule.schedule_datetime.asc()
-    ).all()
-
-    # Get tomorrow's Core events and Juicer Production events (scheduled)
-    tomorrow = today + timedelta(days=1)
-    tomorrow_core_events = db.session.query(
-        Schedule, Event, Employee
-    ).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).join(
-        Employee, Schedule.employee_id == Employee.id
-    ).filter(
-        db.func.date(Schedule.schedule_datetime) == tomorrow,
-        db.or_(
-            Event.event_type == 'Core',
-            db.and_(
-                Event.event_type == 'Juicer',
-                Event.project_name.contains('Production'),
-                ~Event.project_name.contains('Survey')
-            )
-        )
-    ).order_by(
-        Schedule.schedule_datetime.asc()
-    ).all()
-
-    # Get unscheduled events within 2 weeks - ONLY Unstaffed are truly unscheduled
-    unscheduled_events_2weeks = Event.query.filter(
-        Event.condition == 'Unstaffed',
-        Event.start_datetime >= today,
-        Event.start_datetime <= two_weeks_from_now
-    ).order_by(
-        Event.start_datetime.asc(),
-        Event.due_datetime.asc()
-    ).all()
-
-    # Calculate statistics with new logic
-    # Total events within 2 weeks (from today to 2 weeks from now)
-    total_events_2weeks = Event.query.filter(
-        Event.start_datetime >= today,
-        Event.start_datetime <= two_weeks_from_now,
-        # Exclude canceled and expired
-        ~Event.condition.in_(['Canceled', 'Expired'])
-    ).count()
-
-    # Scheduled events: Scheduled + Submitted conditions within date range
-    scheduled_events_2weeks = Event.query.filter(
-        Event.start_datetime >= today,
-        Event.start_datetime <= two_weeks_from_now,
-        Event.condition.in_(['Scheduled', 'Submitted'])
-    ).count()
-
-    # Calculate scheduling percentage
-    scheduling_percentage = 0
-    if total_events_2weeks > 0:
-        scheduling_percentage = round((scheduled_events_2weeks / total_events_2weeks) * 100, 1)
-
-    # Core event counts by time slots for today
-    core_time_slots = {}
-    core_times = ['9:45', '10:30', '11:00', '11:30']
-
-    for time_slot in core_times:
-        count = 0
-        for schedule, event, employee in today_core_events:
-            scheduled_time = schedule.schedule_datetime.strftime('%H:%M')
-            if ((time_slot == '9:45' and scheduled_time == '09:45') or
-                (time_slot == '10:30' and scheduled_time == '10:30') or
-                (time_slot == '11:00' and scheduled_time == '11:00') or
-                (time_slot == '11:30' and scheduled_time == '11:30')):
-                count += 1
-        core_time_slots[time_slot] = count
-
-    # Additional statistics
-    total_core_today = len(today_core_events)
-    total_digitals_today = db.session.query(
-        Schedule, Event
-    ).join(
-        Event, Schedule.event_ref_num == Event.project_ref_num
-    ).filter(
-        db.func.date(Schedule.schedule_datetime) == today,
-        Event.event_type == 'Digitals'
-    ).count()
-
-    # Active employees count
-    active_employees_count = Employee.query.filter_by(is_active=True).count()
-
-    # Events scheduled this week
-    week_start = today - timedelta(days=today.weekday())
-    events_this_week = db.session.query(Schedule).filter(
-        db.func.date(Schedule.schedule_datetime) >= week_start,
-        db.func.date(Schedule.schedule_datetime) < week_start + timedelta(days=7)
-    ).count()
-
-    return render_template('index.html',
-                         supervisor_first_name=supervisor_first_name,
-                         primary_lead_today=primary_lead_today,
-                         juicer_today=juicer_today,
-                         today_core_events=today_core_events,
-                         tomorrow_core_events=tomorrow_core_events,
-                         unscheduled_events_2weeks=unscheduled_events_2weeks,
-                         total_events_2weeks=total_events_2weeks,
-                         scheduled_events_2weeks=scheduled_events_2weeks,
-                         scheduling_percentage=scheduling_percentage,
-                         core_time_slots=core_time_slots,
-                         total_core_today=total_core_today,
-                         total_digitals_today=total_digitals_today,
-                         active_employees_count=active_employees_count,
-                         events_this_week=events_this_week,
-                         today=today,
-                         today_date=today.strftime('%Y-%m-%d'),
-                         tomorrow=tomorrow)
+    return redirect(url_for('main.daily_schedule_view', date=today.strftime('%Y-%m-%d')))
 
 
 @main_bp.route('/events')
@@ -791,6 +613,7 @@ def daily_schedule_view(date: str) -> str:
 
     # Get models
     RotationAssignment = current_app.config.get('RotationAssignment')
+    Employee = current_app.config.get('Employee')
 
     # Parse and validate date
     try:
@@ -834,13 +657,19 @@ def daily_schedule_view(date: str) -> str:
     prev_date = selected_date - timedelta(days=1)
     next_date = selected_date + timedelta(days=1)
 
+    # Get all employees for bulk reassignment dropdown (active employees only)
+    employees = []
+    if Employee:
+        employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+
     # Render template with context
     return render_template('daily_view.html',
         selected_date=selected_date,
         juicer=juicer,
         primary_lead=primary_lead,
         prev_date=prev_date,
-        next_date=next_date
+        next_date=next_date,
+        employees=employees
     )
 
 

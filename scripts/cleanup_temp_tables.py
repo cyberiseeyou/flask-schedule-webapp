@@ -6,7 +6,8 @@ import os
 
 def cleanup_temp_tables():
     """Remove temporary Alembic tables"""
-    basedir = os.path.abspath(os.path.dirname(__file__))
+    # Get project root (parent of scripts directory)
+    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     db_path = os.path.join(basedir, 'instance', 'scheduler.db')
 
     if not os.path.exists(db_path):

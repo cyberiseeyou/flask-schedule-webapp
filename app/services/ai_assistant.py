@@ -256,8 +256,9 @@ Be friendly, professional, and proactive. Suggest related actions when appropria
                 })
 
             # Create model
+            # Use gemini-2.5-flash (Gemini 2.5 Flash model - stable version)
             model = self.client.GenerativeModel(
-                model_name='gemini-1.5-flash',
+                model_name='gemini-2.5-flash',
                 system_instruction=system_message,
                 tools=gemini_tools
             )
@@ -297,13 +298,72 @@ Be friendly, professional, and proactive. Suggest related actions when appropria
         for tool in self.tool_schemas:
             if tool['type'] == 'function':
                 func = tool['function']
+
+                # Convert parameters to Gemini format
+                gemini_params = self._convert_params_to_gemini(func['parameters'])
+
                 gemini_tools.append({
                     'name': func['name'],
                     'description': func['description'],
-                    'parameters': func['parameters']
+                    'parameters': gemini_params
                 })
 
         return gemini_tools
+
+    def _convert_params_to_gemini(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert OpenAI parameter schema to Gemini format"""
+        if not params:
+            return {'type': 'OBJECT', 'properties': {}}
+
+        gemini_params = {}
+
+        # Convert type to uppercase
+        if 'type' in params:
+            gemini_params['type'] = params['type'].upper()
+
+        # Convert properties
+        if 'properties' in params:
+            gemini_params['properties'] = {}
+            for prop_name, prop_schema in params['properties'].items():
+                gemini_params['properties'][prop_name] = self._convert_property_to_gemini(prop_schema)
+
+        # Copy required fields
+        if 'required' in params:
+            gemini_params['required'] = params['required']
+
+        # Copy description if present
+        if 'description' in params:
+            gemini_params['description'] = params['description']
+
+        return gemini_params
+
+    def _convert_property_to_gemini(self, prop_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a single property schema to Gemini format"""
+        gemini_prop = {}
+
+        # Convert type to uppercase
+        if 'type' in prop_schema:
+            gemini_prop['type'] = prop_schema['type'].upper()
+
+        # Copy description
+        if 'description' in prop_schema:
+            gemini_prop['description'] = prop_schema['description']
+
+        # Handle array items
+        if 'items' in prop_schema:
+            gemini_prop['items'] = self._convert_property_to_gemini(prop_schema['items'])
+
+        # Handle nested objects
+        if 'properties' in prop_schema:
+            gemini_prop['properties'] = {}
+            for nested_name, nested_schema in prop_schema['properties'].items():
+                gemini_prop['properties'][nested_name] = self._convert_property_to_gemini(nested_schema)
+
+        # Copy enum if present
+        if 'enum' in prop_schema:
+            gemini_prop['enum'] = prop_schema['enum']
+
+        return gemini_prop
 
     def _handle_gemini_function_calls(
         self,
@@ -318,7 +378,8 @@ Be friendly, professional, and proactive. Suggest related actions when appropria
 
         for function_call in function_calls:
             function_name = function_call.name
-            function_args = dict(function_call.args)
+            # Handle None args (can happen when function has no parameters)
+            function_args = dict(function_call.args) if function_call.args else {}
 
             logger.info(f"Executing tool: {function_name} with args: {function_args}")
 
@@ -349,7 +410,7 @@ Be friendly, professional, and proactive. Suggest related actions when appropria
             confirmation_data=confirmation_data,
             tool_calls=[{
                 'name': fc.name,
-                'args': dict(fc.args)
+                'args': dict(fc.args) if fc.args else {}
             } for fc in function_calls]
         )
 

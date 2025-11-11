@@ -55,9 +55,10 @@ def require_authentication():
 @auth_bp.route('/login')
 def login_page():
     """Display login page"""
-    # Redirect to dashboard if already authenticated
+    # Redirect to today's daily view if already authenticated
     if is_authenticated():
-        return redirect(url_for('main.dashboard'))
+        today = datetime.now().strftime('%Y-%m-%d')
+        return redirect(url_for('main.daily_schedule_view', date=today))
 
     return render_template('login.html')
 
@@ -181,16 +182,31 @@ def login():
 
                 current_app.logger.info(f"Successful authentication for user: {username}")
 
-                # Create response
+                # Check if event time settings are configured
+                event_times_configured = True
+                missing_settings = []
+                try:
+                    from app.services.event_time_settings import are_event_times_configured
+                    event_times_configured, missing_settings = are_event_times_configured()
+                except Exception as e:
+                    current_app.logger.error(f"Error checking event time settings: {e}")
+
+                # Add event times configuration status to session
+                session_data['event_times_configured'] = event_times_configured
+                session_store[session_id] = session_data
+
+                # Create response - redirect to today's daily view
+                today = datetime.now().strftime('%Y-%m-%d')
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     response = jsonify({
                         'success': True,
-                        'redirect': url_for('main.dashboard'),
+                        'redirect': url_for('main.daily_schedule_view', date=today),
                         'user': user_info,
-                        'refresh_database': True  # Trigger post-login database refresh
+                        'refresh_database': True,  # Trigger post-login database refresh
+                        'event_times_configured': event_times_configured
                     })
                 else:
-                    response = redirect(url_for('main.dashboard'))
+                    response = redirect(url_for('main.daily_schedule_view', date=today))
 
                 # Set session cookie
                 response.set_cookie(
@@ -236,6 +252,27 @@ def login():
         else:
             flash(error_message, 'error')
             return redirect(url_for('auth.login_page'))
+
+
+@auth_bp.route('/api/session-info')
+def session_info():
+    """Get session information including event times configuration status"""
+    session_id = request.cookies.get('session_id')
+
+    if not session_id or session_id not in session_store:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+
+    session_data = session_store[session_id]
+    event_times_configured = session_data.get('event_times_configured', True)
+
+    return jsonify({
+        'success': True,
+        'event_times_configured': event_times_configured,
+        'user': session_data.get('user_info', {})
+    })
 
 
 @auth_bp.route('/logout')

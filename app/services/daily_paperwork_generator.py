@@ -472,7 +472,7 @@ class DailyPaperworkGenerator:
 
         try:
             # Import EDRPDFGenerator
-            from edr import EDRPDFGenerator
+            from app.integrations.edr import EDRPDFGenerator
 
             # Get EDR data
             edr_data = self.edr_generator.get_edr_report(event_mplan_id)
@@ -513,7 +513,7 @@ class DailyPaperworkGenerator:
         """
         try:
             # Import EDRPDFGenerator
-            from edr import EDRPDFGenerator
+            from app.integrations.edr import EDRPDFGenerator
 
             if not edr_data:
                 print(f"⚠️ No EDR data provided for event {event_mplan_id}")

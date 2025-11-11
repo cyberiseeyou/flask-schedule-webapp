@@ -39,9 +39,9 @@
 
                 <!-- Navigation Links (Desktop & Mobile) -->
                 <div class="nav-links" id="navLinks">
-                    <!-- Home Link (redirects to Daily Validation) -->
-                    <a href="{{ url_for('dashboard.daily_validation') }}"
-                       class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard.') %}active{% endif %}"
+                    <!-- Home Link (redirects to root which goes to today's daily view) -->
+                    <a href="{{ url_for('main.index') }}"
+                       class="nav-link {% if request.endpoint == 'main.daily_schedule_view' or request.endpoint == 'main.index' %}active{% endif %}"
                        aria-label="Go to home page">
                         <span class="nav-icon">🏠</span>
                         <span class="nav-text">Home</span>
@@ -202,6 +202,35 @@
         </div>
     </div>
 
+    <!-- Event Times Configuration Warning Modal -->
+    <div id="eventTimesWarningModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="background: #dc3545; color: white;">
+                <h2 style="margin: 0; font-size: 1.3em;">⚠️ Event Times Not Configured</h2>
+            </div>
+            <div class="modal-body" style="padding: 25px;">
+                <p style="font-size: 1.1em; margin-bottom: 20px; line-height: 1.6;">
+                    <strong>Important:</strong> Event time settings have not been configured yet.
+                </p>
+                <p style="margin-bottom: 20px; line-height: 1.6;">
+                    These settings are required for scheduling to work correctly. Without them, you will not be able to:
+                </p>
+                <ul style="margin-bottom: 20px; line-height: 1.8; padding-left: 25px;">
+                    <li>Create or edit schedules</li>
+                    <li>Run the auto-scheduler</li>
+                    <li>Validate event times</li>
+                </ul>
+                <p style="font-weight: bold; color: #dc3545; margin-bottom: 20px;">
+                    Please configure these settings immediately to ensure proper system operation.
+                </p>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-secondary" id="eventTimesLater" style="padding: 10px 20px;">Later</button>
+                <button class="btn btn-primary" id="eventTimesGoToSettings" style="padding: 10px 20px; background: #dc3545;">Go to Settings</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="container">
         <div class="main-content">
@@ -247,6 +276,68 @@
 
     <!-- Database Refresh Modal -->
     <script src="{{ url_for('static', filename='js/database-refresh.js') }}"></script>
+
+    <!-- Event Times Warning Modal -->
+    <script>
+    (function() {
+        // Check if event times warning should be shown
+        const checkEventTimesConfiguration = () => {
+            // Check session storage to see if we've already dismissed this session
+            const dismissed = sessionStorage.getItem('eventTimesWarningDismissed');
+            if (dismissed === 'true') {
+                return;
+            }
+
+            // Check if event times are configured (will be set by login response)
+            fetch('/api/session-info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.event_times_configured === false) {
+                        showEventTimesWarning();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking event times configuration:', error);
+                });
+        };
+
+        const showEventTimesWarning = () => {
+            const modal = document.getElementById('eventTimesWarningModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+            }
+        };
+
+        // Handle button clicks
+        document.addEventListener('DOMContentLoaded', () => {
+            const laterBtn = document.getElementById('eventTimesLater');
+            const goToSettingsBtn = document.getElementById('eventTimesGoToSettings');
+            const modal = document.getElementById('eventTimesWarningModal');
+
+            if (laterBtn) {
+                laterBtn.addEventListener('click', () => {
+                    // Dismiss for this session only
+                    sessionStorage.setItem('eventTimesWarningDismissed', 'true');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (goToSettingsBtn) {
+                goToSettingsBtn.addEventListener('click', () => {
+                    // Navigate to settings page
+                    window.location.href = '{{ url_for("admin.settings_page") }}';
+                });
+            }
+
+            // Check on page load
+            checkEventTimesConfiguration();
+        });
+    })();
+    </script>
 
     <!-- Notifications -->
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>

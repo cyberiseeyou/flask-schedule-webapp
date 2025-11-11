@@ -238,9 +238,9 @@ class TradeModal {
 
             const data = await response.json();
 
-            // Filter out source event from list
+            // Filter out source event and only show Core events (only Core events can be traded)
             const targetEvents = data.events.filter(
-                event => event.schedule_id !== this.sourceScheduleId
+                event => event.schedule_id !== this.sourceScheduleId && event.event_type === 'Core'
             );
 
             if (targetEvents.length === 0) {
@@ -250,9 +250,10 @@ class TradeModal {
                         <p class="empty-state__icon">📭</p>
                         <p class="empty-state__message">
                             ${this.tradeModeIsCrossDay ?
-                                'No events scheduled on this date' :
-                                'No other events scheduled today'}
+                                'No Core events available for trade on this date' :
+                                'No other Core events available for trade today'}
                         </p>
+                        <p class="empty-state__help">Only Core events can be traded</p>
                     </div>
                 `;
             } else {

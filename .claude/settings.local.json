@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Read(//c/Users/mathe/flask-schedule-webapp/**)"
+      "Read(//c/Users/mathe/flask-schedule-webapp/**)",
+      "mcp__plugin_superpowers-chrome_chrome__use_browser"
     ],
     "deny": [],
     "ask": []

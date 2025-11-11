@@ -59,10 +59,33 @@ class ScheduleVerificationService:
     8. Event date range validation
     """
 
-    # Core event time slots
-    CORE_TIMESLOTS = ['09:45:00', '10:30:00', '11:00:00', '11:30:00']
-    SUPERVISOR_TIME = '12:00:00'
     MAX_WORK_DAYS_PER_WEEK = 6
+
+    @classmethod
+    def _get_core_timeslots(cls):
+        """Get Core event time slots from database settings"""
+        from app.services.event_time_settings import get_core_slots
+
+        try:
+            slots = get_core_slots()
+            # Convert to HH:MM:SS format for comparison
+            return [f"{slot['start'].hour:02d}:{slot['start'].minute:02d}:00" for slot in slots]
+        except Exception:
+            # Fallback to hard-coded defaults
+            return ['09:45:00', '10:30:00', '11:00:00', '11:30:00']
+
+    @classmethod
+    def _get_supervisor_time(cls):
+        """Get Supervisor event time from database settings"""
+        from app.services.event_time_settings import get_supervisor_times
+
+        try:
+            times = get_supervisor_times()
+            # Convert to HH:MM:SS format for comparison
+            return f"{times['start'].hour:02d}:{times['start'].minute:02d}:00"
+        except Exception:
+            # Fallback to hard-coded default
+            return '12:00:00'
 
     def __init__(self, db_session, models):
         """
@@ -80,6 +103,10 @@ class ScheduleVerificationService:
         self.EmployeeWeeklyAvailability = models.get('EmployeeWeeklyAvailability')
         self.EmployeeTimeOff = models['EmployeeTimeOff']
         self.EmployeeAttendance = models.get('EmployeeAttendance')
+
+        # Load time settings from database
+        self.CORE_TIMESLOTS = self._get_core_timeslots()
+        self.SUPERVISOR_TIME = self._get_supervisor_time()
 
     def verify_schedule(self, verify_date: datetime.date) -> VerificationResult:
         """

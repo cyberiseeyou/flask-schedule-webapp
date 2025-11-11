@@ -470,7 +470,11 @@ def get_available_reps():
 
         # Handle different possible response structures
         if isinstance(reps_data, dict):
-            if 'representatives' in reps_data:
+            # Crossmark API returns 'reps' as an object with repId keys
+            if 'reps' in reps_data:
+                reps_obj = reps_data['reps']
+                representatives = list(reps_obj.values()) if isinstance(reps_obj, dict) else []
+            elif 'representatives' in reps_data:
                 representatives = reps_data['representatives']
             elif 'data' in reps_data:
                 representatives = reps_data['data']
@@ -488,9 +492,10 @@ def get_available_reps():
             if isinstance(rep, dict):
                 formatted_reps.append({
                     'id': rep.get('repId') or rep.get('id') or rep.get('RepID'),
-                    'name': rep.get('name') or rep.get('Name') or f"{rep.get('FirstName', '')} {rep.get('LastName', '')}".strip(),
+                    'name': rep.get('title') or rep.get('name') or rep.get('Name') or f"{rep.get('FirstName', '')} {rep.get('LastName', '')}".strip(),
                     'email': rep.get('email') or rep.get('Email'),
                     'phone': rep.get('phone') or rep.get('Phone'),
+                    'employee_id': rep.get('employeeId') or rep.get('RepID') or rep.get('repMvid'),
                 })
 
         current_app.logger.info(f"Retrieved {len(formatted_reps)} representatives from MVRetail")

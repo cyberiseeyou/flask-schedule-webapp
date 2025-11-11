@@ -46,14 +46,21 @@ def schedule_event(event_id):
 
 
 def get_allowed_times_for_event_type(event_type):
-    """Get allowed times for a specific event type"""
-    time_restrictions = {
-        'Core': ['09:45', '10:30', '11:00', '11:30'],
-        'Supervisor': ['12:00'],
-        'Freeosk': ['09:00', '12:00'],
-        'Digitals': ['09:15', '09:30', '09:45', '10:00']
-    }
-    return time_restrictions.get(event_type, None)
+    """Get allowed times for a specific event type from database settings"""
+    from app.services.event_time_settings import get_allowed_times_for_event_type as get_times
+
+    try:
+        return get_times(event_type)
+    except Exception as e:
+        current_app.logger.error(f"Error loading event times for {event_type}: {e}")
+        # Fallback to default times if settings not available
+        time_restrictions = {
+            'Core': ['09:45', '10:30', '11:00', '11:30'],
+            'Supervisor': ['12:00'],
+            'Freeosk': ['09:00', '12:00'],
+            'Digitals': ['09:15', '09:30', '09:45', '10:00']
+        }
+        return time_restrictions.get(event_type, None)
 
 
 def is_valid_time_for_event_type(event_type, time_obj):
@@ -262,7 +269,7 @@ def check_scheduling_conflicts():
     Refactored from inline validation code as part of Epic 1, Story 1.1.
     """
     from flask import current_app
-    from services.conflict_validation import ConflictValidator
+    from app.services.conflict_validation import ConflictValidator
 
     db = current_app.extensions['sqlalchemy']
 

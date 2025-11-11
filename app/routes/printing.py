@@ -611,7 +611,7 @@ def get_complete_paperwork():
 
     try:
         # Import the DailyPaperworkGenerator
-        from services.daily_paperwork_generator import DailyPaperworkGenerator
+        from app.services.daily_paperwork_generator import DailyPaperworkGenerator
 
         data = request.get_json()
         date_str = data.get('date')

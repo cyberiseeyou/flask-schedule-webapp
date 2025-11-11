@@ -6,7 +6,8 @@ import os
 
 def fix_database():
     """Fix the database schema and migration tracking"""
-    basedir = os.path.abspath(os.path.dirname(__file__))
+    # Get project root (parent of scripts directory)
+    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     db_path = os.path.join(basedir, 'instance', 'scheduler.db')
 
     if not os.path.exists(db_path):
@@ -101,7 +102,7 @@ def fix_database():
         print(f"[OK] Migration version: {version[0]}")
 
         print("\n[SUCCESS] Database fix complete!")
-        print("\nNext step: Run 'python run_migrations.py' to apply remaining migrations")
+        print("\nNext step: Run 'python scripts/run_migrations.py' to apply remaining migrations")
 
     except Exception as e:
         print(f"[ERROR] Error fixing database: {e}")

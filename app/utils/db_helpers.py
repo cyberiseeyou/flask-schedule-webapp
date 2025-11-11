@@ -31,7 +31,7 @@ def get_models(app=None) -> Dict[str, Any]:
         app = current_app
 
     # Get models from registry
-    from models import get_models as registry_get_models
+    from app.models import get_models as registry_get_models
     models = registry_get_models()
 
     # Return with db instance for backward compatibility

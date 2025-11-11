@@ -54,6 +54,39 @@
             <div id="save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
+        <!-- AI Assistant Configuration Section -->
+        <section class="settings-section">
+            <h3>AI Assistant Configuration</h3>
+            <p class="section-description">Configure the AI provider and API credentials for the scheduling assistant</p>
+
+            <div class="form-group">
+                <label for="ai_provider">AI Provider:</label>
+                <select id="ai_provider" name="ai_provider" class="form-control">
+                    <option value="openai" {% if settings.get('ai_provider', 'openai') == 'openai' %}selected{% endif %}>OpenAI (GPT-4/GPT-3.5)</option>
+                    <option value="anthropic" {% if settings.get('ai_provider') == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                    <option value="gemini" {% if settings.get('ai_provider') == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                </select>
+                <small class="form-text">Select which AI provider to use for the scheduling assistant</small>
+            </div>
+
+            <div class="form-group">
+                <label for="ai_api_key">API Key:</label>
+                <input type="password" id="ai_api_key" name="ai_api_key"
+                       placeholder="{% if settings.get('ai_api_key') %}••••••••••••••••{% else %}Enter your API key{% endif %}"
+                       class="form-control">
+                <small class="form-text">
+                    {% if settings.get('ai_api_key') %}
+                        Leave blank to keep current API key. Get your API key from:
+                    {% else %}
+                        Enter your API key. Get it from:
+                    {% endif %}
+                    <a href="#" id="api-key-link" target="_blank" rel="noopener">provider website</a>
+                </small>
+            </div>
+
+            <div id="ai-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
+        </section>
+
         <!-- Auto-Scheduler Configuration Section -->
         <section class="settings-section">
             <h3>Auto-Scheduler Configuration</h3>
@@ -124,6 +157,167 @@
             <div id="templates-list" class="templates-list">
                 <div class="loading-message">Loading templates...</div>
             </div>
+        </section>
+
+        <!-- Event Time Configuration Section -->
+        <section class="settings-section" id="event-times">
+            <h3>Event Time Configuration</h3>
+            <p class="section-description">Configure start and end times for all event types. These times are used for scheduling and validation.</p>
+
+            <div class="warning-box">
+                <strong>⚠️ Important:</strong> All event times must be configured for scheduling to work correctly. Changes will affect all future scheduling operations.
+            </div>
+
+            <!-- Freeosk Times -->
+            <div class="event-type-group">
+                <h4>Freeosk Event</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="freeosk_start_time">Start Time:</label>
+                        <input type="time" id="freeosk_start_time" name="freeosk_start_time"
+                               value="{{ event_times.get('freeosk_start_time', '09:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="freeosk_end_time">End Time:</label>
+                        <input type="time" id="freeosk_end_time" name="freeosk_end_time"
+                               value="{{ event_times.get('freeosk_end_time', '09:15') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Digital Setup Slots -->
+            <div class="event-type-group">
+                <h4>Digital Setup Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="digital_setup_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="digital_setup_{{ slot }}_start_time"
+                                   name="digital_setup_{{ slot }}_start_time"
+                                   value="{{ event_times.get('digital_setup_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="digital_setup_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="digital_setup_{{ slot }}_end_time"
+                                   name="digital_setup_{{ slot }}_end_time"
+                                   value="{{ event_times.get('digital_setup_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Core Slots -->
+            <div class="event-type-group">
+                <h4>Core Event Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="core_{{ slot }}_start_time"
+                                   name="core_{{ slot }}_start_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_lunch_begin_time">Lunch Begin:</label>
+                            <input type="time" id="core_{{ slot }}_lunch_begin_time"
+                                   name="core_{{ slot }}_lunch_begin_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_lunch_begin_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_lunch_end_time">Lunch End:</label>
+                            <input type="time" id="core_{{ slot }}_lunch_end_time"
+                                   name="core_{{ slot }}_lunch_end_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_lunch_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="core_{{ slot }}_end_time"
+                                   name="core_{{ slot }}_end_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Supervisor Times -->
+            <div class="event-type-group">
+                <h4>Supervisor Event</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="supervisor_start_time">Start Time:</label>
+                        <input type="time" id="supervisor_start_time" name="supervisor_start_time"
+                               value="{{ event_times.get('supervisor_start_time', '12:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="supervisor_end_time">End Time:</label>
+                        <input type="time" id="supervisor_end_time" name="supervisor_end_time"
+                               value="{{ event_times.get('supervisor_end_time', '12:05') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Digital Teardown Slots -->
+            <div class="event-type-group">
+                <h4>Digital Teardown Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="digital_teardown_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="digital_teardown_{{ slot }}_start_time"
+                                   name="digital_teardown_{{ slot }}_start_time"
+                                   value="{{ event_times.get('digital_teardown_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="digital_teardown_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="digital_teardown_{{ slot }}_end_time"
+                                   name="digital_teardown_{{ slot }}_end_time"
+                                   value="{{ event_times.get('digital_teardown_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Other Event Times -->
+            <div class="event-type-group">
+                <h4>Other Event Type</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="other_start_time">Start Time:</label>
+                        <input type="time" id="other_start_time" name="other_start_time"
+                               value="{{ event_times.get('other_start_time', '10:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="other_end_time">End Time:</label>
+                        <input type="time" id="other_end_time" name="other_end_time"
+                               value="{{ event_times.get('other_end_time', '10:15') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <div id="event-times-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
         <!-- Form Actions -->
@@ -484,30 +678,111 @@
     padding: 40px;
     color: #999;
 }
+
+/* Event Time Configuration Styles */
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    color: #856404;
+}
+
+.event-type-group {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.event-type-group h4 {
+    color: #2E4C73;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.1em;
+    border-bottom: 2px solid #2E4C73;
+    padding-bottom: 8px;
+}
+
+.time-slot-group {
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.time-slot-group:last-child {
+    margin-bottom: 0;
+}
+
+.slot-label {
+    display: block;
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+}
+
+.time-input-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.time-input {
+    max-width: 150px;
+}
+
+.form-group label {
+    font-size: 0.9em;
+}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('settings-form');
     const saveStatus = document.getElementById('save-status');
+    const aiProviderSelect = document.getElementById('ai_provider');
+    const apiKeyLink = document.getElementById('api-key-link');
 
-    form.addEventListener('submit', function(e) {
+    // Update API key link when provider changes
+    function updateApiKeyLink() {
+        const provider = aiProviderSelect.value;
+        const links = {
+            'openai': 'https://platform.openai.com/api-keys',
+            'anthropic': 'https://console.anthropic.com/settings/keys',
+            'gemini': 'https://aistudio.google.com/app/apikey'
+        };
+        apiKeyLink.href = links[provider] || '#';
+    }
+
+    aiProviderSelect.addEventListener('change', updateApiKeyLink);
+    updateApiKeyLink(); // Initialize on page load
+
+    form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const username = document.getElementById('edr_username').value.trim();
         const password = document.getElementById('edr_password').value;
         const mfaCredentialId = document.getElementById('edr_mfa_credential_id').value.trim();
+        const aiProvider = document.getElementById('ai_provider').value;
+        const aiApiKey = document.getElementById('ai_api_key').value.trim();
+        const autoSchedulerEnabled = document.getElementById('auto_scheduler_enabled').checked;
+        const autoSchedulerRequireApproval = document.getElementById('auto_scheduler_require_approval').checked;
 
         // Validation
         if (!username || !mfaCredentialId) {
-            showStatus('Please fill in all required fields', 'error');
+            showStatus('Please fill in all required EDR fields', 'error');
             return;
         }
 
         // If password field is empty and there's already a saved password, skip password validation
         const passwordFieldPlaceholder = document.getElementById('edr_password').placeholder;
         if (!password && !passwordFieldPlaceholder.includes('Leave blank')) {
-            showStatus('Password is required', 'error');
+            showStatus('EDR password is required', 'error');
             return;
         }
 
@@ -517,36 +792,106 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Saving...';
 
-        // Send AJAX request
-        fetch('/api/settings/edr', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: username,
-                password: password || undefined,  // Don't send empty password
-                mfa_credential_id: mfaCredentialId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showStatus('Settings saved successfully!', 'success');
-                // Clear password field after successful save
-                document.getElementById('edr_password').value = '';
-                document.getElementById('edr_password').placeholder = 'Leave blank to keep current';
-            } else {
-                showStatus('Error: ' + (data.message || 'Failed to save settings'), 'error');
+        try {
+            // Save EDR settings
+            const edrResponse = await fetch('/api/settings/edr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password || undefined,
+                    mfa_credential_id: mfaCredentialId
+                })
+            });
+            const edrData = await edrResponse.json();
+
+            if (!edrData.success) {
+                showStatus('Error saving EDR settings: ' + (edrData.message || 'Failed'), 'error');
+                return;
             }
-        })
-        .catch(error => {
+
+            // Save AI settings if provider or API key provided
+            if (aiProvider || aiApiKey) {
+                const aiResponse = await fetch('/api/settings/ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        provider: aiProvider,
+                        api_key: aiApiKey || undefined
+                    })
+                });
+                const aiData = await aiResponse.json();
+
+                if (!aiData.success) {
+                    showStatus('EDR settings saved, but AI settings failed: ' + (aiData.message || 'Failed'), 'error');
+                    return;
+                }
+            }
+
+            // Save Auto-Scheduler settings
+            const autoSchedulerResponse = await fetch('/api/settings/auto-scheduler', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled: autoSchedulerEnabled,
+                    require_approval: autoSchedulerRequireApproval
+                })
+            });
+            const autoSchedulerData = await autoSchedulerResponse.json();
+
+            if (!autoSchedulerData.success) {
+                showStatus('Settings partially saved. Auto-scheduler settings failed: ' + (autoSchedulerData.message || 'Failed'), 'error');
+                return;
+            }
+
+            // Save Event Time settings
+            const eventTimes = {};
+
+            // Collect all event time inputs
+            document.querySelectorAll('#event-times input[type="time"]').forEach(input => {
+                if (input.value) {
+                    eventTimes[input.name] = input.value;
+                }
+            });
+
+            const eventTimesResponse = await fetch('/api/settings/event-times', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventTimes)
+            });
+            const eventTimesData = await eventTimesResponse.json();
+
+            if (!eventTimesData.success) {
+                showStatus('Settings partially saved. Event time settings failed: ' + (eventTimesData.message || 'Failed'), 'error');
+                return;
+            }
+
+            // Success
+            showStatus('All settings saved successfully!', 'success');
+
+            // Clear password fields after successful save
+            document.getElementById('edr_password').value = '';
+            document.getElementById('edr_password').placeholder = 'Leave blank to keep current';
+
+            if (aiApiKey) {
+                document.getElementById('ai_api_key').value = '';
+                document.getElementById('ai_api_key').placeholder = '••••••••••••••••';
+            }
+
+        } catch (error) {
             showStatus('Error: ' + error.message, 'error');
-        })
-        .finally(() => {
+        } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = originalBtnText;
-        });
+        }
     });
 
     function showStatus(message, type) {

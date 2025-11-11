@@ -43,47 +43,88 @@ class SchedulingEngine:
         'Other': 9
     }
 
-    # Default scheduling times by event type
-    DEFAULT_TIMES = {
-        'Juicer Production': time(9, 0),     # 9 AM - JUICER-PRODUCTION-SPCLTY
-        'Juicer Survey': time(17, 0),        # 5 PM - Juicer Survey
-        'Juicer': time(9, 0),                # 9 AM - Default for other Juicer events
-        'Digital Setup': time(9, 15),        # 9:15 AM (first slot)
-        'Digital Refresh': time(9, 15),      # 9:15 AM (first slot)
-        'Freeosk': time(9, 0),               # 9 AM
-        'Digital Teardown': time(17, 0),     # 5 PM (first slot)
-        'Core': time(9, 45),                 # 9:45 AM (for Primary Leads)
-        'Supervisor': time(12, 0),           # Noon
-        'Other': time(10, 0)
-    }
+    # Load scheduling times from database settings (with fallback defaults)
+    @classmethod
+    def _get_default_times(cls):
+        """Get default scheduling times from database settings"""
+        from app.services.event_time_settings import (
+            get_freeosk_times, get_digital_setup_slots, get_core_slots,
+            get_supervisor_times, get_digital_teardown_slots, get_other_times
+        )
 
-    # Time slots for Core events (rotating)
-    CORE_TIME_SLOTS = [
-        time(9, 45),   # Primary Lead slot
-        time(10, 30),
-        time(11, 0),
-        time(11, 30)
-    ]
+        try:
+            freeosk = get_freeosk_times()
+            digital_setup_slots = get_digital_setup_slots()
+            core_slots = get_core_slots()
+            supervisor = get_supervisor_times()
+            digital_teardown_slots = get_digital_teardown_slots()
+            other = get_other_times()
 
-    # Time slots for Digital Setup/Refresh (only 4 slots as per requirements)
-    DIGITAL_TIME_SLOTS = [
-        time(9, 15),
-        time(9, 30),
-        time(9, 45),
-        time(10, 0),
-    ]
+            return {
+                'Juicer Production': time(9, 0),     # 9 AM - JUICER-PRODUCTION-SPCLTY
+                'Juicer Survey': time(17, 0),        # 5 PM - Juicer Survey
+                'Juicer': time(9, 0),                # 9 AM - Default for other Juicer events
+                'Digital Setup': digital_setup_slots[0]['start'],
+                'Digital Refresh': digital_setup_slots[0]['start'],
+                'Freeosk': freeosk['start'],
+                'Digital Teardown': digital_teardown_slots[0]['start'],
+                'Core': core_slots[0]['start'],
+                'Supervisor': supervisor['start'],
+                'Other': other['start']
+            }
+        except Exception as e:
+            # Fallback to hard-coded defaults if settings not available
+            return {
+                'Juicer Production': time(9, 0),
+                'Juicer Survey': time(17, 0),
+                'Juicer': time(9, 0),
+                'Digital Setup': time(9, 15),
+                'Digital Refresh': time(9, 15),
+                'Freeosk': time(9, 0),
+                'Digital Teardown': time(17, 0),
+                'Core': time(9, 45),
+                'Supervisor': time(12, 0),
+                'Other': time(10, 0)
+            }
 
-    # Time slots for Digital Teardown (15 min intervals starting at 5:00 PM)
-    TEARDOWN_TIME_SLOTS = [
-        time(17, 0),   # 5:00 PM
-        time(17, 15),
-        time(17, 30),
-        time(17, 45),
-        time(18, 0),   # 6:00 PM
-        time(18, 15),
-        time(18, 30),
-        time(18, 45),
-    ]
+    @classmethod
+    def _get_core_time_slots(cls):
+        """Get Core event time slots from database settings"""
+        from app.services.event_time_settings import get_core_slots
+
+        try:
+            slots = get_core_slots()
+            return [slot['start'] for slot in slots]
+        except Exception:
+            # Fallback to hard-coded defaults
+            return [time(9, 45), time(10, 30), time(11, 0), time(11, 30)]
+
+    @classmethod
+    def _get_digital_time_slots(cls):
+        """Get Digital Setup time slots from database settings"""
+        from app.services.event_time_settings import get_digital_setup_slots
+
+        try:
+            slots = get_digital_setup_slots()
+            return [slot['start'] for slot in slots]
+        except Exception:
+            # Fallback to hard-coded defaults
+            return [time(9, 15), time(9, 30), time(9, 45), time(10, 0)]
+
+    @classmethod
+    def _get_teardown_time_slots(cls):
+        """Get Digital Teardown time slots from database settings"""
+        from app.services.event_time_settings import get_digital_teardown_slots
+
+        try:
+            slots = get_digital_teardown_slots()
+            return [slot['start'] for slot in slots]
+        except Exception:
+            # Fallback to hard-coded defaults
+            return [
+                time(17, 0), time(17, 15), time(17, 30), time(17, 45),
+                time(18, 0), time(18, 15), time(18, 30), time(18, 45)
+            ]
 
     def __init__(self, db_session: Session, models: dict):
         """
@@ -118,6 +159,12 @@ class SchedulingEngine:
         self.daily_time_slot_index = {}  # {date_str: slot_index} for Core events
         self.digital_time_slot_index = {}  # {date_str: slot_index} for Digital Setup/Refresh
         self.teardown_time_slot_index = {}  # {date_str: slot_index} for Digital Teardown
+
+        # Load time settings from database
+        self.DEFAULT_TIMES = self._get_default_times()
+        self.CORE_TIME_SLOTS = self._get_core_time_slots()
+        self.DIGITAL_TIME_SLOTS = self._get_digital_time_slots()
+        self.TEARDOWN_TIME_SLOTS = self._get_teardown_time_slots()
 
     def run_auto_scheduler(self, run_type: str = 'manual') -> object:
         """

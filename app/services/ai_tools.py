@@ -4,7 +4,7 @@ AI Tools Module
 Defines all available tools/functions that the AI assistant can call.
 Each tool maps to existing application functionality.
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime, date, timedelta
 import logging
 from difflib import SequenceMatcher

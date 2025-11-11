@@ -1744,6 +1744,14 @@ def trade_events():
         if not event1 or not event2:
             return jsonify({'error': 'Event not found'}), 404
 
+        # Validate that both events are Core events (only Core events can be traded)
+        if event1.event_type != 'Core' or event2.event_type != 'Core':
+            return jsonify({
+                'error': 'Only Core events can be traded',
+                'event1_type': event1.event_type,
+                'event2_type': event2.event_type
+            }), 400
+
         # Get employees
         employee1 = Employee.query.get(schedule1.employee_id)
         employee2 = Employee.query.get(schedule2.employee_id)
@@ -1767,11 +1775,21 @@ def trade_events():
 
         validator = ConstraintValidator(db.session, models)
 
-        # Validate employee2 -> event1's time
-        validation1 = validator.validate_assignment(event1, employee2, schedule1.schedule_datetime)
+        # Validate employee2 -> event1's time (exclude both schedules being traded)
+        validation1 = validator.validate_assignment(
+            event1,
+            employee2,
+            schedule1.schedule_datetime,
+            exclude_schedule_ids=[schedule_1_id, schedule_2_id]
+        )
 
-        # Validate employee1 -> event2's time
-        validation2 = validator.validate_assignment(event2, employee1, schedule2.schedule_datetime)
+        # Validate employee1 -> event2's time (exclude both schedules being traded)
+        validation2 = validator.validate_assignment(
+            event2,
+            employee1,
+            schedule2.schedule_datetime,
+            exclude_schedule_ids=[schedule_1_id, schedule_2_id]
+        )
 
         # Collect all conflicts
         all_conflicts = []
@@ -1944,6 +1962,237 @@ def trade_events_legacy():
     # Make internal request to new endpoint
     request._cached_json = (new_data, new_data)
     return trade_events()
+
+
+@api_bp.route('/bulk-reassign-supervisor-events', methods=['POST'])
+@require_authentication()
+def bulk_reassign_supervisor_events():
+    """
+    Bulk reassign all Supervisor, Freeosk, Digitals events for a specific date to a different employee.
+
+    This endpoint finds all supervisor-level events (Supervisor, Freeosk, Digitals, etc.) for a given date
+    and reassigns them to a different Lead or Supervisor by calling the external API's scheduleMplan
+    for each event with the new employee's repID.
+
+    Request Body:
+        {
+            "date": "2025-01-15",  # Date in YYYY-MM-DD format
+            "new_employee_id": 5   # ID of the employee to reassign events to
+        }
+
+    Returns:
+        JSON response with success status and details of reassigned events
+
+    Response Format (Success):
+        {
+            "success": true,
+            "message": "Successfully reassigned X supervisor events",
+            "reassigned_count": X,
+            "details": [...]
+        }
+
+    Response Format (Error):
+        {
+            "error": "Error message",
+            "details": "..."
+        }
+
+    Status Codes:
+        200: Success - events reassigned
+        400: Invalid request or employee cannot work supervisor events
+        404: No supervisor events found or employee not found
+        500: Server error
+    """
+    db = current_app.extensions['sqlalchemy']
+    Schedule = current_app.config['Schedule']
+    Event = current_app.config['Event']
+    Employee = current_app.config['Employee']
+
+    try:
+        # Get request data
+        data = request.get_json()
+        target_date_str = data.get('date')
+        new_employee_id = data.get('new_employee_id')
+
+        # Validate required fields
+        if not target_date_str or not new_employee_id:
+            return jsonify({'error': 'Missing required fields: date and new_employee_id'}), 400
+
+        # Parse date
+        try:
+            target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+        # Get the new employee
+        new_employee = db.session.get(Employee, new_employee_id)
+        if not new_employee:
+            return jsonify({'error': 'Employee not found'}), 404
+
+        # Validate that the new employee can work supervisor events
+        # Supervisor events can only be worked by Club Supervisors or Lead Event Specialists
+        if new_employee.job_title not in ['Club Supervisor', 'Lead Event Specialist']:
+            return jsonify({
+                'error': f'Employee {new_employee.name} cannot work supervisor events. Only Club Supervisors and Lead Event Specialists can work these events.',
+                'employee_job_title': new_employee.job_title
+            }), 400
+
+        # Define supervisor event types
+        supervisor_event_types = ['Supervisor', 'Freeosk', 'Digitals', 'Digital Setup', 'Digital Refresh', 'Digital Teardown', 'Other']
+
+        # Find all supervisor events scheduled for the target date
+        supervisor_schedules = db.session.query(Schedule).join(
+            Event, Schedule.event_ref_num == Event.project_ref_num
+        ).filter(
+            db.func.date(Schedule.schedule_datetime) == target_date,
+            Event.event_type.in_(supervisor_event_types)
+        ).all()
+
+        if not supervisor_schedules:
+            return jsonify({
+                'error': 'No supervisor events found for this date',
+                'date': target_date_str
+            }), 404
+
+        # Initialize external API
+        from app.integrations.external_api.session_api_service import session_api as external_api
+
+        # Ensure session is authenticated
+        try:
+            if not external_api.ensure_authenticated():
+                return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+        except Exception as auth_error:
+            logger.error(f"Authentication error: {str(auth_error)}")
+            return jsonify({'error': 'Failed to authenticate with Crossmark API'}), 500
+
+        # Process each supervisor event
+        reassigned_events = []
+        failed_events = []
+
+        for schedule in supervisor_schedules:
+            # Get the event details
+            event = Event.query.filter_by(project_ref_num=schedule.event_ref_num).first()
+            if not event:
+                failed_events.append({
+                    'schedule_id': schedule.id,
+                    'error': 'Event not found'
+                })
+                continue
+
+            # Get the new employee's external ID
+            rep_id = str(new_employee.external_id) if new_employee.external_id else None
+            mplan_id = str(event.external_id) if event.external_id else None
+            location_id = str(event.location_mvid) if event.location_mvid else None
+
+            # Validate required API fields
+            if not rep_id:
+                failed_events.append({
+                    'schedule_id': schedule.id,
+                    'event_name': event.project_name,
+                    'error': f'Missing Crossmark employee ID for {new_employee.name}'
+                })
+                continue
+
+            if not mplan_id:
+                failed_events.append({
+                    'schedule_id': schedule.id,
+                    'event_name': event.project_name,
+                    'error': f'Missing Crossmark event ID'
+                })
+                continue
+
+            if not location_id:
+                failed_events.append({
+                    'schedule_id': schedule.id,
+                    'event_name': event.project_name,
+                    'error': f'Missing Crossmark location ID'
+                })
+                continue
+
+            # Calculate end datetime
+            estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+            end_datetime = schedule.schedule_datetime + timedelta(minutes=estimated_minutes)
+
+            # Call external API to schedule the event with the new employee
+            try:
+                logger.info(
+                    f"Reassigning {event.project_name} (schedule_id={schedule.id}) to {new_employee.name} "
+                    f"on {schedule.schedule_datetime.strftime('%Y-%m-%d %H:%M')}"
+                )
+
+                api_result = external_api.schedule_mplan_event(
+                    rep_id=rep_id,
+                    mplan_id=mplan_id,
+                    location_id=location_id,
+                    start_datetime=schedule.schedule_datetime,
+                    end_datetime=end_datetime,
+                    planning_override=True
+                )
+
+                if not api_result.get('success'):
+                    error_message = api_result.get('message', 'Unknown API error')
+                    logger.error(f"Crossmark API error for schedule {schedule.id}: {error_message}")
+                    failed_events.append({
+                        'schedule_id': schedule.id,
+                        'event_name': event.project_name,
+                        'old_employee': schedule.employee.name if schedule.employee else 'Unknown',
+                        'error': f'API error: {error_message}'
+                    })
+                    continue
+
+                # Update local database with new employee assignment
+                old_employee_name = schedule.employee.name if schedule.employee else 'Unknown'
+                schedule.employee_id = new_employee_id
+
+                # Update sync status
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
+
+                reassigned_events.append({
+                    'schedule_id': schedule.id,
+                    'event_name': event.project_name,
+                    'event_type': event.event_type,
+                    'datetime': schedule.schedule_datetime.strftime('%Y-%m-%d %H:%M'),
+                    'old_employee': old_employee_name,
+                    'new_employee': new_employee.name
+                })
+
+                logger.info(f"Successfully reassigned schedule {schedule.id} from {old_employee_name} to {new_employee.name}")
+
+            except Exception as api_error:
+                logger.error(f"API submission error for schedule {schedule.id}: {str(api_error)}")
+                failed_events.append({
+                    'schedule_id': schedule.id,
+                    'event_name': event.project_name,
+                    'error': f'Exception: {str(api_error)}'
+                })
+
+        # Commit all database changes
+        db.session.commit()
+
+        # Prepare response
+        response_data = {
+            'success': len(reassigned_events) > 0,
+            'message': f'Successfully reassigned {len(reassigned_events)} supervisor event(s)',
+            'reassigned_count': len(reassigned_events),
+            'failed_count': len(failed_events),
+            'reassigned_events': reassigned_events
+        }
+
+        if failed_events:
+            response_data['failed_events'] = failed_events
+            response_data['message'] += f', {len(failed_events)} failed'
+
+        status_code = 200 if len(reassigned_events) > 0 else 500
+        return jsonify(response_data), status_code
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Failed to bulk reassign supervisor events: {e}', exc_info=True)
+        return jsonify({
+            'error': 'Failed to bulk reassign supervisor events',
+            'details': str(e)
+        }), 500
 
 
 @api_bp.route('/change_employee', methods=['POST'])

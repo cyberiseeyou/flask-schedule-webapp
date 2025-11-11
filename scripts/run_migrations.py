@@ -12,7 +12,9 @@ def run_migrations():
     app = create_app()
 
     with app.app_context():
-        migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
+        # Get project root (parent of scripts directory)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        migrations_dir = os.path.join(project_root, 'migrations')
 
         if not os.path.exists(migrations_dir):
             print("[ERROR] Migrations directory not found!")

@@ -2217,12 +2217,40 @@ def settings_page():
         settings['edr_username'] = SystemSetting.get_setting('edr_username') or ''
         settings['edr_password'] = '***' if SystemSetting.get_setting('edr_password') else ''
         settings['edr_mfa_credential_id'] = SystemSetting.get_setting('edr_mfa_credential_id') or ''
+        settings['ai_provider'] = SystemSetting.get_setting('ai_provider') or 'openai'
+        settings['ai_api_key'] = '***' if SystemSetting.get_setting('ai_api_key') else ''
+        settings['auto_scheduler_enabled'] = SystemSetting.get_setting('auto_scheduler_enabled', True)
+        settings['auto_scheduler_require_approval'] = SystemSetting.get_setting('auto_scheduler_require_approval', True)
     else:
         settings['edr_username'] = current_app.config.get('WALMART_EDR_USERNAME', '')
         settings['edr_password'] = '***' if current_app.config.get('WALMART_EDR_PASSWORD') else ''
         settings['edr_mfa_credential_id'] = current_app.config.get('WALMART_EDR_MFA_CREDENTIAL_ID', '')
+        settings['ai_provider'] = current_app.config.get('AI_PROVIDER', 'openai')
+        settings['ai_api_key'] = '***' if current_app.config.get('AI_API_KEY') else ''
+        settings['auto_scheduler_enabled'] = current_app.config.get('AUTO_SCHEDULER_ENABLED', True)
+        settings['auto_scheduler_require_approval'] = current_app.config.get('AUTO_SCHEDULER_REQUIRE_APPROVAL', True)
 
-    return render_template('settings.html', settings=settings)
+    # Load event time settings
+    event_times = {}
+    if SystemSetting:
+        # Load single event times
+        for event_type in ['freeosk', 'supervisor', 'other']:
+            event_times[f'{event_type}_start_time'] = SystemSetting.get_setting(f'{event_type}_start_time', '')
+            event_times[f'{event_type}_end_time'] = SystemSetting.get_setting(f'{event_type}_end_time', '')
+
+        # Load multi-slot event times
+        for slot in range(1, 5):
+            for event_type in ['digital_setup', 'digital_teardown']:
+                event_times[f'{event_type}_{slot}_start_time'] = SystemSetting.get_setting(f'{event_type}_{slot}_start_time', '')
+                event_times[f'{event_type}_{slot}_end_time'] = SystemSetting.get_setting(f'{event_type}_{slot}_end_time', '')
+
+            # Core slots with lunch times
+            event_times[f'core_{slot}_start_time'] = SystemSetting.get_setting(f'core_{slot}_start_time', '')
+            event_times[f'core_{slot}_lunch_begin_time'] = SystemSetting.get_setting(f'core_{slot}_lunch_begin_time', '')
+            event_times[f'core_{slot}_lunch_end_time'] = SystemSetting.get_setting(f'core_{slot}_lunch_end_time', '')
+            event_times[f'core_{slot}_end_time'] = SystemSetting.get_setting(f'core_{slot}_end_time', '')
+
+    return render_template('settings.html', settings=settings, event_times=event_times)
 
 
 @admin_bp.route('/api/settings/edr', methods=['POST'])
@@ -2238,15 +2266,25 @@ def save_edr_settings():
 
         data = request.get_json()
         username = data.get('username', '').strip()
-        password = data.get('password', '').strip()
+        password = data.get('password', '').strip() if data.get('password') else None
         mfa_credential_id = data.get('mfa_credential_id', '').strip()
 
-        if not username or not password or not mfa_credential_id:
-            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+        # Validate required fields (username and MFA credential always required)
+        if not username or not mfa_credential_id:
+            return jsonify({'success': False, 'message': 'Username and MFA Credential ID are required'}), 400
+
+        # Check if password is required (only if no existing password)
+        existing_password = SystemSetting.get_setting('edr_password')
+        if not password and not existing_password:
+            return jsonify({'success': False, 'message': 'Password is required for initial setup'}), 400
 
         # Save to database
         SystemSetting.set_setting('edr_username', username)
-        SystemSetting.set_setting('edr_password', password)
+
+        # Only update password if a new one was provided
+        if password:
+            SystemSetting.set_setting('edr_password', password, setting_type='encrypted')
+
         SystemSetting.set_setting('edr_mfa_credential_id', mfa_credential_id)
 
         # Clear any existing EDR session
@@ -2260,6 +2298,172 @@ def save_edr_settings():
 
     except Exception as e:
         current_app.logger.error(f"Failed to save EDR settings: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/settings/ai', methods=['POST'])
+@require_authentication()
+def save_ai_settings():
+    """Save AI Assistant provider and API key to database"""
+    try:
+        SystemSetting = current_app.config.get('SystemSetting')
+
+        if not SystemSetting:
+            return jsonify({'success': False, 'message': 'SystemSetting model not available'}), 500
+
+        data = request.get_json()
+        provider = data.get('provider', '').strip()
+        api_key = data.get('api_key', '').strip()
+
+        # Validate provider
+        valid_providers = ['openai', 'anthropic', 'gemini']
+        if provider and provider not in valid_providers:
+            return jsonify({
+                'success': False,
+                'message': f'Invalid provider. Must be one of: {", ".join(valid_providers)}'
+            }), 400
+
+        # Save provider if provided
+        if provider:
+            SystemSetting.set_setting('ai_provider', provider, setting_type='string')
+            current_app.logger.info(f"AI provider updated to: {provider}")
+
+        # Save API key if provided (encrypted)
+        if api_key:
+            SystemSetting.set_setting('ai_api_key', api_key, setting_type='encrypted')
+            current_app.logger.info("AI API key updated successfully")
+
+        if not provider and not api_key:
+            return jsonify({'success': False, 'message': 'No settings to update'}), 400
+
+        return jsonify({'success': True, 'message': 'AI settings saved successfully'})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save AI settings: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/settings/auto-scheduler', methods=['POST'])
+@require_authentication()
+def save_auto_scheduler_settings():
+    """Save Auto-Scheduler configuration settings to database"""
+    try:
+        SystemSetting = current_app.config.get('SystemSetting')
+
+        if not SystemSetting:
+            return jsonify({'success': False, 'message': 'SystemSetting model not available'}), 500
+
+        data = request.get_json()
+        enabled = data.get('enabled')
+        require_approval = data.get('require_approval')
+
+        # Save enabled setting if provided
+        if enabled is not None:
+            SystemSetting.set_setting('auto_scheduler_enabled', enabled, setting_type='boolean')
+            current_app.logger.info(f"Auto-scheduler enabled updated to: {enabled}")
+
+        # Save require_approval setting if provided
+        if require_approval is not None:
+            SystemSetting.set_setting('auto_scheduler_require_approval', require_approval, setting_type='boolean')
+            current_app.logger.info(f"Auto-scheduler require_approval updated to: {require_approval}")
+
+        if enabled is None and require_approval is None:
+            return jsonify({'success': False, 'message': 'No settings to update'}), 400
+
+        return jsonify({'success': True, 'message': 'Auto-scheduler settings saved successfully'})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save auto-scheduler settings: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@admin_bp.route('/api/settings/event-times', methods=['POST'])
+@require_authentication()
+def save_event_time_settings():
+    """Save event time configuration settings to database"""
+    try:
+        SystemSetting = current_app.config.get('SystemSetting')
+
+        if not SystemSetting:
+            return jsonify({'success': False, 'message': 'SystemSetting model not available'}), 500
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+
+        # Validate and save event time settings
+        saved_count = 0
+
+        # Define expected settings
+        expected_settings = [
+            'freeosk_start_time', 'freeosk_end_time',
+            'supervisor_start_time', 'supervisor_end_time',
+            'other_start_time', 'other_end_time'
+        ]
+
+        # Add multi-slot settings
+        for slot in range(1, 5):
+            for event_type in ['digital_setup', 'digital_teardown']:
+                expected_settings.append(f'{event_type}_{slot}_start_time')
+                expected_settings.append(f'{event_type}_{slot}_end_time')
+
+            # Core slots with lunch times
+            expected_settings.extend([
+                f'core_{slot}_start_time',
+                f'core_{slot}_lunch_begin_time',
+                f'core_{slot}_lunch_end_time',
+                f'core_{slot}_end_time'
+            ])
+
+        # Save each setting
+        for key, value in data.items():
+            if key in expected_settings:
+                # Validate time format (HH:MM)
+                if not value or not isinstance(value, str):
+                    continue
+
+                # Simple time format validation
+                parts = value.split(':')
+                if len(parts) != 2:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Invalid time format for {key}. Expected HH:MM'
+                    }), 400
+
+                try:
+                    hour = int(parts[0])
+                    minute = int(parts[1])
+                    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+                        return jsonify({
+                            'success': False,
+                            'message': f'Invalid time value for {key}. Hour must be 0-23, minute must be 0-59'
+                        }), 400
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Invalid time format for {key}. Expected HH:MM'
+                    }), 400
+
+                # Save setting
+                SystemSetting.set_setting(key, value, setting_type='string')
+                saved_count += 1
+
+        if saved_count == 0:
+            return jsonify({'success': False, 'message': 'No valid settings to save'}), 400
+
+        # Clear the event time settings cache
+        from app.services.event_time_settings import clear_event_time_cache
+        clear_event_time_cache()
+
+        current_app.logger.info(f"Saved {saved_count} event time settings")
+        return jsonify({
+            'success': True,
+            'message': f'Event time settings saved successfully ({saved_count} settings updated)'
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save event time settings: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

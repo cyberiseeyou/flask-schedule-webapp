@@ -137,64 +137,14 @@
     }
 
     /* Modal Styles */
-    .modal {
-        display: none;
-        position: fixed;
-        z-index: 1000;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-        background-color: rgba(0,0,0,0.5);
-    }
-
-    .modal.active {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .modal-content {
-        background-color: var(--bg-primary);
-        padding: var(--spacing-xl);
-        border-radius: var(--border-radius-lg);
-        box-shadow: var(--shadow-lg);
-        max-width: 600px;
-        width: 90%;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--spacing-lg);
-        padding-bottom: var(--spacing-md);
+    /* Modal base styles are handled by modals.css */
+    /* Custom modal enhancements for this page */
+    #add-request-modal .modal-header {
         border-bottom: 2px solid var(--pc-light-blue);
     }
 
-    .modal-header h2 {
-        margin: 0;
+    #add-request-modal .modal-title {
         color: var(--pc-navy);
-        font-size: 1.5rem;
-    }
-
-    .close-modal {
-        font-size: 28px;
-        font-weight: bold;
-        color: #aaa;
-        cursor: pointer;
-        background: none;
-        border: none;
-        padding: 0;
-        line-height: 1;
-    }
-
-    .close-modal:hover,
-    .close-modal:focus {
-        color: #000;
     }
 
     .form-row {
@@ -238,14 +188,7 @@
         box-shadow: 0 0 0 2px rgba(27, 155, 216, 0.2);
     }
 
-    .modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: var(--spacing-sm);
-        margin-top: var(--spacing-lg);
-        padding-top: var(--spacing-md);
-        border-top: 1px solid #dee2e6;
-    }
+    /* modal-footer styles are in modals.css */
 
     .alert {
         padding: 12px 16px;
@@ -317,47 +260,50 @@
 
     <!-- Add Time Off Request Modal -->
     <div id="add-request-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-overlay" onclick="closeAddRequestModal()"></div>
+        <div class="modal-container">
             <div class="modal-header">
-                <h2>Add Time Off Request</h2>
-                <button class="close-modal" onclick="closeAddRequestModal()">&times;</button>
+                <h2 class="modal-title">Add Time Off Request</h2>
+                <button class="modal-close" onclick="closeAddRequestModal()" aria-label="Close">&times;</button>
             </div>
 
-            <div id="modal-alerts"></div>
+            <div class="modal-body">
+                <div id="modal-alerts"></div>
 
-            <form id="add-request-form">
-                <div class="form-row full">
-                    <div class="form-group">
-                        <label for="request-employee">Employee *</label>
-                        <select id="request-employee" required>
-                            <option value="">Select an employee...</option>
-                        </select>
+                <form id="add-request-form">
+                    <div class="form-row full">
+                        <div class="form-group">
+                            <label for="request-employee">Employee *</label>
+                            <select id="request-employee" required>
+                                <option value="">Select an employee...</option>
+                            </select>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="request-start-date">Start Date *</label>
-                        <input type="date" id="request-start-date" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="request-start-date">Start Date *</label>
+                            <input type="date" id="request-start-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="request-end-date">End Date *</label>
+                            <input type="date" id="request-end-date" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="request-end-date">End Date *</label>
-                        <input type="date" id="request-end-date" required>
-                    </div>
-                </div>
 
-                <div class="form-row full">
-                    <div class="form-group">
-                        <label for="request-comments">Comments (Optional)</label>
-                        <textarea id="request-comments" rows="3" placeholder="e.g., Vacation, Personal, Medical"></textarea>
+                    <div class="form-row full">
+                        <div class="form-group">
+                            <label for="request-comments">Comments (Optional)</label>
+                            <textarea id="request-comments" rows="3" placeholder="e.g., Vacation, Personal, Medical"></textarea>
+                        </div>
                     </div>
-                </div>
 
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" onclick="closeAddRequestModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Request</button>
-                </div>
-            </form>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeAddRequestModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Request</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 {% endblock %}
@@ -370,6 +316,13 @@ let allEmployees = [];
 
 // Initialize page on load
 document.addEventListener('DOMContentLoaded', function() {
+    // Move modal to body to avoid z-index/overflow issues
+    const modal = document.getElementById('add-request-modal');
+    if (modal && modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+        console.log('Modal moved to body');
+    }
+
     initializePage();
 });
 
@@ -388,21 +341,43 @@ async function initializePage() {
 }
 
 function setupEventListeners() {
-    // Add request button
-    document.getElementById('add-request-btn').addEventListener('click', openAddRequestModal);
+    try {
+        console.log('Setting up event listeners...');
 
-    // Employee filter
-    document.getElementById('employee-filter').addEventListener('change', filterRequests);
-
-    // Add request form submission
-    document.getElementById('add-request-form').addEventListener('submit', handleAddRequest);
-
-    // Close modal when clicking outside
-    document.getElementById('add-request-modal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeAddRequestModal();
+        // Add request button
+        const addBtn = document.getElementById('add-request-btn');
+        if (!addBtn) {
+            console.error('add-request-btn not found');
+            return;
         }
-    });
+        addBtn.addEventListener('click', function() {
+            console.log('Add Request button clicked');
+            openAddRequestModal();
+        });
+
+        // Employee filter
+        const filterSelect = document.getElementById('employee-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', filterRequests);
+        }
+
+        // Add request form submission
+        const form = document.getElementById('add-request-form');
+        if (!form) {
+            console.error('add-request-form not found');
+            return;
+        }
+        form.addEventListener('submit', function(e) {
+            console.log('Form submitted');
+            handleAddRequest(e);
+        });
+
+        // Modal overlay click handler is now in HTML onclick attribute
+
+        console.log('Event listeners set up successfully');
+    } catch (error) {
+        console.error('Error setting up event listeners:', error);
+    }
 }
 
 function setupDateInputs() {
@@ -479,8 +454,8 @@ async function loadAllTimeOffRequests() {
             }
         }
 
-        // Sort by date (most recent first)
-        requests.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        // Sort by date (most recent first) - compare date strings directly
+        requests.sort((a, b) => b.start_date.localeCompare(a.start_date));
 
         allRequests = requests;
         displayRequests(requests);
@@ -514,12 +489,19 @@ function displayRequests(requests) {
 }
 
 function createRequestCard(request) {
-    const startDate = new Date(request.start_date);
-    const endDate = new Date(request.end_date);
+    // Parse dates without timezone conversion (use date string directly)
+    const startDate = request.start_date; // Already in YYYY-MM-DD format
+    const endDate = request.end_date;
 
-    const dateDisplay = startDate.toLocaleDateString() === endDate.toLocaleDateString()
-        ? startDate.toLocaleDateString()
-        : `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    // Format dates for display
+    const formatDate = (dateStr) => {
+        const [year, month, day] = dateStr.split('-');
+        return new Date(year, month - 1, day).toLocaleDateString();
+    };
+
+    const dateDisplay = startDate === endDate
+        ? formatDate(startDate)
+        : `${formatDate(startDate)} - ${formatDate(endDate)}`;
 
     return `
         <div class="time-off-request-card">
@@ -536,23 +518,37 @@ function createRequestCard(request) {
 }
 
 function openAddRequestModal() {
-    document.getElementById('add-request-modal').classList.add('active');
-    document.getElementById('add-request-form').reset();
-    document.getElementById('modal-alerts').innerHTML = '';
+    try {
+        console.log('Opening add request modal');
+        const modal = document.getElementById('add-request-modal');
+        if (!modal) {
+            console.error('Modal not found');
+            return;
+        }
 
-    // Set default dates to today
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('request-start-date').value = today;
-    document.getElementById('request-end-date').value = today;
+        modal.classList.add('modal-open');
+        document.getElementById('add-request-form').reset();
+        document.getElementById('modal-alerts').innerHTML = '';
+
+        // Set default dates to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('request-start-date').value = today;
+        document.getElementById('request-end-date').value = today;
+
+        console.log('Modal opened successfully');
+    } catch (error) {
+        console.error('Error opening modal:', error);
+    }
 }
 
 function closeAddRequestModal() {
-    document.getElementById('add-request-modal').classList.remove('active');
+    document.getElementById('add-request-modal').classList.remove('modal-open');
     document.getElementById('add-request-form').reset();
     document.getElementById('modal-alerts').innerHTML = '';
 }
 
 async function handleAddRequest(e) {
+    console.log('handleAddRequest called');
     e.preventDefault();
 
     const employeeId = document.getElementById('request-employee').value;
@@ -560,17 +556,22 @@ async function handleAddRequest(e) {
     const endDate = document.getElementById('request-end-date').value;
     const comments = document.getElementById('request-comments').value.trim();
 
+    console.log('Form values:', { employeeId, startDate, endDate, comments });
+
     if (!employeeId || !startDate || !endDate) {
         showModalAlert('All required fields must be filled', 'error');
         return;
     }
 
-    if (new Date(endDate) < new Date(startDate)) {
+    // Compare dates as strings (YYYY-MM-DD format is lexicographically sortable)
+    if (endDate < startDate) {
         showModalAlert('End date cannot be before start date', 'error');
         return;
     }
 
     try {
+        console.log('Sending POST request to /api/employees/' + employeeId + '/time_off');
+
         const response = await fetch(`/api/employees/${employeeId}/time_off`, {
             method: 'POST',
             headers: {
@@ -583,7 +584,9 @@ async function handleAddRequest(e) {
             })
         });
 
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (!response.ok) {
             showModalAlert(`Error: ${data.error}`, 'error');

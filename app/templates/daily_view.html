@@ -101,6 +101,17 @@
       </a>
     </div>
 
+    <!-- Bulk Actions -->
+    <div class="bulk-actions">
+      <button type="button"
+              class="btn btn-secondary"
+              id="btn-bulk-reassign-supervisor"
+              aria-label="Reassign all supervisor events">
+        <span class="icon">🔄</span>
+        <span class="btn-text">Reassign Supervisor Events</span>
+      </button>
+    </div>
+
     <!-- Role Assignments -->
     <div class="role-assignments">
       <div class="role-item">
@@ -207,6 +218,41 @@
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="window.dailyView.closeRescheduleModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Reschedule</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Reassign Supervisor Events Modal -->
+<div class="modal-backdrop" id="bulk-reassign-modal" style="display: none;">
+    <div class="action-modal">
+        <button class="modal-close" onclick="window.dailyView.closeBulkReassignModal()">&times;</button>
+        <h3>Reassign All Supervisor Events</h3>
+        <form id="bulk-reassign-form">
+            <div class="form-group">
+                <label>Date:</label>
+                <div id="bulk-reassign-date-info">{{ selected_date.strftime('%A, %B %d, %Y') }}</div>
+            </div>
+            <div class="form-group">
+                <label for="bulk-reassign-employee">Reassign all Supervisor events to:</label>
+                <select id="bulk-reassign-employee" required>
+                    <option value="">Select an employee...</option>
+                    {% for employee in employees %}
+                        {% if employee.job_title in ['Club Supervisor', 'Lead Event Specialist'] %}
+                            <option value="{{ employee.id }}">{{ employee.name }} ({{ employee.job_title }})</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+                <small class="form-help">Only Club Supervisors and Lead Event Specialists can work supervisor events</small>
+            </div>
+            <div id="bulk-reassign-preview" class="form-group" style="display: none;">
+                <label>Events to reassign:</label>
+                <div id="bulk-reassign-event-list" class="event-preview-list"></div>
+            </div>
+            <div id="bulk-reassign-error" class="error-message" style="display: none;"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="window.dailyView.closeBulkReassignModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Reassign All Events</button>
             </div>
         </form>
     </div>

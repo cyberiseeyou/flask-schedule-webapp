@@ -61,7 +61,8 @@ class ConstraintValidator:
         self.current_run_id = run_id
 
     def validate_assignment(self, event: object, employee: object,
-                           schedule_datetime: datetime, duration_minutes: int = None) -> ValidationResult:
+                           schedule_datetime: datetime, duration_minutes: int = None,
+                           exclude_schedule_ids: list = None) -> ValidationResult:
         """
         Validate a proposed schedule assignment against all constraints
 
@@ -70,6 +71,7 @@ class ConstraintValidator:
             employee: Employee model instance
             schedule_datetime: Proposed datetime for the event
             duration_minutes: Event duration in minutes (uses event's duration if not provided)
+            exclude_schedule_ids: List of schedule IDs to exclude from conflict checking (for trade operations)
 
         Returns:
             ValidationResult with is_valid flag and list of violations
@@ -84,8 +86,8 @@ class ConstraintValidator:
         self._check_time_off(employee, schedule_datetime, result)
         self._check_availability(employee, schedule_datetime, result)
         self._check_role_requirements(event, employee, result)
-        self._check_daily_limit(event, employee, schedule_datetime, result)
-        self._check_already_scheduled(employee, schedule_datetime, duration_minutes, result)
+        self._check_daily_limit(event, employee, schedule_datetime, result, exclude_schedule_ids)
+        self._check_already_scheduled(employee, schedule_datetime, duration_minutes, result, exclude_schedule_ids)
         self._check_due_date(event, schedule_datetime, result)
 
         return result
@@ -169,9 +171,12 @@ class ConstraintValidator:
             ))
 
     def _check_daily_limit(self, event: object, employee: object, schedule_datetime: datetime,
-                          result: ValidationResult) -> None:
+                          result: ValidationResult, exclude_schedule_ids: list = None) -> None:
         """
         Check if employee already has max core events for this day
+
+        Args:
+            exclude_schedule_ids: List of schedule IDs to exclude from count (for trade operations)
 
         Note: Juicer events are handled separately - if employee has Core event and needs to do Juicer,
         the Core event will be bumped/unscheduled in Wave 1.
@@ -179,13 +184,19 @@ class ConstraintValidator:
         target_date = schedule_datetime.date()
 
         # Count existing core events for this employee on this day
-        core_events_count = self.db.query(func.count(self.Schedule.id)).join(
+        query = self.db.query(func.count(self.Schedule.id)).join(
             self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
         ).filter(
             self.Schedule.employee_id == employee.id,
             func.date(self.Schedule.schedule_datetime) == target_date,
             self.Event.event_type == 'Core'
-        ).scalar()
+        )
+
+        # Exclude schedules being traded
+        if exclude_schedule_ids:
+            query = query.filter(~self.Schedule.id.in_(exclude_schedule_ids))
+
+        core_events_count = query.scalar()
 
         # Also count pending core events from current run
         if self.current_run_id and self.PendingSchedule:
@@ -209,8 +220,14 @@ class ConstraintValidator:
             ))
 
     def _check_already_scheduled(self, employee: object, schedule_datetime: datetime,
-                                 duration_minutes: int, result: ValidationResult) -> None:
-        """Check if employee already has a schedule that overlaps with the proposed time"""
+                                 duration_minutes: int, result: ValidationResult,
+                                 exclude_schedule_ids: list = None) -> None:
+        """
+        Check if employee already has a schedule that overlaps with the proposed time
+
+        Args:
+            exclude_schedule_ids: List of schedule IDs to exclude from conflict checking (for trade operations)
+        """
         from datetime import timedelta
 
         # Calculate proposed event's end time
@@ -222,6 +239,10 @@ class ConstraintValidator:
         ).all()
 
         for existing in existing_schedules:
+            # Skip schedules that are being excluded (e.g., during trade operations)
+            if exclude_schedule_ids and existing.id in exclude_schedule_ids:
+                continue
+
             # Get the existing event to determine its duration
             existing_event = self.db.query(self.Event).filter_by(
                 project_ref_num=existing.event_ref_num

@@ -492,6 +492,7 @@ class DailyView {
             <article class="event-card"
                      data-schedule-id="${event.schedule_id}"
                      data-event-id="${event.event_id}"
+                     data-event-type="${event.event_type}"
                      aria-label="${event.employee_name} - ${event.start_time} ${event.event_name}">
                 <div class="event-card__header">
                     <div class="employee-name">👤 ${event.employee_name.toUpperCase()}</div>
@@ -534,11 +535,13 @@ class DailyView {
                                     data-schedule-id="${event.schedule_id}">
                                 Change Employee
                             </button>
+                            ${event.event_type === 'Core' ? `
                             <button class="dropdown-item btn-trade-event"
                                     role="menuitem"
                                     data-schedule-id="${event.schedule_id}">
                                 Trade Event
                             </button>
+                            ` : ''}
                             <button class="dropdown-item btn-unschedule"
                                     role="menuitem"
                                     data-schedule-id="${event.schedule_id}">
@@ -726,6 +729,122 @@ class DailyView {
      */
     closeRescheduleModal() {
         document.getElementById('reschedule-modal').style.display = 'none';
+    }
+
+    /* ===================================================================
+       Bulk Reassign Supervisor Events Methods
+       =================================================================== */
+
+    /**
+     * Open bulk reassign supervisor events modal
+     */
+    openBulkReassignModal() {
+        const modal = document.getElementById('bulk-reassign-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    /**
+     * Close bulk reassign supervisor events modal
+     */
+    closeBulkReassignModal() {
+        const modal = document.getElementById('bulk-reassign-modal');
+        const errorDiv = document.getElementById('bulk-reassign-error');
+        const previewDiv = document.getElementById('bulk-reassign-preview');
+
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        // Clear any errors
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+
+        // Clear preview
+        if (previewDiv) {
+            previewDiv.style.display = 'none';
+        }
+
+        // Reset form
+        const form = document.getElementById('bulk-reassign-form');
+        if (form) {
+            form.reset();
+        }
+    }
+
+    /**
+     * Submit bulk reassignment of supervisor events
+     */
+    async submitBulkReassign(event) {
+        event.preventDefault();
+
+        const employeeSelect = document.getElementById('bulk-reassign-employee');
+        const newEmployeeId = employeeSelect.value;
+        const errorDiv = document.getElementById('bulk-reassign-error');
+
+        if (!newEmployeeId) {
+            errorDiv.textContent = 'Please select an employee';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Clear any previous errors
+        errorDiv.style.display = 'none';
+
+        // Show loading state
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Reassigning...';
+
+        try {
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            // Call bulk reassignment API
+            const response = await fetch('/api/bulk-reassign-supervisor-events', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    date: this.date,
+                    new_employee_id: parseInt(newEmployeeId)
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Handle error
+                const errorMessage = data.error || 'Failed to reassign supervisor events';
+                errorDiv.textContent = errorMessage;
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                return;
+            }
+
+            // Success
+            this.showNotification(data.message, 'success');
+            this.closeBulkReassignModal();
+
+            // Reload the daily view data
+            await this.init();
+
+        } catch (error) {
+            console.error('Failed to bulk reassign supervisor events:', error);
+            errorDiv.textContent = 'Failed to reassign supervisor events. Please try again.';
+            errorDiv.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
     }
 
     /**
@@ -1301,6 +1420,13 @@ class DailyView {
             return;
         }
 
+        // Validate that this is a Core event (only Core events can be traded)
+        const eventType = eventCard.getAttribute('data-event-type');
+        if (eventType !== 'Core') {
+            this.showNotification('Only Core events can be traded', 'error');
+            return;
+        }
+
         const eventId = eventCard.getAttribute('data-event-id');
         const employeeName = eventCard.querySelector('.employee-name')?.textContent?.replace('👤 ', '') || 'Unknown';
         const timeText = eventCard.querySelector('.event-time')?.textContent?.replace('⏰ ', '') || '';
@@ -1316,6 +1442,7 @@ class DailyView {
             event_id: eventId,
             employee_name: employeeName,
             event_name: eventName,
+            event_type: eventType,
             datetime: datetime,
             start_time: startTime,
             end_time: endTime,
@@ -2150,6 +2277,22 @@ document.addEventListener('DOMContentLoaded', () => {
         rescheduleForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             await submitReschedule(false);
+        });
+    }
+
+    // Setup bulk reassign supervisor events button
+    const bulkReassignBtn = document.getElementById('btn-bulk-reassign-supervisor');
+    if (bulkReassignBtn && window.dailyView) {
+        bulkReassignBtn.addEventListener('click', () => {
+            window.dailyView.openBulkReassignModal();
+        });
+    }
+
+    // Setup bulk reassign form submission
+    const bulkReassignForm = document.getElementById('bulk-reassign-form');
+    if (bulkReassignForm && window.dailyView) {
+        bulkReassignForm.addEventListener('submit', (e) => {
+            window.dailyView.submitBulkReassign(e);
         });
     }
 });
