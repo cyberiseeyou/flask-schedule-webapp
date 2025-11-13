@@ -150,11 +150,14 @@ def review():
 @auto_scheduler_bp.route('/api/pending', methods=['GET'])
 def get_pending_schedules():
     """Get pending schedule data for review (AJAX)"""
+    from datetime import date, timedelta
+
     db = current_app.extensions['sqlalchemy']
     SchedulerRunHistory = current_app.config['SchedulerRunHistory']
     PendingSchedule = current_app.config['PendingSchedule']
     Event = current_app.config['Event']
     Employee = current_app.config['Employee']
+    Schedule = current_app.config['Schedule']
 
     run_id = request.args.get('run_id', type=int)
 
@@ -178,6 +181,7 @@ def get_pending_schedules():
     swaps = []
     failed = []
     daily_preview = {}
+    bumped_event_refs = set()  # Track events that are being bumped
 
     for ps in pending:
         event = db.session.query(Event).filter_by(project_ref_num=ps.event_ref_num).first()
@@ -195,8 +199,13 @@ def get_pending_schedules():
             'schedule_time': ps.schedule_time.strftime('%H:%M') if ps.schedule_time else None,
             'is_swap': ps.is_swap,
             'swap_reason': ps.swap_reason,
-            'failure_reason': ps.failure_reason
+            'failure_reason': ps.failure_reason,
+            'status': 'failed' if ps.failure_reason else ('swap' if ps.is_swap else 'proposed')
         }
+
+        # Track bumped events
+        if ps.is_swap and ps.bumped_event_ref_num:
+            bumped_event_refs.add(ps.bumped_event_ref_num)
 
         if ps.failure_reason:
             failed.append(ps_data)
@@ -205,16 +214,62 @@ def get_pending_schedules():
             if ps.bumped_event_ref_num:
                 bumped_event = db.session.query(Event).filter_by(project_ref_num=ps.bumped_event_ref_num).first()
                 ps_data['bumped_event_name'] = bumped_event.project_name if bumped_event else 'Unknown'
+                ps_data['bumped_event_ref_num'] = ps.bumped_event_ref_num
             swaps.append(ps_data)
         else:
             newly_scheduled.append(ps_data)
 
-        # Add to daily preview
+        # Add to daily preview (proposed events)
         if ps.schedule_datetime:
             date_key = ps.schedule_datetime.date().isoformat()
             if date_key not in daily_preview:
                 daily_preview[date_key] = []
             daily_preview[date_key].append(ps_data)
+
+    # Get date range for fetching already-scheduled events
+    if daily_preview:
+        date_keys = list(daily_preview.keys())
+        min_date = min(date_keys)
+        max_date = max(date_keys)
+
+        # Fetch already-scheduled events within this date range
+        from datetime import datetime
+        min_datetime = datetime.fromisoformat(min_date)
+        max_datetime = datetime.fromisoformat(max_date).replace(hour=23, minute=59, second=59)
+
+        existing_schedules = db.session.query(Schedule).filter(
+            Schedule.schedule_datetime >= min_datetime,
+            Schedule.schedule_datetime <= max_datetime
+        ).all()
+
+        # Add existing schedules to daily preview
+        for sched in existing_schedules:
+            event = db.session.query(Event).filter_by(project_ref_num=sched.event_ref_num).first()
+            employee = db.session.query(Employee).get(sched.employee_id) if sched.employee_id else None
+
+            # Determine status: existing, or being bumped
+            if sched.event_ref_num in bumped_event_refs:
+                status = 'bumped_from'
+            else:
+                status = 'existing'
+
+            sched_data = {
+                'event_ref_num': sched.event_ref_num,
+                'event_name': event.project_name if event else 'Unknown',
+                'event_type': event.event_type if event else 'Unknown',
+                'employee_id': sched.employee_id,
+                'employee_name': employee.name if employee else 'Unassigned',
+                'schedule_datetime': sched.schedule_datetime.isoformat() if sched.schedule_datetime else None,
+                'schedule_date': sched.schedule_datetime.date().isoformat() if sched.schedule_datetime else None,
+                'schedule_time': sched.schedule_datetime.strftime('%H:%M') if sched.schedule_datetime else None,
+                'status': status,
+                'is_existing': True
+            }
+
+            date_key = sched.schedule_datetime.date().isoformat()
+            if date_key not in daily_preview:
+                daily_preview[date_key] = []
+            daily_preview[date_key].append(sched_data)
 
     return jsonify({
         'run_id': run.id,
@@ -475,7 +530,7 @@ def approve_schedule():
 
                     # AUTO-SCHEDULE SUPERVISOR EVENT if this is a Core event
                     if event.event_type == 'Core':
-                        from routes.scheduling import auto_schedule_supervisor_event
+                        from app.routes.scheduling import auto_schedule_supervisor_event
                         scheduled_date = start_datetime.date()
                         supervisor_scheduled, supervisor_event_name = auto_schedule_supervisor_event(
                             db, models['Event'], models['Schedule'], models['Employee'],
@@ -542,6 +597,358 @@ def approve_schedule():
             'success': False,
             'error': f'Failed to approve schedule: {str(e)}'
         }), 500
+
+
+@auto_scheduler_bp.route('/approve-single/<int:pending_id>', methods=['POST'])
+def approve_single_schedule(pending_id):
+    """Approve and submit a single pending schedule to Crossmark API"""
+    from app.integrations.external_api.session_api_service import session_api as external_api
+
+    db = current_app.extensions['sqlalchemy']
+
+    models_needed = ['PendingSchedule', 'Event', 'Schedule', 'Employee']
+    models = {k: current_app.config[k] for k in models_needed}
+
+    try:
+        # Get the specific pending schedule with row-level lock to prevent race conditions
+        pending = db.session.query(models['PendingSchedule']).with_for_update().get(pending_id)
+
+        if not pending:
+            return jsonify({
+                'success': False,
+                'error': 'Pending schedule not found'
+            }), 404
+
+        # Check if already processed (after lock acquired)
+        if pending.status in ['api_submitted', 'api_failed', 'validation_failed']:
+            db.session.rollback()  # Release lock
+            return jsonify({
+                'success': False,
+                'error': f'Schedule already processed with status: {pending.status}'
+            }), 409  # 409 Conflict
+
+        # Check if this is a failed schedule
+        if pending.failure_reason:
+            return jsonify({
+                'success': False,
+                'error': f'Cannot approve failed schedule: {pending.failure_reason}'
+            }), 400
+
+        # Validate required fields
+        if not pending.employee_id or not pending.schedule_datetime:
+            return jsonify({
+                'success': False,
+                'error': 'Missing employee_id or schedule_datetime'
+            }), 400
+
+        # Get event and employee details
+        event = db.session.query(models['Event']).filter_by(
+            project_ref_num=pending.event_ref_num
+        ).first()
+
+        employee = db.session.query(models['Employee']).filter_by(
+            id=pending.employee_id
+        ).first()
+
+        if not event or not employee:
+            current_app.logger.warning(f"Missing data: event={event}, employee={employee} for pending {pending.id}")
+            return jsonify({
+                'success': False,
+                'error': 'Event or employee not found in database',
+                'event_ref_num': pending.event_ref_num,
+                'employee_id': pending.employee_id
+            }), 404
+
+        # Calculate end datetime (start + estimated_time)
+        start_datetime = pending.schedule_datetime
+        # Use event's estimated_time, or fall back to the event type's default duration
+        estimated_minutes = event.estimated_time or event.get_default_duration(event.event_type)
+        end_datetime = start_datetime + timedelta(minutes=estimated_minutes)
+
+        # CRITICAL VALIDATION: Ensure schedule is within event period
+        # This prevents scheduling events outside their valid start/due date window
+        if not (event.start_datetime <= start_datetime <= event.due_datetime):
+            error_msg = (
+                f"Schedule datetime {start_datetime.strftime('%Y-%m-%d %H:%M')} is outside "
+                f"event period ({event.start_datetime.strftime('%Y-%m-%d')} to "
+                f"{event.due_datetime.strftime('%Y-%m-%d')})"
+            )
+            current_app.logger.error(
+                f"Validation failed for event {event.project_ref_num} ({event.project_name}): {error_msg}"
+            )
+            pending.status = 'validation_failed'
+            pending.api_error_details = error_msg
+            db.session.commit()
+
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'event_ref_num': pending.event_ref_num,
+                'event_name': event.project_name,
+                'employee_name': employee.name,
+                'scheduled_time': start_datetime.isoformat(),
+                'event_period': f"{event.start_datetime.date()} to {event.due_datetime.date()}"
+            }), 400
+
+        # Prepare data for Crossmark API
+        # IMPORTANT: Use external_id (numeric API ID), NOT employee.id (US###### format)
+        rep_id = str(employee.external_id) if employee.external_id else None
+        mplan_id = str(event.external_id) if event.external_id else None
+        location_id = str(event.location_mvid) if event.location_mvid else None
+
+        current_app.logger.info(
+            f"API field check for {event.project_name}: "
+            f"rep_id={rep_id} (from {employee.id}), "
+            f"mplan_id={mplan_id}, "
+            f"location_id={location_id}"
+        )
+
+        # Validate required API fields
+        if not rep_id:
+            error_msg = f'Missing external_id for employee {employee.name} ({employee.id})'
+            pending.status = 'api_failed'
+            pending.api_error_details = 'Missing employee external_id'
+            db.session.commit()
+
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'event_ref_num': pending.event_ref_num,
+                'event_name': event.project_name,
+                'employee_name': employee.name
+            }), 400
+
+        if not mplan_id:
+            error_msg = 'Missing external_id for event'
+            pending.status = 'api_failed'
+            pending.api_error_details = 'Missing event external_id'
+            db.session.commit()
+
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'event_ref_num': pending.event_ref_num,
+                'event_name': event.project_name
+            }), 400
+
+        if not location_id:
+            error_msg = 'Missing location_mvid for event'
+            pending.status = 'api_failed'
+            pending.api_error_details = 'Missing location_mvid'
+            db.session.commit()
+
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'event_ref_num': pending.event_ref_num,
+                'event_name': event.project_name
+            }), 400
+
+        # Submit to Crossmark API
+        try:
+            current_app.logger.info(
+                f"Submitting to Crossmark API: "
+                f"rep_id={rep_id}, mplan_id={mplan_id}, location_id={location_id}, "
+                f"start={start_datetime.isoformat()}, end={end_datetime.isoformat()}, "
+                f"event={event.project_name}, employee={employee.name}"
+            )
+
+            api_result = external_api.schedule_mplan_event(
+                rep_id=rep_id,
+                mplan_id=mplan_id,
+                location_id=location_id,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                planning_override=True
+            )
+
+            if api_result.get('success'):
+                # Extract the scheduled event ID from the API response
+                # First try the direct field, then fall back to response_data
+                scheduled_event_id = api_result.get('schedule_event_id')
+
+                if not scheduled_event_id:
+                    response_data = api_result.get('response_data', {})
+                    if response_data:
+                        scheduled_event_id = (
+                            response_data.get('scheduleEventID') or
+                            response_data.get('id') or
+                            response_data.get('scheduledEventId') or
+                            response_data.get('ID')
+                        )
+
+                current_app.logger.info(f"Extracted scheduled_event_id: {scheduled_event_id}")
+
+                # CRITICAL VALIDATION: Ensure we have external_id for sync integrity
+                if not scheduled_event_id:
+                    error_msg = 'API response missing scheduleEventID - cannot create schedule without external_id'
+                    current_app.logger.error(
+                        f"Failed to extract external_id from API response for event {event.project_ref_num}. "
+                        f"Response: {api_result}"
+                    )
+                    pending.status = 'api_failed'
+                    pending.api_error_details = error_msg
+                    db.session.commit()
+
+                    return jsonify({
+                        'success': False,
+                        'error': error_msg,
+                        'event_ref_num': pending.event_ref_num,
+                        'event_name': event.project_name,
+                        'employee_name': employee.name,
+                        'api_response': api_result
+                    }), 500
+
+                # API submission successful - create local schedule record
+                schedule = models['Schedule'](
+                    event_ref_num=pending.event_ref_num,
+                    employee_id=pending.employee_id,
+                    schedule_datetime=pending.schedule_datetime,
+                    external_id=str(scheduled_event_id),  # Guaranteed to exist now
+                    last_synced=datetime.utcnow(),
+                    sync_status='synced'
+                )
+                db.session.add(schedule)
+
+                # Mark event as scheduled
+                event.is_scheduled = True
+                event.condition = 'Scheduled'
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
+
+                # Update pending schedule status
+                pending.status = 'api_submitted'
+                pending.api_submitted_at = datetime.utcnow()
+
+                # COMMIT TRANSACTION BEFORE supervisor event creation
+                # This ensures Core event is persisted even if supervisor scheduling fails
+                db.session.commit()
+
+                current_app.logger.info(
+                    f"Successfully scheduled event {event.project_ref_num} ({event.project_name}) "
+                    f"to {employee.name} at {start_datetime}"
+                )
+
+                # AUTO-SCHEDULE SUPERVISOR EVENT if this is a Core event
+                # This happens OUTSIDE the main transaction to prevent rollback of Core event
+                supervisor_scheduled = False
+                supervisor_event_name = None
+                if event.event_type == 'Core':
+                    try:
+                        from app.routes.scheduling import auto_schedule_supervisor_event
+                        scheduled_date = start_datetime.date()
+                        supervisor_scheduled, supervisor_event_name = auto_schedule_supervisor_event(
+                            db, models['Event'], models['Schedule'], models['Employee'],
+                            event.project_ref_num,
+                            scheduled_date,
+                            pending.employee_id
+                        )
+                        if supervisor_scheduled:
+                            current_app.logger.info(
+                                f"Auto-scheduled supervisor event: {supervisor_event_name}"
+                            )
+                        else:
+                            current_app.logger.warning(
+                                f"Failed to auto-schedule supervisor event for Core event {event.project_ref_num}"
+                            )
+                    except Exception as supervisor_error:
+                        # Log supervisor event failure but don't fail the entire request
+                        # Core event is already successfully scheduled
+                        current_app.logger.error(
+                            f"Exception auto-scheduling supervisor event for {event.project_ref_num}: {str(supervisor_error)}",
+                            exc_info=True
+                        )
+
+                return jsonify({
+                    'success': True,
+                    'event_name': event.project_name,
+                    'event_ref_num': event.project_ref_num,
+                    'employee_name': employee.name,
+                    'scheduled_time': start_datetime.isoformat(),
+                    'supervisor_scheduled': supervisor_scheduled,
+                    'supervisor_event_name': supervisor_event_name
+                })
+            else:
+                # API submission failed
+                error_message = api_result.get('message', 'Unknown API error')
+                pending.status = 'api_failed'
+                pending.api_error_details = error_message
+                db.session.commit()
+
+                current_app.logger.warning(
+                    f"Failed to schedule event {event.project_ref_num} to Crossmark API: {error_message}"
+                )
+
+                return jsonify({
+                    'success': False,
+                    'error': error_message,
+                    'event_ref_num': pending.event_ref_num,
+                    'event_name': event.project_name,
+                    'employee_name': employee.name
+                }), 500
+
+        except Exception as api_error:
+            # API call exception
+            error_message = f"API exception: {str(api_error)}"
+            pending.status = 'api_failed'
+            pending.api_error_details = error_message
+            db.session.commit()
+
+            current_app.logger.error(
+                f"Exception scheduling event {event.project_ref_num}: {str(api_error)}",
+                exc_info=True
+            )
+
+            return jsonify({
+                'success': False,
+                'error': error_message,
+                'event_ref_num': pending.event_ref_num,
+                'event_name': event.project_name,
+                'employee_name': employee.name
+            }), 500
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to approve single schedule: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Failed to approve schedule: {str(e)}'
+        }), 500
+
+
+@auto_scheduler_bp.route('/mark-approved/<int:run_id>', methods=['POST'])
+def mark_run_approved(run_id):
+    """Mark a scheduler run as approved after all schedules are processed"""
+    db = current_app.extensions['sqlalchemy']
+    SchedulerRunHistory = current_app.config['SchedulerRunHistory']
+
+    try:
+        run = db.session.query(SchedulerRunHistory).get(run_id)
+
+        if not run:
+            return jsonify({
+                'success': False,
+                'error': 'Run not found'
+            }), 404
+
+        # Mark run as approved
+        run.approved_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Scheduler run marked as approved'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to mark run as approved: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Failed to mark run as approved: {str(e)}'
+        }), 500
+
+
 @auto_scheduler_bp.route('/reject', methods=['POST'])
 def reject_schedule():
     """Reject/discard ALL pending schedule proposals"""
@@ -635,3 +1042,156 @@ def dashboard_status():
         'has_pending': pending_count > 0,
         'pending_count': pending_count
     })
+
+
+@auto_scheduler_bp.route('/api/verify/<int:run_id>', methods=['GET'])
+def verify_pending_run(run_id):
+    """Verify pending schedules for a scheduler run (pre-approval)"""
+    from app.services.schedule_verification import ScheduleVerificationService
+
+    db = current_app.extensions['sqlalchemy']
+    SchedulerRunHistory = current_app.config['SchedulerRunHistory']
+    PendingSchedule = current_app.config['PendingSchedule']
+
+    try:
+        # Get the scheduler run
+        run = db.session.query(SchedulerRunHistory).get(run_id)
+        if not run:
+            return jsonify({'success': False, 'error': 'Run not found'}), 404
+
+        # Get date range from pending schedules
+        pending_dates = db.session.query(
+            func.min(func.date(PendingSchedule.schedule_datetime)).label('start_date'),
+            func.max(func.date(PendingSchedule.schedule_datetime)).label('end_date')
+        ).filter(
+            PendingSchedule.scheduler_run_id == run_id
+        ).first()
+
+        if not pending_dates.start_date:
+            return jsonify({
+                'success': True,
+                'critical_issues': [],
+                'warnings': [],
+                'info': [{'message': 'No pending schedules to verify'}],
+                'stats': {}
+            })
+
+        # Initialize verification service
+        models = {k: current_app.config[k] for k in [
+            'Event', 'Schedule', 'PendingSchedule', 'Employee',
+            'EmployeeTimeOff', 'EmployeeAvailability', 'EmployeeWeeklyAvailability',
+            'RotationAssignment', 'ScheduleException'
+        ]}
+
+        verifier = ScheduleVerificationService(db.session, models)
+
+        # Run verification (include pending schedules)
+        result = verifier.verify_date_range(
+            start_date=pending_dates.start_date,
+            end_date=pending_dates.end_date,
+            include_pending=True,
+            run_id=run_id
+        )
+
+        result['success'] = True
+        return jsonify(result)
+
+    except Exception as e:
+        current_app.logger.error(f"Verification failed: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auto_scheduler_bp.route('/api/verify-date', methods=['GET'])
+def verify_date():
+    """Verify schedules for a specific date (dashboard widget)"""
+    from app.services.schedule_verification import ScheduleVerificationService
+    from datetime import datetime
+
+    db = current_app.extensions['sqlalchemy']
+
+    try:
+        # Get date parameter (defaults to today)
+        date_str = request.args.get('date')
+        if date_str:
+            verify_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            verify_date = date.today()
+
+        # Initialize verification service
+        models = {k: current_app.config[k] for k in [
+            'Event', 'Schedule', 'PendingSchedule', 'Employee',
+            'EmployeeTimeOff', 'EmployeeAvailability', 'EmployeeWeeklyAvailability',
+            'RotationAssignment', 'ScheduleException', 'EmployeeAttendance'
+        ]}
+
+        verifier = ScheduleVerificationService(db.session, models)
+
+        # Run daily verification
+        result = verifier.verify_schedule(verify_date)
+
+        return jsonify({
+            'success': True,
+            'date': verify_date.isoformat(),
+            'status': result.status,
+            'issues': [issue.to_dict() for issue in result.issues],
+            'summary': result.summary
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Date verification failed: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@auto_scheduler_bp.route('/api/verify-date-range', methods=['GET'])
+def verify_date_range_endpoint():
+    """Verify schedules for a date range (post-approval audit)"""
+    from app.services.schedule_verification import ScheduleVerificationService
+    from datetime import datetime
+
+    db = current_app.extensions['sqlalchemy']
+
+    try:
+        # Get date parameters
+        start_str = request.args.get('start_date')
+        end_str = request.args.get('end_date')
+
+        if not start_str or not end_str:
+            return jsonify({
+                'success': False,
+                'error': 'start_date and end_date parameters required'
+            }), 400
+
+        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+
+        # Initialize verification service
+        models = {k: current_app.config[k] for k in [
+            'Event', 'Schedule', 'PendingSchedule', 'Employee',
+            'EmployeeTimeOff', 'EmployeeAvailability', 'EmployeeWeeklyAvailability',
+            'RotationAssignment', 'ScheduleException'
+        ]}
+
+        verifier = ScheduleVerificationService(db.session, models)
+
+        # Run range verification (post-approval, no pending)
+        result = verifier.verify_date_range(
+            start_date=start_date,
+            end_date=end_date,
+            include_pending=False
+        )
+
+        result['success'] = True
+        return jsonify(result)
+
+    except Exception as e:
+        current_app.logger.error(f"Date range verification failed: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

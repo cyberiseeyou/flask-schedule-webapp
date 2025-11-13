@@ -183,6 +183,31 @@
     background: white;
     border-radius: 4px;
     font-size: 13px;
+    border-left: 4px solid #dee2e6;
+}
+
+/* Event status color coding */
+.day-card .event-item.status-proposed {
+    background: #e8f5e9;
+    border-left-color: #27ae60;
+}
+
+.day-card .event-item.status-swap {
+    background: #e3f2fd;
+    border-left-color: #2196f3;
+}
+
+.day-card .event-item.status-existing {
+    background: #f5f5f5;
+    border-left-color: #9e9e9e;
+    opacity: 0.8;
+}
+
+.day-card .event-item.status-bumped_from {
+    background: #fff3e0;
+    border-left-color: #ff9800;
+    text-decoration: line-through;
+    opacity: 0.7;
 }
 
 .day-card .event-item .time {
@@ -192,6 +217,121 @@
 
 .day-card .event-item .employee {
     color: #7f8c8d;
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 6px;
+    text-transform: uppercase;
+}
+
+.status-badge.proposed {
+    background: #27ae60;
+    color: white;
+}
+
+.status-badge.swap {
+    background: #2196f3;
+    color: white;
+}
+
+.status-badge.existing {
+    background: #9e9e9e;
+    color: white;
+}
+
+.status-badge.bumped {
+    background: #ff9800;
+    color: white;
+}
+
+/* Legend for color coding */
+.schedule-legend {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.schedule-legend h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+.legend-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+}
+
+.legend-color {
+    width: 30px;
+    height: 20px;
+    border-radius: 3px;
+    margin-right: 8px;
+    border-left: 4px solid;
+}
+
+.legend-color.proposed {
+    background: #e8f5e9;
+    border-left-color: #27ae60;
+}
+
+.legend-color.swap {
+    background: #e3f2fd;
+    border-left-color: #2196f3;
+}
+
+.legend-color.existing {
+    background: #f5f5f5;
+    border-left-color: #9e9e9e;
+}
+
+.legend-color.bumped {
+    background: #fff3e0;
+    border-left-color: #ff9800;
+}
+
+/* Manual Intervention Section */
+.manual-intervention-section {
+    border: 2px solid #e74c3c !important;
+    background: #fff5f5 !important;
+}
+
+.manual-intervention-section::before {
+    background: linear-gradient(90deg, #e74c3c 0%, #c0392b 100%) !important;
+}
+
+.manual-intervention-section h2 {
+    border-bottom-color: #e74c3c;
+    color: #c0392b;
+}
+
+.manual-intervention-section .count-badge.error {
+    background: #e74c3c;
+}
+
+.intervention-notice {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-left: 4px solid #f39c12;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    color: #856404;
 }
 
 .action-buttons {
@@ -315,6 +455,136 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Progress Modal Styles */
+.progress-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.progress-modal-overlay.active {
+    display: flex;
+}
+
+.progress-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 40px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.progress-modal h2 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    border-bottom: none;
+}
+
+.progress-info {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.progress-count {
+    font-size: 36px;
+    font-weight: bold;
+    color: #3498db;
+    margin: 10px 0;
+}
+
+.progress-label {
+    font-size: 16px;
+    color: #7f8c8d;
+    margin-bottom: 5px;
+}
+
+.progress-current-event {
+    font-size: 14px;
+    color: #2c3e50;
+    margin-top: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    min-height: 40px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 30px;
+    background: #ecf0f1;
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.progress-status {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.progress-status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.progress-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.progress-status.warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.progress-details {
+    margin-top: 15px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 13px;
+}
+
+.progress-detail-item {
+    padding: 5px 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.progress-detail-item:last-child {
+    border-bottom: none;
+}
+
+.progress-detail-item.success {
+    color: #27ae60;
+}
+
+.progress-detail-item.error {
+    color: #e74c3c;
+}
 </style>
 {% endblock %}
 
@@ -343,6 +613,37 @@
             <div class="stat-card">
                 <h3>Total Processed</h3>
                 <div class="value" id="stat-total">-</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Verification Section -->
+    <div class="section" id="verification-section" style="display: none;">
+        <h2>
+            <span id="verification-icon">🔍</span> Schedule Verification
+            <span class="count-badge" id="verification-badge">Checking...</span>
+        </h2>
+        <div id="verification-content">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Running schedule verification...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Intervention Required Section -->
+    <div class="section manual-intervention-section" id="manual-intervention-section">
+        <h2>
+            ⚠️ Manual Intervention Required
+            <span class="count-badge error" id="count-failed">0</span>
+        </h2>
+        <div class="intervention-notice">
+            <strong>These events could not be automatically scheduled and require manual assignment:</strong>
+        </div>
+        <div id="failed-container">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading events requiring manual scheduling...</p>
             </div>
         </div>
     </div>
@@ -378,24 +679,34 @@
     <!-- Daily Preview Section -->
     <div class="section">
         <h2>Daily Preview</h2>
+
+        <!-- Legend -->
+        <div class="schedule-legend">
+            <h4>Schedule Legend</h4>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color proposed"></div>
+                    <span>Newly Proposed</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color swap"></div>
+                    <span>Swap (Bumping Another Event)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color existing"></div>
+                    <span>Already Scheduled</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color bumped"></div>
+                    <span>Being Bumped (Will Be Moved)</span>
+                </div>
+            </div>
+        </div>
+
         <div id="daily-preview-container" class="daily-preview">
             <div class="loading">
                 <div class="loading-spinner"></div>
                 <p>Loading daily preview...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Failed Events Section -->
-    <div class="section">
-        <h2>
-            Failed to Schedule
-            <span class="count-badge" id="count-failed">0</span>
-        </h2>
-        <div id="failed-container">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <p>Loading failures...</p>
             </div>
         </div>
     </div>
@@ -420,6 +731,26 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Progress Modal -->
+    <div class="progress-modal-overlay" id="progress-modal">
+        <div class="progress-modal">
+            <h2>Approving Schedule...</h2>
+            <div class="progress-info">
+                <div class="progress-label">Processing Events</div>
+                <div class="progress-count" id="progress-count">0 / 0</div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar" style="width: 0%;">
+                    <span id="progress-percentage">0%</span>
+                </div>
+            </div>
+            <div class="progress-current-event" id="current-event">
+                Initializing...
+            </div>
+            <div id="progress-status"></div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -457,6 +788,17 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         const formatted = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
         return timeString ? `${formatted} at ${timeString}` : formatted;
+    }
+
+    // Run schedule verification first
+    try {
+        const verifyResponse = await fetch(`/auto-schedule/api/verify/${runId}`);
+        if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            displayVerificationResults(verifyData);
+        }
+    } catch (error) {
+        console.error('Verification failed:', error);
     }
 
     // Load pending schedules
@@ -544,9 +886,24 @@ document.addEventListener('DOMContentLoaded', async function() {
 
                 html += `<div class="day-card">
                     <h4>${formatted}</h4>`;
-                events.forEach(event => {
-                    html += `<div class="event-item">
-                        <div class="time">${event.schedule_time || '-'}</div>
+
+                // Sort events by time
+                const sortedEvents = events.sort((a, b) => {
+                    if (!a.schedule_time) return 1;
+                    if (!b.schedule_time) return -1;
+                    return a.schedule_time.localeCompare(b.schedule_time);
+                });
+
+                sortedEvents.forEach(event => {
+                    const statusClass = event.status ? `status-${event.status}` : '';
+                    const statusLabel = event.status === 'proposed' ? 'NEW' :
+                                       event.status === 'swap' ? 'SWAP' :
+                                       event.status === 'existing' ? 'EXISTING' :
+                                       event.status === 'bumped_from' ? 'BUMPED' : '';
+                    const statusBadgeClass = event.status === 'bumped_from' ? 'bumped' : event.status;
+
+                    html += `<div class="event-item ${statusClass}">
+                        <div class="time">${event.schedule_time || '-'}${statusLabel ? `<span class="status-badge ${statusBadgeClass}">${statusLabel}</span>` : ''}</div>
                         <div>${event.event_name}</div>
                         <div class="employee">${event.employee_name}</div>
                     </div>`;
@@ -556,18 +913,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             dailyContainer.innerHTML = html;
         }
 
-        // Render failed
+        // Render failed events and show/hide manual intervention section
         const failedContainer = document.getElementById('failed-container');
+        const manualInterventionSection = document.getElementById('manual-intervention-section');
+
         if (data.failed.length === 0) {
-            failedContainer.innerHTML = '<div class="empty-state">✓ All events scheduled successfully!</div>';
+            // Hide the entire manual intervention section if no failures
+            manualInterventionSection.style.display = 'none';
         } else {
+            // Show the section and render failed events
+            manualInterventionSection.style.display = 'block';
             let html = '<table class="event-table">';
-            html += '<thead><tr><th>Event</th><th>Type</th><th>Failure Reason</th></tr></thead><tbody>';
+            html += '<thead><tr><th>Event</th><th>Type</th><th>Failure Reason</th><th>Action</th></tr></thead><tbody>';
             data.failed.forEach(event => {
                 html += `<tr>
-                    <td>${event.event_name}</td>
+                    <td><strong>${event.event_name}</strong></td>
                     <td>${getEventTypeBadge(event.event_type)}</td>
                     <td class="failure-reason">${event.failure_reason || 'Unknown error'}</td>
+                    <td><button class="btn-edit" onclick="window.open('/dashboard?highlight=${event.event_ref_num}', '_blank')">Manual Schedule</button></td>
                 </tr>`;
             });
             html += '</tbody></table>';
@@ -583,40 +946,138 @@ document.addEventListener('DOMContentLoaded', async function() {
         showMessage('Failed to load pending schedules: ' + error.message, 'error');
     }
 
-    // Approve button handler
+    // Approve button handler with progress tracking
     document.getElementById('approve-button').addEventListener('click', async function() {
         if (!confirm('Approve this schedule and create all assignments? This action cannot be undone.')) {
             return;
         }
 
+        // Disable the approve button
         this.disabled = true;
-        this.textContent = 'Approving...';
+        const originalText = this.textContent;
+
+        // Get the progress modal elements
+        const progressModal = document.getElementById('progress-modal');
+        const progressCount = document.getElementById('progress-count');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const currentEventDisplay = document.getElementById('current-event');
+        const progressStatus = document.getElementById('progress-status');
 
         try {
-            const response = await fetch('{{ url_for("auto_scheduler.approve_schedule") }}', {
+            // Fetch all pending schedules to process
+            const pendingResponse = await fetch('{{ url_for("auto_scheduler.get_pending_schedules") }}?run_id=' + runId);
+            if (!pendingResponse.ok) {
+                throw new Error('Failed to fetch pending schedules');
+            }
+
+            const pendingData = await pendingResponse.json();
+
+            // Get all non-failed schedules to approve
+            const schedulesToApprove = [
+                ...pendingData.newly_scheduled,
+                ...pendingData.swaps
+            ];
+
+            const totalCount = schedulesToApprove.length;
+
+            if (totalCount === 0) {
+                showMessage('No schedules to approve', 'warning');
+                this.disabled = false;
+                return;
+            }
+
+            // Show the progress modal
+            progressModal.classList.add('active');
+            progressCount.textContent = `0 / ${totalCount}`;
+            progressBar.style.width = '0%';
+            progressPercentage.textContent = '0%';
+            currentEventDisplay.textContent = 'Starting approval process...';
+            progressStatus.innerHTML = '';
+
+            let successCount = 0;
+            let failureCount = 0;
+            const failures = [];
+
+            // Process each schedule one at a time
+            for (let i = 0; i < schedulesToApprove.length; i++) {
+                const schedule = schedulesToApprove[i];
+                const currentNum = i + 1;
+
+                // Update progress display
+                progressCount.textContent = `${currentNum} / ${totalCount}`;
+                currentEventDisplay.textContent = `Scheduling: ${schedule.event_name} → ${schedule.employee_name}`;
+
+                try {
+                    // Call the approve-single endpoint
+                    const approveResponse = await fetch(`/auto-schedule/approve-single/${schedule.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const approveData = await approveResponse.json();
+
+                    if (approveData.success) {
+                        successCount++;
+                    } else {
+                        failureCount++;
+                        failures.push({
+                            event_name: schedule.event_name,
+                            employee_name: schedule.employee_name,
+                            error: approveData.error
+                        });
+                    }
+                } catch (error) {
+                    failureCount++;
+                    failures.push({
+                        event_name: schedule.event_name,
+                        employee_name: schedule.employee_name,
+                        error: error.message
+                    });
+                }
+
+                // Update progress bar
+                const percentage = Math.round((currentNum / totalCount) * 100);
+                progressBar.style.width = `${percentage}%`;
+                progressPercentage.textContent = `${percentage}%`;
+            }
+
+            // Mark the run as approved
+            await fetch(`/auto-schedule/mark-approved/${runId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ run_id: runId })
+                }
             });
 
-            const data = await response.json();
+            // Show final status
+            currentEventDisplay.textContent = 'All schedules processed!';
 
-            if (data.success) {
-                showMessage('Schedule approved successfully! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = '{{ url_for("main.dashboard") }}';
-                }, 2000);
-            } else {
-                showMessage('Error approving schedule: ' + data.error, 'error');
-                this.disabled = false;
-                this.textContent = 'Approve Schedule';
+            let statusHtml = `<div class="progress-status ${failureCount > 0 ? 'warning' : 'success'}">`;
+            statusHtml += `<strong>Approval Complete:</strong><br>`;
+            statusHtml += `✓ ${successCount} schedules submitted successfully<br>`;
+            if (failureCount > 0) {
+                statusHtml += `✗ ${failureCount} schedules failed<br>`;
+                statusHtml += `<div class="progress-details">`;
+                failures.forEach(f => {
+                    statusHtml += `<div class="progress-detail-item error">`;
+                    statusHtml += `${f.event_name} → ${f.employee_name}: ${f.error}`;
+                    statusHtml += `</div>`;
+                });
+                statusHtml += `</div>`;
             }
+            statusHtml += `<br><button onclick="window.location.href='{{ url_for("main.dashboard") }}'" class="btn-approve">Return to Dashboard</button>`;
+            statusHtml += `</div>`;
+
+            progressStatus.innerHTML = statusHtml;
+
         } catch (error) {
-            showMessage('Failed to approve schedule: ' + error.message, 'error');
+            showMessage('Failed to approve schedules: ' + error.message, 'error');
             this.disabled = false;
-            this.textContent = 'Approve Schedule';
+            this.textContent = originalText;
+            progressModal.classList.remove('active');
         }
     });
 
@@ -660,6 +1121,97 @@ document.addEventListener('DOMContentLoaded', async function() {
             showMessage('Edit functionality coming soon', 'warning');
         }
     });
+
+    // Display verification results
+    function displayVerificationResults(data) {
+        const section = document.getElementById('verification-section');
+        const icon = document.getElementById('verification-icon');
+        const badge = document.getElementById('verification-badge');
+        const content = document.getElementById('verification-content');
+        const approveButton = document.getElementById('approve-button');
+
+        section.style.display = 'block';
+
+        const criticalCount = data.critical_issues ? data.critical_issues.length : 0;
+        const warningCount = data.warnings ? data.warnings.length : 0;
+        const infoCount = data.info ? data.info.length : 0;
+
+        // Update badge and icon
+        if (criticalCount > 0) {
+            icon.textContent = '❌';
+            badge.textContent = `${criticalCount} Critical Issues`;
+            badge.className = 'count-badge error';
+            badge.style.background = '#e74c3c';
+
+            // Disable approve button
+            approveButton.disabled = true;
+            approveButton.title = 'Cannot approve: Critical issues must be resolved';
+        } else if (warningCount > 0) {
+            icon.textContent = '⚠️';
+            badge.textContent = `${warningCount} Warnings`;
+            badge.className = 'count-badge warning';
+            badge.style.background = '#f39c12';
+        } else {
+            icon.textContent = '✅';
+            badge.textContent = 'All Checks Passed';
+            badge.className = 'count-badge success';
+            badge.style.background = '#27ae60';
+        }
+
+        // Build content HTML
+        let html = '';
+
+        // Critical issues
+        if (criticalCount > 0) {
+            html += '<div class="alert alert-error" style="margin-bottom: 20px;">';
+            html += '<strong>⛔ Critical Issues (Must Fix Before Approval):</strong>';
+            html += '<ul style="margin: 10px 0 0 20px;">';
+            data.critical_issues.forEach(issue => {
+                html += `<li><strong>${issue.category}:</strong> ${issue.message}`;
+                if (issue.action) {
+                    html += `<br><em>Action: ${issue.action}</em>`;
+                }
+                html += '</li>';
+            });
+            html += '</ul></div>';
+        }
+
+        // Warnings
+        if (warningCount > 0) {
+            html += '<div class="alert alert-warning" style="margin-bottom: 20px;">';
+            html += '<strong>⚠️ Warnings (Review Before Approval):</strong>';
+            html += '<ul style="margin: 10px 0 0 20px;">';
+            data.warnings.forEach(warning => {
+                html += `<li><strong>${warning.category}:</strong> ${warning.message}`;
+                if (warning.action) {
+                    html += `<br><em>Suggestion: ${warning.action}</em>`;
+                }
+                html += '</li>';
+            });
+            html += '</ul></div>';
+        }
+
+        // Info messages
+        if (infoCount > 0 && criticalCount === 0 && warningCount === 0) {
+            html += '<div class="alert alert-success" style="margin-bottom: 20px;">';
+            html += '<strong>ℹ️ Information:</strong>';
+            html += '<ul style="margin: 10px 0 0 20px;">';
+            data.info.forEach(info => {
+                html += `<li>${info.message}</li>`;
+            });
+            html += '</ul></div>';
+        }
+
+        // If all passed
+        if (criticalCount === 0 && warningCount === 0 && (!data.info || infoCount === 0)) {
+            html += '<div class="alert alert-success">';
+            html += '✅ All verification checks passed! Schedule is ready for approval.';
+            html += '</div>';
+        }
+
+        content.innerHTML = html;
+    }
+
     {% endif %}
 });
 </script>
