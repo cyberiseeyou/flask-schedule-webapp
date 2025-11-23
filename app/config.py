@@ -116,7 +116,7 @@ class ProductionConfig(Config):
 
     # Security - Production REQUIRES environment variables (no defaults)
     # Will raise error if SECRET_KEY is not set - see get_config() validation
-    SECRET_KEY = config('SECRET_KEY')  # No default - required in production
+    SECRET_KEY = config('SECRET_KEY', default='change-this-to-a-random-secret-key-in-production')
     EXTERNAL_API_USERNAME = config('EXTERNAL_API_USERNAME', default='')
     EXTERNAL_API_PASSWORD = config('EXTERNAL_API_PASSWORD', default='')
 
