@@ -71,24 +71,43 @@ edr_printer/*.pdf
 
 # Archived code
 archived_code/
+archived/
 
 # Reference files
 reference/
 
+# Scripts directory
+scripts/
+
+# Docs directory
+docs/
+
+# Backups directory
+backups/
+
 # Test files
+tests/
 test_*.py
 comprehensive_api_test.py
 
 # Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
+Dockerfile.dev
+docker-compose.dev.yml
+docker/
 
 # CI/CD
 .github/
 
 # README and docs
-README.md
-SETUP.md
-QUICK_START.md
 *.md
+!README.md
+!DEPLOYMENT.md
+!PRODUCTION_CHECKLIST.md
+
+# Claude files
+.claude/skills/
+awesome-claude-skills/
+
+# Setup scripts
+setup.sh
+setup.bat

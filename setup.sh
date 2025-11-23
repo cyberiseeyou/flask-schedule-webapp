@@ -1,138 +1,199 @@
 #!/bin/bash
-# Flask Schedule Webapp - Linux/Mac Setup Script
-# This script sets up the application environment and dependencies
+
+###############################################################################
+# Flask Schedule Webapp - Docker Setup Script (Linux/Mac)
+#
+# This script sets up the application with Docker Compose
+# Usage: ./setup.sh [dev|prod]
+###############################################################################
 
 set -e  # Exit on error
 
-echo "========================================"
-echo "Flask Schedule Webapp - Setup Script"
-echo "========================================"
-echo ""
-
-# Colors for output
+# Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Check if Python is installed
-echo "[1/7] Checking Python version..."
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}ERROR: Python 3 is not installed${NC}"
-    echo "Please install Python 3.11 or higher"
+# Print colored output
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Banner
+echo -e "${BLUE}"
+cat << "EOF"
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║         Flask Schedule Webapp - Docker Setup             ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
+
+# Determine environment (default: production)
+ENVIRONMENT=${1:-prod}
+
+if [ "$ENVIRONMENT" = "dev" ]; then
+    print_info "Setting up DEVELOPMENT environment"
+    COMPOSE_FILE="docker-compose.dev.yml"
+else
+    print_info "Setting up PRODUCTION environment"
+    COMPOSE_FILE="docker-compose.yml"
+fi
+
+# Step 1: Check Docker installation
+print_info "Checking Docker installation..."
+if ! command -v docker &> /dev/null; then
+    print_error "Docker is not installed!"
+    print_info "Please install Docker from: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+print_success "Docker is installed: $(docker --version)"
+
+# Step 2: Check Docker Compose installation
+print_info "Checking Docker Compose installation..."
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    print_error "Docker Compose is not installed!"
+    print_info "Please install Docker Compose from: https://docs.docker.com/compose/install/"
     exit 1
 fi
 
-python3 --version
-
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo ""
-    echo "[2/7] Creating virtual environment..."
-    python3 -m venv venv
-    echo -e "${GREEN}Virtual environment created successfully${NC}"
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+    print_success "Docker Compose is installed: $(docker-compose --version)"
 else
-    echo ""
-    echo "[2/7] Virtual environment already exists, skipping..."
+    COMPOSE_CMD="docker compose"
+    print_success "Docker Compose is installed: $(docker compose version)"
 fi
 
-# Activate virtual environment
-echo ""
-echo "[3/7] Activating virtual environment..."
-source venv/bin/activate
+# Step 3: Create .env file if it doesn't exist
+print_info "Configuring environment variables..."
+ENV_FILE="scheduler_app/.env"
+ENV_EXAMPLE="scheduler_app/.env.example"
 
-# Upgrade pip
-echo ""
-echo "[4/7] Upgrading pip..."
-pip install --upgrade pip
-
-# Install dependencies
-echo ""
-echo "[5/7] Installing dependencies from requirements.txt..."
-if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-    echo -e "${GREEN}Dependencies installed successfully${NC}"
+if [ ! -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_EXAMPLE" ]; then
+        cp "$ENV_EXAMPLE" "$ENV_FILE"
+        print_success "Created .env file from .env.example"
+    else
+        print_error ".env.example file not found!"
+        exit 1
+    fi
 else
-    echo -e "${YELLOW}WARNING: requirements.txt not found, skipping dependency installation${NC}"
+    print_warning ".env file already exists, skipping..."
 fi
 
-# Create necessary directories
-echo ""
-echo "[6/7] Creating necessary directories..."
-mkdir -p scheduler_app/instance
-mkdir -p scheduler_app/logs
-mkdir -p scheduler_app/uploads
-mkdir -p edr_printer
-echo -e "${GREEN}Directories created${NC}"
+# Step 4: Generate secure secrets
+print_info "Generating secure secrets..."
 
-# Setup environment file
-echo ""
-echo "[7/7] Setting up environment configuration..."
-if [ ! -f ".env" ]; then
-    echo "Creating .env file from template..."
-    cat > .env << 'EOF'
-# Flask Schedule Webapp Configuration
-# Copy this file to .env and update with your actual values
+# Generate SECRET_KEY
+if ! grep -q "^SECRET_KEY=.*[a-f0-9]\{64\}" "$ENV_FILE"; then
+    SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))' 2>/dev/null || openssl rand -hex 32)
+    if [ -n "$SECRET_KEY" ]; then
+        sed -i.bak "s/SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" "$ENV_FILE"
+        print_success "Generated SECRET_KEY"
+    else
+        print_warning "Could not generate SECRET_KEY, please set it manually in $ENV_FILE"
+    fi
+fi
 
-# Flask Configuration
-FLASK_APP=scheduler_app.app:create_app
-FLASK_ENV=development
-SECRET_KEY=change-this-to-a-random-secret-key-in-production
-
+# Create .env for Docker Compose if it doesn't exist
+DOCKER_ENV=".env"
+if [ ! -f "$DOCKER_ENV" ]; then
+    cat > "$DOCKER_ENV" << EOF
+# Docker Compose Environment Variables
 # Database Configuration
-DATABASE_URL=sqlite:///instance/scheduler.db
+POSTGRES_DB=scheduler_db
+POSTGRES_USER=scheduler_user
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+POSTGRES_PORT=5432
 
-# Crossmark API Configuration
-CROSSMARK_API_URL=https://api.crossmark.com
-CROSSMARK_USERNAME=your_username_here
-CROSSMARK_PASSWORD=your_password_here
+# Redis Configuration
+REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+REDIS_PORT=6379
 
-# Sync Configuration
-SYNC_ENABLED=false
-AUTO_SYNC_INTERVAL=3600
+# Application Configuration
+APP_PORT=8000
 
-# Logging
-LOG_LEVEL=INFO
-LOG_FILE=scheduler_app/logs/app.log
+# Nginx Configuration (Production only)
+NGINX_HTTP_PORT=80
+NGINX_HTTPS_PORT=443
 EOF
-    echo -e "${YELLOW}.env file created - Please update with your actual configuration values${NC}"
+    print_success "Created Docker Compose .env file with secure passwords"
 else
-    echo ".env file already exists, skipping..."
+    print_warning "Docker Compose .env file already exists, skipping..."
 fi
 
-# Initialize database
-echo ""
-echo "========================================"
-echo "Database Initialization"
-echo "========================================"
-echo ""
-read -p "Would you like to initialize the database now? (y/N) " -n 1 -r
-echo ""
+# Step 5: Update DATABASE_URL in app .env
+print_info "Updating database connection string..."
+source "$DOCKER_ENV"
+DB_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}"
+sed -i.bak "s|^DATABASE_URL=.*|DATABASE_URL=$DB_URL|" "$ENV_FILE"
+print_success "Updated DATABASE_URL in $ENV_FILE"
 
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "Initializing database..."
-    cd scheduler_app
-    python3 -c "from app import create_app; from models import db; app = create_app(); app.app_context().push(); db.create_all(); print('Database initialized successfully')"
-    cd ..
-    echo -e "${GREEN}Database initialized successfully${NC}"
+# Step 6: Build Docker images
+print_info "Building Docker images..."
+$COMPOSE_CMD -f "$COMPOSE_FILE" build
+print_success "Docker images built successfully"
+
+# Step 7: Start containers
+print_info "Starting containers..."
+$COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+print_success "Containers started successfully"
+
+# Step 8: Wait for database to be ready
+print_info "Waiting for database to be ready..."
+sleep 5
+
+# Step 9: Run database migrations
+print_info "Running database migrations..."
+if [ "$ENVIRONMENT" = "dev" ]; then
+    $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app flask db upgrade
+else
+    $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app flask db upgrade
+fi
+print_success "Database migrations completed"
+
+# Step 10: Display status
+echo ""
+print_success "Setup completed successfully!"
+echo ""
+print_info "Container Status:"
+$COMPOSE_CMD -f "$COMPOSE_FILE" ps
+
+# Step 11: Display access information
+echo ""
+print_info "Application is running at:"
+if [ "$ENVIRONMENT" = "dev" ]; then
+    echo -e "  ${GREEN}http://localhost:5000${NC}"
+else
+    echo -e "  ${GREEN}http://localhost:8000${NC}"
 fi
 
 echo ""
-echo "========================================"
-echo "Setup Complete!"
-echo "========================================"
+print_info "Health Check:"
+echo -e "  http://localhost:${APP_PORT:-8000}/health/ping"
+
 echo ""
-echo "Next steps:"
-echo "1. Update .env file with your actual configuration values"
-echo "2. Run 'source venv/bin/activate' to activate the virtual environment"
-echo "3. Run 'python -m scheduler_app.app' to start the application"
+print_info "Useful Commands:"
+echo -e "  View logs:    ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE logs -f${NC}"
+echo -e "  Stop app:     ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE down${NC}"
+echo -e "  Restart app:  ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE restart${NC}"
+echo -e "  Shell access: ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE exec app /bin/bash${NC}"
+
 echo ""
-echo "For development:"
-echo "  export FLASK_APP=scheduler_app.app:create_app"
-echo "  export FLASK_ENV=development"
-echo "  flask run"
-echo ""
-echo "Or use the start script:"
-echo "  ./start.sh"
-echo ""
+print_success "Happy scheduling! 🚀"

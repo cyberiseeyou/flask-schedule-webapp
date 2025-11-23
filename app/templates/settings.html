@@ -1,0 +1,1279 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - Product Connections Scheduler{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <h2>System Settings</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form id="settings-form" class="settings-form">
+        <!-- Retail-Link Credentials Section -->
+        <section class="settings-section">
+            <h3>Walmart Retail-Link Credentials</h3>
+            <p class="section-description">Configure Walmart Retail-Link EDR authentication credentials for paperwork printing</p>
+
+            <div class="form-group">
+                <label for="edr_username">EDR Username:</label>
+                <input type="text" id="edr_username" name="edr_username"
+                       value="{{ settings.get('edr_username', '') }}"
+                       class="form-control" placeholder="Enter EDR username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edr_password">EDR Password:</label>
+                <input type="password" id="edr_password" name="edr_password"
+                       placeholder="{% if settings.get('edr_password') %}Leave blank to keep current{% else %}Enter password{% endif %}"
+                       class="form-control" {% if not settings.get('edr_password') %}required{% endif %}>
+                <small class="form-text">
+                    {% if settings.get('edr_password') %}
+                        Leave blank to keep current password
+                    {% else %}
+                        Enter your Walmart Retail Link password
+                    {% endif %}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="edr_mfa_credential_id">MFA Credential ID:</label>
+                <input type="text" id="edr_mfa_credential_id" name="edr_mfa_credential_id"
+                       value="{{ settings.get('edr_mfa_credential_id', '') }}"
+                       class="form-control" placeholder="Enter MFA credential ID" required>
+                <small class="form-text">This is the unique ID for your MFA device (usually a phone number or device ID)</small>
+            </div>
+
+            <div id="save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
+        </section>
+
+        <!-- AI Assistant Configuration Section -->
+        <section class="settings-section">
+            <h3>AI Assistant Configuration</h3>
+            <p class="section-description">Configure the AI provider and API credentials for the scheduling assistant</p>
+
+            <div class="form-group">
+                <label for="ai_provider">AI Provider:</label>
+                <select id="ai_provider" name="ai_provider" class="form-control">
+                    <option value="openai" {% if settings.get('ai_provider', 'openai') == 'openai' %}selected{% endif %}>OpenAI (GPT-4/GPT-3.5)</option>
+                    <option value="anthropic" {% if settings.get('ai_provider') == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                    <option value="gemini" {% if settings.get('ai_provider') == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                </select>
+                <small class="form-text">Select which AI provider to use for the scheduling assistant</small>
+            </div>
+
+            <div class="form-group">
+                <label for="ai_api_key">API Key:</label>
+                <input type="password" id="ai_api_key" name="ai_api_key"
+                       placeholder="{% if settings.get('ai_api_key') %}••••••••••••••••{% else %}Enter your API key{% endif %}"
+                       class="form-control">
+                <small class="form-text">
+                    {% if settings.get('ai_api_key') %}
+                        Leave blank to keep current API key. Get your API key from:
+                    {% else %}
+                        Enter your API key. Get it from:
+                    {% endif %}
+                    <a href="#" id="api-key-link" target="_blank" rel="noopener">provider website</a>
+                </small>
+            </div>
+
+            <div id="ai-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
+        </section>
+
+        <!-- Auto-Scheduler Configuration Section -->
+        <section class="settings-section">
+            <h3>Auto-Scheduler Configuration</h3>
+            <p class="section-description">Control automatic scheduling behavior</p>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="auto_scheduler_enabled" name="auto_scheduler_enabled"
+                       value="true" {% if settings.get('auto_scheduler_enabled', True) %}checked{% endif %}>
+                <label for="auto_scheduler_enabled">Enable Automatic Scheduler Runs</label>
+                <small class="form-text">When enabled, the scheduler will run automatically</small>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="auto_scheduler_require_approval" name="auto_scheduler_require_approval"
+                       value="true" {% if settings.get('auto_scheduler_require_approval', True) %}checked{% endif %}>
+                <label for="auto_scheduler_require_approval">Require Approval Before Scheduling</label>
+                <small class="form-text">When enabled, schedules must be approved before submission</small>
+            </div>
+        </section>
+
+        <!-- Data Synchronization Section -->
+        <section class="settings-section">
+            <h3>Data Synchronization</h3>
+            <p class="section-description">Manually synchronize data from external systems</p>
+
+            <div class="sync-buttons-container">
+                <div class="sync-button-group">
+                    <button type="button" id="sync-mvretail-btn" class="btn btn-sync">
+                        <span class="sync-icon">🔄</span>
+                        Sync with MVRetail
+                    </button>
+                    <small class="form-text">Synchronize employee and schedule data from MVRetail system</small>
+                    <div id="mvretail-sync-status" class="sync-status" style="display: none;"></div>
+                </div>
+
+                <div class="sync-button-group">
+                    <button type="button" id="sync-retaillink-btn" class="btn btn-sync">
+                        <span class="sync-icon">🔄</span>
+                        Sync with Retail Link
+                    </button>
+                    <small class="form-text">Refresh EDR event data cache from Walmart Retail Link (requires MFA authentication)</small>
+                    <div id="retaillink-sync-status" class="sync-status" style="display: none;"></div>
+                </div>
+
+                <div class="sync-info">
+                    <strong>About Data Caching:</strong>
+                    <ul>
+                        <li>EDR event data is cached for 24 hours by default</li>
+                        <li>Retail Link sync requires MFA code for authentication</li>
+                        <li>Cached data allows report generation without repeated authentication</li>
+                        <li>Last sync time is displayed after successful synchronization</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Paperwork Templates Section -->
+        <section class="settings-section" id="paperwork-templates">
+            <h3>Paperwork Templates</h3>
+            <p class="section-description">Manage PDF templates that will be included in daily paperwork packages</p>
+
+            <div class="template-actions">
+                <button type="button" id="add-template-btn" class="btn btn-primary">
+                    <span>+</span> Add Template
+                </button>
+            </div>
+
+            <div id="templates-list" class="templates-list">
+                <div class="loading-message">Loading templates...</div>
+            </div>
+        </section>
+
+        <!-- Event Time Configuration Section -->
+        <section class="settings-section" id="event-times">
+            <h3>Event Time Configuration</h3>
+            <p class="section-description">Configure start and end times for all event types. These times are used for scheduling and validation.</p>
+
+            <div class="warning-box">
+                <strong>⚠️ Important:</strong> All event times must be configured for scheduling to work correctly. Changes will affect all future scheduling operations.
+            </div>
+
+            <!-- Freeosk Times -->
+            <div class="event-type-group">
+                <h4>Freeosk Event</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="freeosk_start_time">Start Time:</label>
+                        <input type="time" id="freeosk_start_time" name="freeosk_start_time"
+                               value="{{ event_times.get('freeosk_start_time', '09:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="freeosk_end_time">End Time:</label>
+                        <input type="time" id="freeosk_end_time" name="freeosk_end_time"
+                               value="{{ event_times.get('freeosk_end_time', '09:15') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Digital Setup Slots -->
+            <div class="event-type-group">
+                <h4>Digital Setup Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="digital_setup_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="digital_setup_{{ slot }}_start_time"
+                                   name="digital_setup_{{ slot }}_start_time"
+                                   value="{{ event_times.get('digital_setup_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="digital_setup_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="digital_setup_{{ slot }}_end_time"
+                                   name="digital_setup_{{ slot }}_end_time"
+                                   value="{{ event_times.get('digital_setup_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Core Slots -->
+            <div class="event-type-group">
+                <h4>Core Event Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="core_{{ slot }}_start_time"
+                                   name="core_{{ slot }}_start_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_lunch_begin_time">Lunch Begin:</label>
+                            <input type="time" id="core_{{ slot }}_lunch_begin_time"
+                                   name="core_{{ slot }}_lunch_begin_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_lunch_begin_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_lunch_end_time">Lunch End:</label>
+                            <input type="time" id="core_{{ slot }}_lunch_end_time"
+                                   name="core_{{ slot }}_lunch_end_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_lunch_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="core_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="core_{{ slot }}_end_time"
+                                   name="core_{{ slot }}_end_time"
+                                   value="{{ event_times.get('core_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Supervisor Times -->
+            <div class="event-type-group">
+                <h4>Supervisor Event</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="supervisor_start_time">Start Time:</label>
+                        <input type="time" id="supervisor_start_time" name="supervisor_start_time"
+                               value="{{ event_times.get('supervisor_start_time', '12:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="supervisor_end_time">End Time:</label>
+                        <input type="time" id="supervisor_end_time" name="supervisor_end_time"
+                               value="{{ event_times.get('supervisor_end_time', '12:05') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Digital Teardown Slots -->
+            <div class="event-type-group">
+                <h4>Digital Teardown Slots (1-4)</h4>
+                {% for slot in range(1, 5) %}
+                <div class="time-slot-group">
+                    <label class="slot-label">Slot {{ slot }}:</label>
+                    <div class="time-input-row">
+                        <div class="form-group">
+                            <label for="digital_teardown_{{ slot }}_start_time">Start:</label>
+                            <input type="time" id="digital_teardown_{{ slot }}_start_time"
+                                   name="digital_teardown_{{ slot }}_start_time"
+                                   value="{{ event_times.get('digital_teardown_' + slot|string + '_start_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="digital_teardown_{{ slot }}_end_time">End:</label>
+                            <input type="time" id="digital_teardown_{{ slot }}_end_time"
+                                   name="digital_teardown_{{ slot }}_end_time"
+                                   value="{{ event_times.get('digital_teardown_' + slot|string + '_end_time', '') }}"
+                                   class="form-control time-input" required>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Other Event Times -->
+            <div class="event-type-group">
+                <h4>Other Event Type</h4>
+                <div class="time-input-row">
+                    <div class="form-group">
+                        <label for="other_start_time">Start Time:</label>
+                        <input type="time" id="other_start_time" name="other_start_time"
+                               value="{{ event_times.get('other_start_time', '10:00') }}"
+                               class="form-control time-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="other_end_time">End Time:</label>
+                        <input type="time" id="other_end_time" name="other_end_time"
+                               value="{{ event_times.get('other_end_time', '10:15') }}"
+                               class="form-control time-input" required>
+                    </div>
+                </div>
+            </div>
+
+            <div id="event-times-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
+        </section>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.settings-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.settings-section {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.settings-section h3 {
+    color: #2E4C73;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.section-description {
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-text {
+    display: block;
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 5px;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 10px;
+    margin-top: 3px;
+}
+
+.checkbox-group label {
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-primary {
+    background: #2E4C73;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1a2f4a;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #545b62;
+}
+
+.flash-messages {
+    margin-bottom: 20px;
+}
+
+.alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.alert-success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.alert-error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.sync-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.sync-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-sync {
+    background: #28a745;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    transition: all 0.3s ease;
+}
+
+.btn-sync:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-sync:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-sync.syncing .sync-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.sync-status {
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.sync-status.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.sync-status.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.sync-status.info {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.sync-info {
+    background: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.sync-info strong {
+    color: #004085;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.sync-info ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.sync-info li {
+    color: #004085;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.template-actions {
+    margin-bottom: 20px;
+}
+
+.templates-list {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 100px;
+}
+
+.loading-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+.template-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    background: white;
+    cursor: move;
+}
+
+.template-item:last-child {
+    border-bottom: none;
+}
+
+.template-item:hover {
+    background: #f9f9f9;
+}
+
+.template-item.dragging {
+    opacity: 0.5;
+}
+
+.template-drag-handle {
+    margin-right: 15px;
+    cursor: move;
+    color: #999;
+    font-size: 20px;
+}
+
+.template-info {
+    flex: 1;
+}
+
+.template-name {
+    font-weight: bold;
+    color: #2E4C73;
+    margin-bottom: 4px;
+}
+
+.template-details {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.template-actions-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.template-toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.template-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.template-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.template-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.template-toggle input:checked + .template-toggle-slider {
+    background-color: #28a745;
+}
+
+.template-toggle input:checked + .template-toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.btn-delete-template {
+    background: #dc3545;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-delete-template:hover {
+    background: #c82333;
+}
+
+.empty-templates {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+/* Event Time Configuration Styles */
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    color: #856404;
+}
+
+.event-type-group {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.event-type-group h4 {
+    color: #2E4C73;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.1em;
+    border-bottom: 2px solid #2E4C73;
+    padding-bottom: 8px;
+}
+
+.time-slot-group {
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.time-slot-group:last-child {
+    margin-bottom: 0;
+}
+
+.slot-label {
+    display: block;
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+}
+
+.time-input-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.time-input {
+    max-width: 150px;
+}
+
+.form-group label {
+    font-size: 0.9em;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('settings-form');
+    const saveStatus = document.getElementById('save-status');
+    const aiProviderSelect = document.getElementById('ai_provider');
+    const apiKeyLink = document.getElementById('api-key-link');
+
+    // Update API key link when provider changes
+    function updateApiKeyLink() {
+        const provider = aiProviderSelect.value;
+        const links = {
+            'openai': 'https://platform.openai.com/api-keys',
+            'anthropic': 'https://console.anthropic.com/settings/keys',
+            'gemini': 'https://aistudio.google.com/app/apikey'
+        };
+        apiKeyLink.href = links[provider] || '#';
+    }
+
+    aiProviderSelect.addEventListener('change', updateApiKeyLink);
+    updateApiKeyLink(); // Initialize on page load
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const username = document.getElementById('edr_username').value.trim();
+        const password = document.getElementById('edr_password').value;
+        const mfaCredentialId = document.getElementById('edr_mfa_credential_id').value.trim();
+        const aiProvider = document.getElementById('ai_provider').value;
+        const aiApiKey = document.getElementById('ai_api_key').value.trim();
+        const autoSchedulerEnabled = document.getElementById('auto_scheduler_enabled').checked;
+        const autoSchedulerRequireApproval = document.getElementById('auto_scheduler_require_approval').checked;
+
+        // Validation
+        if (!username || !mfaCredentialId) {
+            showStatus('Please fill in all required EDR fields', 'error');
+            return;
+        }
+
+        // If password field is empty and there's already a saved password, skip password validation
+        const passwordFieldPlaceholder = document.getElementById('edr_password').placeholder;
+        if (!password && !passwordFieldPlaceholder.includes('Leave blank')) {
+            showStatus('EDR password is required', 'error');
+            return;
+        }
+
+        // Show loading state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+
+        try {
+            // Save EDR settings
+            const edrResponse = await fetch('/api/settings/edr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password || undefined,
+                    mfa_credential_id: mfaCredentialId
+                })
+            });
+            const edrData = await edrResponse.json();
+
+            if (!edrData.success) {
+                showStatus('Error saving EDR settings: ' + (edrData.message || 'Failed'), 'error');
+                return;
+            }
+
+            // Save AI settings if provider or API key provided
+            if (aiProvider || aiApiKey) {
+                const aiResponse = await fetch('/api/settings/ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        provider: aiProvider,
+                        api_key: aiApiKey || undefined
+                    })
+                });
+                const aiData = await aiResponse.json();
+
+                if (!aiData.success) {
+                    showStatus('EDR settings saved, but AI settings failed: ' + (aiData.message || 'Failed'), 'error');
+                    return;
+                }
+            }
+
+            // Save Auto-Scheduler settings
+            const autoSchedulerResponse = await fetch('/api/settings/auto-scheduler', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled: autoSchedulerEnabled,
+                    require_approval: autoSchedulerRequireApproval
+                })
+            });
+            const autoSchedulerData = await autoSchedulerResponse.json();
+
+            if (!autoSchedulerData.success) {
+                showStatus('Settings partially saved. Auto-scheduler settings failed: ' + (autoSchedulerData.message || 'Failed'), 'error');
+                return;
+            }
+
+            // Save Event Time settings
+            const eventTimes = {};
+
+            // Collect all event time inputs
+            document.querySelectorAll('#event-times input[type="time"]').forEach(input => {
+                if (input.value) {
+                    eventTimes[input.name] = input.value;
+                }
+            });
+
+            const eventTimesResponse = await fetch('/api/settings/event-times', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventTimes)
+            });
+            const eventTimesData = await eventTimesResponse.json();
+
+            if (!eventTimesData.success) {
+                showStatus('Settings partially saved. Event time settings failed: ' + (eventTimesData.message || 'Failed'), 'error');
+                return;
+            }
+
+            // Success
+            showStatus('All settings saved successfully!', 'success');
+
+            // Clear password fields after successful save
+            document.getElementById('edr_password').value = '';
+            document.getElementById('edr_password').placeholder = 'Leave blank to keep current';
+
+            if (aiApiKey) {
+                document.getElementById('ai_api_key').value = '';
+                document.getElementById('ai_api_key').placeholder = '••••••••••••••••';
+            }
+
+        } catch (error) {
+            showStatus('Error: ' + error.message, 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+        }
+    });
+
+    function showStatus(message, type) {
+        saveStatus.textContent = message;
+        saveStatus.style.display = 'block';
+
+        if (type === 'success') {
+            saveStatus.style.background = '#d4edda';
+            saveStatus.style.border = '1px solid #c3e6cb';
+            saveStatus.style.color = '#155724';
+        } else {
+            saveStatus.style.background = '#f8d7da';
+            saveStatus.style.border = '1px solid #f5c6cb';
+            saveStatus.style.color = '#721c24';
+        }
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            saveStatus.style.display = 'none';
+        }, 5000);
+    }
+
+    // Sync button handlers
+    const syncMVRetailBtn = document.getElementById('sync-mvretail-btn');
+    const syncRetailLinkBtn = document.getElementById('sync-retaillink-btn');
+    const mvretailStatus = document.getElementById('mvretail-sync-status');
+    const retaillinkStatus = document.getElementById('retaillink-sync-status');
+
+    function showSyncStatus(statusElement, message, type) {
+        statusElement.textContent = message;
+        statusElement.className = 'sync-status ' + type;
+        statusElement.style.display = 'block';
+    }
+
+    // MVRetail Sync Handler
+    syncMVRetailBtn.addEventListener('click', function() {
+        syncMVRetailBtn.disabled = true;
+        syncMVRetailBtn.classList.add('syncing');
+        syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
+
+        showSyncStatus(mvretailStatus, 'Synchronizing with MVRetail...', 'info');
+
+        fetch('/api/sync/mvretail', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const message = data.message || 'Successfully synchronized with MVRetail';
+                const details = data.details ? ` (${data.details})` : '';
+                showSyncStatus(mvretailStatus, message + details, 'success');
+            } else {
+                showSyncStatus(mvretailStatus, 'Error: ' + (data.message || 'Sync failed'), 'error');
+            }
+        })
+        .catch(error => {
+            showSyncStatus(mvretailStatus, 'Error: ' + error.message, 'error');
+        })
+        .finally(() => {
+            syncMVRetailBtn.disabled = false;
+            syncMVRetailBtn.classList.remove('syncing');
+            syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with MVRetail';
+        });
+    });
+
+    // Retail Link Sync Handler
+    syncRetailLinkBtn.addEventListener('click', function() {
+        // Prompt for MFA code
+        const mfaCode = prompt('Enter your MFA code to authenticate with Retail Link:');
+
+        if (!mfaCode || mfaCode.trim() === '') {
+            showSyncStatus(retaillinkStatus, 'Sync cancelled - MFA code required', 'error');
+            return;
+        }
+
+        syncRetailLinkBtn.disabled = true;
+        syncRetailLinkBtn.classList.add('syncing');
+        syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
+
+        showSyncStatus(retaillinkStatus, 'Authenticating with Retail Link...', 'info');
+
+        fetch('/api/sync/retaillink', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mfa_code: mfaCode.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const message = data.message || 'Successfully synchronized with Retail Link';
+                const details = data.details ? `<br><small>${data.details}</small>` : '';
+                retaillinkStatus.innerHTML = message + details;
+                retaillinkStatus.className = 'sync-status success';
+                retaillinkStatus.style.display = 'block';
+            } else {
+                const errorDetails = data.details ? `<br><small>${data.details}</small>` : '';
+                retaillinkStatus.innerHTML = 'Error: ' + (data.message || 'Sync failed') + errorDetails;
+                retaillinkStatus.className = 'sync-status error';
+                retaillinkStatus.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            showSyncStatus(retaillinkStatus, 'Error: ' + error.message, 'error');
+        })
+        .finally(() => {
+            syncRetailLinkBtn.disabled = false;
+            syncRetailLinkBtn.classList.remove('syncing');
+            syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with Retail Link';
+        });
+    });
+
+    // ===== PAPERWORK TEMPLATES MANAGEMENT =====
+    const templatesList = document.getElementById('templates-list');
+    const addTemplateBtn = document.getElementById('add-template-btn');
+    let templates = [];
+    let draggedElement = null;
+
+    // Load templates on page load
+    loadTemplates();
+
+    function loadTemplates() {
+        fetch('/api/paperwork-templates/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    templates = data.templates;
+                    renderTemplates();
+                } else {
+                    templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading templates:', error);
+                templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+            });
+    }
+
+    function renderTemplates() {
+        if (templates.length === 0) {
+            templatesList.innerHTML = '<div class="empty-templates">No templates added yet. Click "Add Template" to upload a PDF.</div>';
+            return;
+        }
+
+        templatesList.innerHTML = templates.map(template => `
+            <div class="template-item" draggable="true" data-template-id="${template.id}">
+                <span class="template-drag-handle">☰</span>
+                <div class="template-info">
+                    <div class="template-name">${escapeHtml(template.name)}</div>
+                    <div class="template-details">
+                        ${escapeHtml(template.file_path)}
+                        ${template.description ? ' - ' + escapeHtml(template.description) : ''}
+                    </div>
+                </div>
+                <div class="template-actions-group">
+                    <label class="template-toggle">
+                        <input type="checkbox" ${template.is_active ? 'checked' : ''}
+                               onchange="toggleTemplate(${template.id}, this.checked)">
+                        <span class="template-toggle-slider"></span>
+                    </label>
+                    <button type="button" class="btn-delete-template" onclick="deleteTemplate(${template.id})">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add drag and drop event listeners
+        const items = templatesList.querySelectorAll('.template-item');
+        items.forEach(item => {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragover', handleDragOver);
+            item.addEventListener('drop', handleDrop);
+            item.addEventListener('dragend', handleDragEnd);
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Drag and Drop Handlers
+    function handleDragStart(e) {
+        draggedElement = this;
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        if (this !== draggedElement) {
+            const rect = this.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (e.clientY < midpoint) {
+                this.parentNode.insertBefore(draggedElement, this);
+            } else {
+                this.parentNode.insertBefore(draggedElement, this.nextSibling);
+            }
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDragEnd(e) {
+        this.classList.remove('dragging');
+
+        // Get new order
+        const items = templatesList.querySelectorAll('.template-item');
+        const newOrder = Array.from(items).map(item => parseInt(item.dataset.templateId));
+
+        // Save new order
+        saveOrder(newOrder);
+    }
+
+    function saveOrder(templateIds) {
+        fetch('/api/paperwork-templates/reorder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ template_ids: templateIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Order saved successfully');
+                loadTemplates(); // Reload to get updated order
+            } else {
+                alert('Error saving order: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving order:', error);
+            alert('Error saving order');
+        });
+    }
+
+    // Toggle Template Active Status
+    window.toggleTemplate = function(templateId, isActive) {
+        fetch(`/api/paperwork-templates/${templateId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ is_active: isActive })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Template status updated');
+            } else {
+                alert('Error updating template: ' + data.error);
+                loadTemplates(); // Reload to reset checkbox
+            }
+        })
+        .catch(error => {
+            console.error('Error updating template:', error);
+            alert('Error updating template');
+            loadTemplates(); // Reload to reset checkbox
+        });
+    };
+
+    // Delete Template
+    window.deleteTemplate = function(templateId) {
+        const template = templates.find(t => t.id === templateId);
+        if (!confirm(`Are you sure you want to delete "${template.name}"?`)) {
+            return;
+        }
+
+        fetch(`/api/paperwork-templates/${templateId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadTemplates();
+            } else {
+                alert('Error deleting template: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting template:', error);
+            alert('Error deleting template');
+        });
+    };
+
+    // Add Template
+    addTemplateBtn.addEventListener('click', function() {
+        // Create file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.pdf';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                alert('Only PDF files are allowed');
+                return;
+            }
+
+            // Ask for template name (default to filename without extension)
+            const defaultName = file.name.replace(/\.pdf$/i, '');
+            const templateName = prompt('Enter template name:', defaultName);
+
+            if (!templateName) {
+                return; // User cancelled
+            }
+
+            // Ask for optional description
+            const description = prompt('Enter description (optional):') || '';
+
+            // Upload file
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('name', templateName);
+            formData.append('description', description);
+
+            // Show uploading state
+            addTemplateBtn.disabled = true;
+            addTemplateBtn.textContent = 'Uploading...';
+
+            fetch('/api/paperwork-templates/upload', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Template uploaded successfully!');
+                    loadTemplates();
+                } else {
+                    alert('Error uploading template: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading template:', error);
+                alert('Error uploading template');
+            })
+            .finally(() => {
+                addTemplateBtn.disabled = false;
+                addTemplateBtn.innerHTML = '<span>+</span> Add Template';
+            });
+        });
+
+        // Trigger file selection
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    });
+
+    // Helper function to get CSRF token
+    function getCsrfToken() {
+        const token = document.cookie.split('; ')
+            .find(row => row.startsWith('csrf_token='))
+            ?.split('=')[1];
+        return token || '';
+    }
+});
+</script>
+{% endblock %}

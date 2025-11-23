@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Auto-Scheduler - Product Connections Scheduler{% endblock %}
+{% block page_title %}Auto-Scheduler{% endblock %}
+
+{% block extra_head %}
+<style>
+    .page-header {
+        text-align: center;
+        margin-bottom: var(--spacing-lg);
+        padding-bottom: var(--spacing-md);
+        border-bottom: 2px solid var(--pc-light-blue);
+    }
+
+    .page-title {
+        font-size: var(--font-size-h1);
+        font-weight: var(--font-weight-heading);
+        color: var(--pc-navy);
+        margin: 0;
+        letter-spacing: -0.02em;
+    }
+
+    .dashboard-sections {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .dashboard-section {
+        background: var(--bg-primary);
+        border-radius: var(--border-radius-lg);
+        padding: var(--spacing-xl);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid rgba(46, 76, 115, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dashboard-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--pc-navy) 0%, var(--pc-blue) 100%);
+    }
+
+    .dashboard-section:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-lg);
+        padding-bottom: var(--spacing-md);
+        border-bottom: 1px solid rgba(46, 76, 115, 0.1);
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--pc-navy);
+        margin: 0;
+        letter-spacing: -0.02em;
+    }
+
+    .percentage-display {
+        text-align: center;
+        background: linear-gradient(135deg, var(--pc-light-blue) 0%, rgba(232, 244, 249, 0.7) 100%);
+        padding: var(--spacing-xl);
+        border-radius: var(--border-radius-lg);
+        margin-bottom: var(--spacing-lg);
+        border: 1px solid rgba(27, 155, 216, 0.2);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .percentage-display::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        background: linear-gradient(135deg, var(--pc-blue), var(--pc-navy));
+        z-index: -1;
+        border-radius: var(--border-radius-lg);
+        opacity: 0.1;
+    }
+
+    .percentage-number {
+        font-size: 4rem;
+        font-weight: 800;
+        color: var(--pc-navy);
+        margin-bottom: var(--spacing-sm);
+        line-height: 1;
+        text-shadow: 0 2px 4px rgba(46, 76, 115, 0.1);
+    }
+
+    .percentage-label {
+        color: var(--text-secondary);
+        font-size: var(--font-size-body);
+        font-weight: 500;
+        margin: 0;
+    }
+
+    .unscheduled-list {
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .unscheduled-item {
+        background: var(--bg-primary);
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+        border: 1px solid rgba(46, 76, 115, 0.1);
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .unscheduled-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .unscheduled-item:hover {
+        box-shadow: var(--shadow-sm);
+        border-color: var(--pc-light-blue);
+        transform: translateY(-2px);
+    }
+
+    .unscheduled-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .unscheduled-title {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: var(--font-size-small);
+        flex: 1;
+        margin-right: var(--spacing-sm);
+        line-height: 1.4;
+    }
+
+    .unscheduled-dates {
+        font-size: var(--font-size-small);
+        color: var(--text-muted);
+        background: var(--bg-secondary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .no-items {
+        text-align: center;
+        color: var(--text-muted);
+        font-style: italic;
+        padding: var(--spacing-lg);
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); }
+        50% { transform: scale(1.01); box-shadow: 0 6px 16px rgba(243, 156, 18, 0.4); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">Auto-Scheduler</h1>
+    </div>
+
+    <!-- Auto-Scheduler Notification -->
+    <div id="auto-scheduler-notification" style="display: none; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); animation: pulse 2s ease-in-out infinite;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 5px 0; font-size: 1.3rem;">⚠️ Pending Schedule Proposal</h3>
+                <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">A proposed schedule is ready for your review.</p>
+            </div>
+            <a href="{{ url_for('auto_scheduler.review') }}" class="btn" style="background: white; color: #e67e22; font-weight: bold; padding: 12px 24px; text-decoration: none; border-radius: 4px; transition: transform 0.2s;">
+                Review Now
+            </a>
+        </div>
+    </div>
+
+    <!-- Auto-Scheduler Controls -->
+    <div class="dashboard-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); border-left: 4px solid #27ae60;">
+        <div class="section-header">
+            <h3 class="section-title">🤖 Auto-Scheduler</h3>
+            <a href="{{ url_for('rotations.index') }}" class="btn btn-outline" style="font-size: 0.9em; padding: 0.5rem 1rem;">
+                Configure Rotations
+            </a>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: center;">
+            <div>
+                <p style="color: var(--text-secondary); margin-bottom: 15px; line-height: 1.6;">
+                    The auto-scheduler will analyze unscheduled events within the next 3 weeks and create
+                    assignment proposals based on weekly rotations, employee availability, and event priorities.
+                </p>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button onclick="runAutoScheduler()" id="auto-schedule-btn" class="btn btn-primary">
+                        Run Auto-Scheduler
+                    </button>
+                    <span id="auto-schedule-status" style="color: var(--text-muted); font-size: 0.9rem;"></span>
+                </div>
+            </div>
+            <div id="last-run-info" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 5px;">Last Run</div>
+                <div id="last-run-time" style="font-weight: 600; color: #2c3e50;">
+                    {% if last_run %}
+                        {{ last_run.started_at.strftime('%m/%d/%Y %I:%M %p') }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduling Progress -->
+    <div class="dashboard-sections">
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h3 class="section-title">Scheduling Progress (Next 2 Weeks)</h3>
+            </div>
+
+            <!-- Scheduling Percentage -->
+            <div class="percentage-display">
+                <div class="percentage-number">{{ scheduling_percentage }}%</div>
+                <div class="percentage-label">
+                    {{ scheduled_events_2weeks }} of {{ total_events_2weeks }} events scheduled
+                </div>
+            </div>
+
+            <!-- Unscheduled Events (within 2 weeks) -->
+            <h4 style="margin: var(--spacing-md) 0 var(--spacing-sm) 0; color: var(--text-primary);">
+                Urgent Unscheduled Events ({{ unscheduled_events_2weeks|length }})
+            </h4>
+
+            {% if unscheduled_events_2weeks %}
+                <div class="unscheduled-list">
+                    {% for event in unscheduled_events_2weeks %}
+                    <div class="unscheduled-item">
+                        <div class="unscheduled-header">
+                            <div class="unscheduled-title">{{ event.project_name }}</div>
+                            <span class="event-type-badge event-type-{{ event.event_type.lower() }}">
+                                {{ event.event_type }}
+                            </span>
+                        </div>
+                        <div class="unscheduled-dates">
+                            📅 {{ event.start_datetime.strftime('%m/%d') }} - {{ event.due_datetime.strftime('%m/%d') }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="text-align: center; margin-top: var(--spacing-md);">
+                    <a href="{{ url_for('main.unscheduled_events') }}" class="btn btn-outline">
+                        View All Unscheduled Events
+                    </a>
+                </div>
+            {% else %}
+                <div class="no-items">All events within 2 weeks are scheduled!</div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-scheduler functions
+function checkPendingProposal() {
+    fetch('{{ url_for("auto_scheduler.dashboard_status") }}')
+        .then(response => response.json())
+        .then(data => {
+            const notification = document.getElementById('auto-scheduler-notification');
+            if (data.has_pending) {
+                notification.style.display = 'block';
+            } else {
+                notification.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Failed to check pending proposals:', error);
+        });
+}
+
+function runAutoScheduler() {
+    const btn = document.getElementById('auto-schedule-btn');
+    const statusSpan = document.getElementById('auto-schedule-status');
+
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    statusSpan.textContent = 'Analyzing events...';
+
+    fetch('{{ url_for("auto_scheduler.run_scheduler") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusSpan.style.color = '#27ae60';
+            statusSpan.textContent = `✓ Completed: ${data.stats.events_scheduled} scheduled, ${data.stats.events_requiring_swaps} swaps, ${data.stats.events_failed} failed`;
+
+            // Update last run time
+            const lastRunTime = document.getElementById('last-run-time');
+            lastRunTime.textContent = 'Just now';
+
+            // Check for pending proposals
+            setTimeout(() => {
+                checkPendingProposal();
+            }, 500);
+
+            // Show success message
+            setTimeout(() => {
+                if (data.stats.events_scheduled > 0 || data.stats.events_requiring_swaps > 0) {
+                    if (confirm('Auto-scheduler completed successfully! Would you like to review the proposals now?')) {
+                        window.location.href = '{{ url_for("auto_scheduler.review") }}';
+                    }
+                } else {
+                    alert('Auto-scheduler completed but found no events to schedule in the next 3 weeks.');
+                }
+            }, 1000);
+        } else {
+            statusSpan.style.color = '#e74c3c';
+            statusSpan.textContent = `Error: ${data.error}`;
+            alert('Auto-scheduler failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        statusSpan.style.color = '#e74c3c';
+        statusSpan.textContent = `Failed: ${error.message}`;
+        alert('Failed to run auto-scheduler: ' + error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Run Auto-Scheduler';
+    });
+}
+
+// Check for pending proposals on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkPendingProposal();
+});
+</script>
+{% endblock %}

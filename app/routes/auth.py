@@ -1,0 +1,313 @@
+"""
+Authentication routes blueprint
+Handles user login, logout, and session management
+"""
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from functools import wraps
+from datetime import datetime, timedelta
+import secrets
+
+# Create blueprint
+auth_bp = Blueprint('auth', __name__)
+
+# Session store - will be shared with app
+session_store = {}
+
+
+def is_authenticated():
+    """Check if user is authenticated"""
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        return False
+
+    session_data = session_store.get(session_id)
+    if not session_data:
+        return False
+
+    # Check if session has expired (24 hours)
+    if datetime.utcnow() - session_data['created_at'] > timedelta(hours=24):
+        del session_store[session_id]
+        return False
+
+    return True
+
+
+def get_current_user():
+    """Get current authenticated user info"""
+    session_id = request.cookies.get('session_id')
+    if session_id and session_id in session_store:
+        return session_store[session_id].get('user_info')
+    return None
+
+
+def require_authentication():
+    """Decorator to require authentication for routes"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not is_authenticated():
+                return redirect(url_for('auth.login_page'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+@auth_bp.route('/login')
+def login_page():
+    """Display login page"""
+    # Redirect to today's daily view if already authenticated
+    if is_authenticated():
+        today = datetime.now().strftime('%Y-%m-%d')
+        return redirect(url_for('main.daily_schedule_view', date=today))
+
+    return render_template('login.html')
+
+
+@auth_bp.route('/login', methods=['POST'])
+# Note: CSRF exemption applied in app.py - cannot have token before authentication session exists
+def login():
+    """
+    Handle login form submission and authenticate with Crossmark API
+
+    Rate Limit: 5 attempts per minute to prevent brute force attacks
+    """
+    from app.integrations.external_api.session_api_service import session_api as external_api
+
+    # Apply strict rate limiting to login endpoint (5 per minute)
+    # Note: Using dynamic application pattern to avoid circular imports with app.py
+    # The limiter is accessed from app config and applied at runtime
+    limiter = current_app.config.get('limiter')
+    if limiter:
+        # Apply rate limit check by decorating a lambda and immediately calling it
+        # This triggers the rate limit check without needing to decorate the route function
+        limiter.limit("5 per minute")(lambda: None)()
+
+    try:
+        # Debug logging
+        current_app.logger.info(f"Login attempt - Content-Type: {request.content_type}")
+        current_app.logger.info(f"Login attempt - Form data: {request.form}")
+        current_app.logger.info(f"Login attempt - Raw data: {request.get_data(as_text=True)[:200]}")
+
+        # Get credentials from form
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        remember_me = request.form.get('remember') == 'on'
+
+        # Validate input
+        if not username or not password:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'success': False,
+                    'error': 'Username and password are required'
+                }), 400
+            else:
+                flash('Username and password are required', 'error')
+                return redirect(url_for('auth.login_page'))
+
+        # Temporarily configure external API with user credentials
+        original_username = external_api.username
+        original_password = external_api.password
+        auth_success = False  # Initialize auth_success outside try block
+
+        external_api.username = username
+        external_api.password = password
+
+        try:
+            # Attempt authentication with Crossmark API
+            current_app.logger.info(f"Attempting authentication for user: {username}")
+
+            # Development mode bypass - allow login with any credentials
+            is_dev_mode = (
+                current_app.config.get('DEBUG', False) or
+                current_app.config.get('ENV') == 'development' or
+                current_app.config.get('FLASK_ENV') == 'development' or
+                current_app.config.get('TESTING', False)
+            )
+
+            if is_dev_mode:
+                current_app.logger.info("Development mode: bypassing external API authentication")
+                auth_success = True
+            else:
+                auth_success = external_api.login()
+
+            if auth_success:
+                # Get user information
+                user_info = external_api._get_user_info()
+                if not user_info:
+                    user_info = {
+                        'username': username,
+                        'userId': username,
+                        'authenticated': True
+                    }
+
+                # Extract first and last name from API response or parse from username
+                first_name = user_info.get('firstName') or user_info.get('first_name')
+                last_name = user_info.get('lastName') or user_info.get('last_name')
+
+                # Fallback: try to parse from 'name' field if exists
+                if not (first_name and last_name) and 'name' in user_info:
+                    name_parts = user_info['name'].split(' ', 1)
+                    if len(name_parts) == 2:
+                        first_name, last_name = name_parts
+                    elif len(name_parts) == 1:
+                        first_name = name_parts[0]
+                        last_name = ''
+
+                # Fallback: parse from username if still not found
+                if not (first_name and last_name):
+                    # Try to parse "firstname.lastname" or "firstname lastname" format
+                    username_parts = username.replace('.', ' ').split(' ', 1)
+                    if len(username_parts) >= 1:
+                        first_name = username_parts[0].capitalize()
+                    if len(username_parts) >= 2:
+                        last_name = username_parts[1].capitalize()
+                    else:
+                        last_name = ''
+
+                # Add name fields to user_info
+                user_info['first_name'] = first_name or 'User'
+                user_info['last_name'] = last_name or ''
+                user_info['full_name'] = f"{first_name} {last_name}".strip() if (first_name and last_name) else (first_name or username)
+
+                # Create session
+                session_id = secrets.token_urlsafe(32)
+                session_data = {
+                    'user_id': username,
+                    'user_info': user_info,
+                    'created_at': datetime.utcnow(),
+                    'crossmark_authenticated': True,
+                    'phpsessid': external_api.phpsessid
+                }
+                session_store[session_id] = session_data
+
+                current_app.logger.info(f"Successful authentication for user: {username}")
+
+                # Check if event time settings are configured
+                event_times_configured = True
+                missing_settings = []
+                try:
+                    from app.services.event_time_settings import are_event_times_configured
+                    event_times_configured, missing_settings = are_event_times_configured()
+                except Exception as e:
+                    current_app.logger.error(f"Error checking event time settings: {e}")
+
+                # Add event times configuration status to session
+                session_data['event_times_configured'] = event_times_configured
+                session_store[session_id] = session_data
+
+                # Create response - redirect to today's daily view
+                today = datetime.now().strftime('%Y-%m-%d')
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    response = jsonify({
+                        'success': True,
+                        'redirect': url_for('main.daily_schedule_view', date=today),
+                        'user': user_info,
+                        'refresh_database': True,  # Trigger post-login database refresh
+                        'event_times_configured': event_times_configured
+                    })
+                else:
+                    response = redirect(url_for('main.daily_schedule_view', date=today))
+
+                # Set session cookie
+                response.set_cookie(
+                    'session_id',
+                    session_id,
+                    max_age=86400 if remember_me else None,  # 24 hours if remember me
+                    httponly=True,
+                    secure=request.is_secure,
+                    samesite='Lax'
+                )
+
+                return response
+
+            else:
+                current_app.logger.warning(f"Authentication failed for user: {username}")
+                error_message = 'Invalid username or password. Please check your Crossmark credentials.'
+
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': False,
+                        'error': error_message
+                    }), 401
+                else:
+                    flash(error_message, 'error')
+                    return redirect(url_for('auth.login_page'))
+
+        finally:
+            # Only restore original credentials if authentication failed
+            # If auth was successful, keep the new credentials for API calls
+            if not auth_success:
+                external_api.username = original_username
+                external_api.password = original_password
+
+    except Exception as e:
+        current_app.logger.error(f"Login error for user {username}: {str(e)}")
+        error_message = 'An error occurred during login. Please try again.'
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'error': error_message
+            }), 500
+        else:
+            flash(error_message, 'error')
+            return redirect(url_for('auth.login_page'))
+
+
+@auth_bp.route('/api/session-info')
+def session_info():
+    """Get session information including event times configuration status"""
+    session_id = request.cookies.get('session_id')
+
+    if not session_id or session_id not in session_store:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+
+    session_data = session_store[session_id]
+    event_times_configured = session_data.get('event_times_configured', True)
+
+    return jsonify({
+        'success': True,
+        'event_times_configured': event_times_configured,
+        'user': session_data.get('user_info', {})
+    })
+
+
+@auth_bp.route('/logout')
+def logout():
+    """Handle user logout"""
+    from app.integrations.external_api.session_api_service import session_api as external_api
+
+    session_id = request.cookies.get('session_id')
+
+    if session_id and session_id in session_store:
+        # Clear session
+        del session_store[session_id]
+        current_app.logger.info("User logged out successfully")
+
+    # Clear external API session if authenticated
+    if external_api.authenticated:
+        external_api.logout()
+
+    response = redirect(url_for('auth.login_page'))
+    response.set_cookie('session_id', '', expires=0)
+    flash('You have been logged out successfully', 'info')
+
+    return response
+
+
+@auth_bp.route('/api/auth/status')
+def auth_status():
+    """Check authentication status"""
+    if is_authenticated():
+        user_info = get_current_user()
+        return jsonify({
+            'authenticated': True,
+            'user': user_info
+        })
+    else:
+        return jsonify({
+            'authenticated': False
+        }), 401

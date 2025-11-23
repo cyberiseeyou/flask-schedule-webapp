@@ -1,15 +1,47 @@
-Flask==3.0.0
+# Core Flask Framework
+Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
 Flask-WTF==1.2.1
+Flask-Limiter==4.0.0
 alembic==1.16.5
+
+# Configuration Management
 python-decouple==3.8
-requests==2.31.0
+
+# HTTP Client
+requests==2.32.3
+urllib3==2.2.1
+
+# PDF Generation
 PyPDF2==3.0.1
-reportlab==4.0.7
-urllib3==2.0.7
-celery==5.3.4
-redis==5.0.1
-cryptography>=41.0.0
-xhtml2pdf>=0.2.11
-pytest>=7.4.3
+reportlab==4.2.5
+xhtml2pdf==0.2.16
+
+# Task Queue & Scheduling
+celery==5.3.6
+redis==5.0.3
+APScheduler==3.11.0
+
+# Security
+cryptography==42.0.5
+python-dotenv==1.0.1
+
+# Production WSGI Server
+gunicorn==21.2.0
+gevent==24.2.1
+
+# Monitoring & Logging
+python-json-logger==2.0.7
+psutil==5.9.8
+
+# Testing (Development only)
+pytest==8.1.1
+pytest-cov==5.0.0
+
+# Barcode Generation
+python-barcode>=0.15.1
+Pillow>=10.0.0
+
+# Database
+psycopg2-binary==2.9.9

@@ -1,25 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(python -m pytest test_models.py -v)",
-      "Bash(pip install:*)",
-      "Bash(python -m pytest test_routes.py -v)",
-      "Bash(python:*)",
-      "Bash(find:*)",
-      "Bash(pgrep:*)",
-      "Bash(xargs kill:*)",
-      "Read(//mnt/c/Users/mathe/Work/OneDrive - Crossmark/Pictures/Camera Roll/Screenshots/**)",
-      "Bash(sqlite3:*)",
-      "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_install",
-      "Bash(source:*)",
-      "Bash(curl -s -X POST http://127.0.0.1:5000/login -H \"Content-Type: application/x-www-form-urlencoded\" -H \"X-Requested-With: XMLHttpRequest\" -H \"Accept: application/json\" -d \"username=mat.conder8135&password=Password123!\")",
-      "Bash(curl:*)",
-      "Bash(touch:*)",
-      "Bash(pytest:*)",
-      "Bash(test:*)",
-      "Bash(chmod:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Read(//c/Users/mathe/flask-schedule-webapp/**)",
+      "mcp__plugin_superpowers-chrome_chrome__use_browser"
     ],
     "deny": [],
     "ask": []

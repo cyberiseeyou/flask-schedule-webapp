@@ -1,51 +1,152 @@
-# Interactive Scheduling Assistant
+# Flask Schedule Webapp
 
-A Flask-based web application for automating employee scheduling and availability management. This local application eliminates manual cross-referencing of schedules, prevents double-bookings, and provides a centralized view of all scheduling activities.
+A comprehensive Flask-based web application for automating employee scheduling, availability management, and event coordination with Walmart Retail Link integration. Features intelligent auto-scheduling, EDR reporting, attendance tracking, and comprehensive workload analytics.
 
 ## Features
 
-- **Dashboard View**: Prioritized list of unscheduled events sorted by urgency
-- **Interactive Scheduling**: Dynamic form with date constraints and employee availability checking
-- **CSV Import/Export**: Bulk operations for WorkBankVisits.csv import and CalendarSchedule.csv export
-- **Availability Management**: Automatic employee availability checking to prevent conflicts
-- **Data Validation**: Comprehensive input validation and error handling
-- **Responsive Design**: Clean, task-oriented interface optimized for efficiency
+### Core Scheduling
+- **Auto Scheduler**: Intelligent automated event assignment based on skills, availability, and workload
+- **Interactive Scheduling**: Manual scheduling with real-time conflict detection
+- **Rotation Management**: Automated daily rotation assignments for Juicers and Primary Leads
+- **Time Off Management**: Employee time-off requests and availability overrides
+- **Schedule Validation**: Real-time validation warnings and conflict resolution
+
+### Integration & Reporting
+- **Walmart Retail Link Integration**: Automatic event synchronization from Crossmark API
+- **EDR Sync**: Sales data integration for event-specific paperwork generation
+- **Attendance Tracking**: QR code-based and manual attendance logging
+- **Comprehensive Reporting**: Daily, weekly, and employee-specific schedule generation
+- **PDF Paperwork**: Automated generation of event documentation with EDR data
+
+### Analytics & Monitoring
+- **Daily Validation Dashboard**: Real-time schedule monitoring with validation warnings
+- **Workload Analytics**: Team performance metrics and capacity planning
+- **Attendance Reports**: Employee attendance tracking and unreported event management
+- **Performance Metrics**: KPIs for scheduling efficiency and employee utilization
 
 ## Quick Start
 
-### Prerequisites
+### Docker Deployment (Recommended) 🐳
 
-- Python 3.13+ 
+The easiest way to get started! Just clone and run the setup script.
+
+**Linux/Mac:**
+```bash
+git clone <repository-url>
+cd flask-schedule-webapp
+chmod +x setup.sh
+./setup.sh
+```
+
+**Windows:**
+```cmd
+git clone <repository-url>
+cd flask-schedule-webapp
+setup.bat
+```
+
+**Access:**
+- Production: http://localhost:8000
+- Development: http://localhost:5000 (use `./setup.sh dev` or `setup.bat dev`)
+
+The setup script automatically:
+- ✅ Checks Docker installation
+- ✅ Generates secure secrets
+- ✅ Configures the database
+- ✅ Builds and starts all containers
+- ✅ Runs database migrations
+
+See [DOCKER.md](docs/deployment/DOCKER.md) for detailed Docker deployment guide.
+
+### Local Development
+
+**Prerequisites:**
+- Python 3.11+
 - pip package manager
 
-### Installation
-
-1. Clone or navigate to the project directory:
+**Setup:**
 ```bash
-cd flask-schedule-webapp/scheduler_app
-```
-
-2. Create and activate a virtual environment:
-```bash
-python -m venv ../venv
-source ../venv/bin/activate  # Linux/Mac
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
 # or
-../venv\Scripts\activate     # Windows
-```
+.venv\Scripts\activate     # Windows
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Run application
+python wsgi.py
+# or use Gunicorn for production
+gunicorn --config gunicorn_config.py wsgi:app
 ```
 
-4. Run the application:
-```bash
-python app.py
+**Access:** http://localhost:5000
+
+## Project Structure
+
+The application follows Flask best practices with the application factory pattern:
+
+```
+flask-schedule-webapp/
+├── app/                          # Main application package
+│   ├── __init__.py              # Application factory (create_app)
+│   ├── extensions.py            # Flask extensions (db, migrate, csrf, limiter)
+│   ├── config.py                # Configuration classes
+│   ├── constants.py             # Application constants
+│   │
+│   ├── models/                  # Database models
+│   ├── routes/                  # Flask blueprints (views)
+│   ├── services/                # Business logic layer
+│   ├── utils/                   # Utility functions
+│   ├── error_handlers/          # Error handling and logging
+│   │
+│   ├── integrations/            # External integrations
+│   │   ├── edr/                # EDR reporting
+│   │   ├── walmart_api/        # Walmart Retail Link
+│   │   └── external_api/       # Crossmark API sync
+│   │
+│   ├── static/                  # CSS, JS, images
+│   └── templates/               # Jinja2 templates
+│
+├── tests/                       # Test suite
+│   ├── integration/            # Integration tests
+│   └── unit/                   # Unit tests
+│
+├── scripts/                     # Utility scripts
+│   ├── update_db.py            # Database management
+│   └── list_routes.py          # Route debugging
+│
+├── docs/                        # Documentation
+│   ├── deployment/             # Deployment guides
+│   ├── architecture/           # Architecture docs
+│   ├── operations/             # Operations guides
+│   └── testing/                # Test reports
+│
+├── deployment/                  # Deployment configurations
+│   ├── docker/                 # Dockerfile and compose files
+│   ├── nginx/                  # Nginx configs
+│   └── systemd/                # System service files
+│
+├── data/                        # Application data (gitignored)
+│   ├── paperwork/              # Generated paperwork
+│   ├── barcodes/               # Generated barcodes
+│   └── uploads/                # User uploads
+│
+├── instance/                    # Instance-specific files (gitignored)
+│   └── scheduler.db            # SQLite database
+│
+├── migrations/                  # Alembic database migrations
+├── wsgi.py                      # WSGI entry point
+├── celery_worker.py            # Celery worker entry point
+└── requirements.txt             # Python dependencies
 ```
 
-5. Open your browser to: http://localhost:5000
-
-The SQLite database will be automatically created on first run.
+**Key Design Patterns:**
+- **Application Factory**: Enables testing with different configs
+- **Blueprints**: Modular route organization
+- **Service Layer**: Business logic separated from routes
+- **Model Registry**: Centralized model management
 
 ## Usage
 
@@ -99,19 +200,43 @@ Current test suite includes 34 tests covering:
 ### Project Structure
 
 ```
-scheduler_app/
-├── app.py                    # Main Flask application (342 lines)
-├── requirements.txt          # Python dependencies
-├── instance/
-│   └── scheduler.db         # SQLite database (auto-created)
-├── static/
-│   ├── css/style.css        # Design system (378 lines)
-│   └── js/main.js           # Frontend logic (162 lines)
-├── templates/
-│   ├── index.html           # Dashboard template
-│   └── schedule.html        # Scheduling form
-├── test_models.py           # Database model tests
-└── test_routes.py           # Route and integration tests
+flask-schedule-webapp/
+├── scheduler_app/              # Main application
+│   ├── app.py                 # Flask application entry point
+│   ├── models/                # Database models (10 models)
+│   ├── routes/                # Route handlers (21 blueprints)
+│   ├── services/              # Business logic (13 services)
+│   ├── static/                # Frontend assets (CSS/JS)
+│   ├── templates/             # Jinja2 templates
+│   ├── migrations/            # Alembic database migrations
+│   └── instance/              # Runtime data & SQLite database
+│
+├── scripts/                    # Utility & maintenance scripts
+│   ├── migrations/            # Database migration utilities
+│   ├── testing/               # Test scripts
+│   ├── verification/          # Verification scripts
+│   ├── data/                  # Data management scripts
+│   └── setup/                 # Setup and deployment scripts
+│
+├── docs/                       # Documentation
+│   ├── deployment/            # Deployment guides
+│   ├── implementation/        # Implementation documentation
+│   ├── epics/                 # Epic summaries
+│   ├── architecture/          # Architecture documentation
+│   └── archived/              # Historical documentation
+│
+├── docker/                     # Docker configuration
+│   ├── Dockerfile             # Production container image
+│   ├── docker-compose.yml     # Multi-container setup
+│   ├── entrypoint.sh          # Container initialization
+│   └── nginx.conf             # Nginx reverse proxy config
+│
+├── backups/                    # Database backups
+├── archived/                   # Obsolete code and files
+├── tests/                      # Test suite
+├── requirements.txt            # Python dependencies
+├── .env.example                # Environment template
+└── README.md                   # This file
 ```
 
 ## Database Schema
@@ -156,14 +281,17 @@ scheduler_app/
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
-| Runtime | Python | 3.13+ | Application runtime |
+| Runtime | Python | 3.11+ | Application runtime |
 | Framework | Flask | 3.0.0 | Web framework |
-| Database | SQLAlchemy | 2.0.36 | ORM and database management |
-| Extension | Flask-SQLAlchemy | 3.1.1 | Flask-SQLAlchemy integration |
+| Database | SQLAlchemy | 2.0.36 | ORM |
+| Migrations | Alembic | Latest | Database versioning |
 | Storage | SQLite | Built-in | Local database |
-| Testing | pytest | 7.4.3 | Test framework |
+| Testing | pytest | Latest | Test framework |
 | Frontend | Vanilla JS | ES6+ | Dynamic functionality |
 | Styling | Custom CSS | - | Responsive design |
+| PDF Generation | ReportLab | 4.0.7 | PDF creation |
+| Deployment | Docker | 20.10+ | Containerization |
+| Web Server | Nginx | Alpine | Reverse proxy |
 
 ## Quality Assurance
 
@@ -211,10 +339,46 @@ This project uses the BMad development methodology with:
 
 ## Documentation
 
-- **Architecture**: See `docs/brownfield-architecture.md` for complete system documentation
-- **Stories**: Individual story documentation in `docs/stories/`
-- **QA Gates**: Quality assurance results in `docs/qa/gates/`
-- **PRD**: Product requirements in `PRD.md`
+- **Docker Deployment**: [docs/deployment/DOCKER_DEPLOYMENT.md](docs/deployment/DOCKER_DEPLOYMENT.md)
+- **Quick Start**: [docs/deployment/QUICK_START.md](docs/deployment/QUICK_START.md)
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Implementation Guides**: [docs/implementation/](docs/implementation/)
+- **Epic Documentation**: [docs/epics/](docs/epics/)
+- **User Stories**: [docs/stories/](docs/stories/)
+
+## Maintenance
+
+### Database Backup
+
+```bash
+python scripts/setup/backup_database.py
+```
+
+Backups are stored in `backups/` with timestamps and checksums.
+
+### Running Scripts
+
+All utility scripts are organized in `scripts/`:
+- **Migrations**: `scripts/migrations/` - Database migration utilities
+- **Testing**: `scripts/testing/` - Test and validation scripts
+- **Verification**: `scripts/verification/` - System verification tools
+- **Data Management**: `scripts/data/` - Data manipulation utilities
+
+### Deployment
+
+See [Docker Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT.md) for:
+- Production deployment
+- Environment configuration
+- Backup and restore procedures
+- Troubleshooting
+- Maintenance operations
+
+## Support
+
+For issues and questions:
+- Check [Docker Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT.md)
+- Review logs: `docker-compose logs -f web` (Docker) or check `logs/` directory
+- Consult implementation guides in `docs/implementation/`
 
 ## License
 
@@ -222,5 +386,5 @@ Internal project - see organization policies for usage guidelines.
 
 ---
 
-**Status**: Epic 1 Complete - Core scheduling functionality fully implemented and tested
-**Next Phase**: Epic 2 - Administration interface and API integration capabilities
+**Status**: Production-ready with comprehensive feature set
+**Latest**: Docker deployment, organized codebase, comprehensive documentation
