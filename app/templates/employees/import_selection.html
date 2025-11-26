@@ -75,12 +75,14 @@
                                     <th>Name</th>
                                     <th>MV Retail #</th>
                                     <th>Crossmark ID</th>
+                                    <th>Available Hours</th>
+                                    <th>Scheduled Hours</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for emp in employees %}
                                 <tr class="employee-row">
-                                    <td onclick="event.stopPropagation();">
+                                    <td>
                                         <input type="checkbox"
                                                class="form-check-input employee-checkbox"
                                                value="{{ loop.index0 }}"
@@ -92,6 +94,8 @@
                                     <td><strong>{{ emp.name }}</strong></td>
                                     <td>{{ emp.mv_retail_number }}</td>
                                     <td>{{ emp.crossmark_id }}</td>
+                                    <td>{{ emp.available_hours }}</td>
+                                    <td>{{ emp.scheduled_hours }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

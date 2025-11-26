@@ -365,7 +365,7 @@ async function importSelectedEmployees() {
         const response = await fetch('/api/import_employees', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ representatives: selectedReps })
+            body: JSON.stringify({ employees: selectedReps })
         });
 
         const data = await response.json();

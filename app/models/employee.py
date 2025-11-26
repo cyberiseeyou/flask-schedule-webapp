@@ -38,6 +38,10 @@ def create_employee_model(db):
         created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
         termination_date = db.Column(db.Date, nullable=True)  # FR34: Track employee termination date
 
+        # Crossmark/MV Retail import fields
+        mv_retail_employee_number = db.Column(db.String(50), nullable=True)
+        crossmark_employee_id = db.Column(db.String(50), nullable=True, unique=True)
+
         # Sync fields for API integration
         external_id = db.Column(db.String(100), unique=True)
         last_synced = db.Column(db.DateTime)
@@ -55,6 +59,12 @@ def create_employee_model(db):
 
             # Index for termination date queries
             db.Index('idx_employees_termination', 'termination_date'),
+
+            # Index for case-insensitive name lookups (for duplicate detection)
+            db.Index('ix_employee_name_lower', db.func.lower(db.Column('name'))),
+
+            # Index for MV Retail employee number
+            db.Index('ix_employees_mv_retail_employee_number', 'mv_retail_employee_number'),
         )
 
         def can_work_event_type(self, event_type):
