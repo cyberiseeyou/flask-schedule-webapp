@@ -592,7 +592,8 @@ def import_employees():
     Employee = current_app.config['Employee']
 
     data = request.get_json()
-    selected_employees = data.get('employees', [])
+    # Frontend sends 'representatives', but also support 'employees' for backwards compatibility
+    selected_employees = data.get('representatives', []) or data.get('employees', [])
 
     if not selected_employees:
         return jsonify({'error': 'No employees selected'}), 400
