@@ -180,14 +180,22 @@
     }
 
     .modal-content {
+        position: relative;
         background-color: #fefefe;
         padding: 30px;
         border-radius: 12px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         max-width: 700px;
+        transform: scale(0.95);
+        transition: transform 200ms ease;
+        z-index: 1001;
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
+    }
+
+    .modal.modal-open .modal-content {
+        transform: scale(1);
     }
 
     .modal-header {
