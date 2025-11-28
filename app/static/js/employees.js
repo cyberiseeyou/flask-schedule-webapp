@@ -635,6 +635,24 @@ function showFlashMessage(message, type) {
 // ========================================
 
 function getCsrfToken() {
-    return document.querySelector('input[name="csrf_token"]').value;
+    // Try to get from global function (csrf_helper.js) first, then from cookie, then from input
+    if (typeof window.getCsrfToken === 'function' && window.getCsrfToken !== getCsrfToken) {
+        return window.getCsrfToken();
+    }
+
+    // Fallback: read from csrf_token cookie
+    const name = 'csrf_token=';
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const cookieArray = decodedCookie.split(';');
+    for (let i = 0; i < cookieArray.length; i++) {
+        let cookie = cookieArray[i].trim();
+        if (cookie.indexOf(name) === 0) {
+            return cookie.substring(name.length);
+        }
+    }
+
+    // Fallback: try to get from input element
+    const input = document.querySelector('input[name="csrf_token"]');
+    return input ? input.value : '';
 }
 
