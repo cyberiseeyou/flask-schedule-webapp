@@ -330,92 +330,146 @@ function renderImportEmployeeResults(data) {
     const alerts = document.getElementById('import-modal-alerts');
 
     let html = '';
+    const hasExisting = data.existing_employees && data.existing_employees.length > 0;
+    const hasNew = data.new_employees && data.new_employees.length > 0;
+    const updatedEmployees = hasExisting ? data.existing_employees.filter(e => e.was_updated) : [];
 
-    // Show sync summary
-    if (data.updated_count > 0) {
-        alerts.innerHTML = `<div class="alert alert-success">✅ Synced ${data.updated_count} existing employee(s) with MVRetail data.</div>`;
+    // Clear alerts
+    alerts.innerHTML = '';
+
+    // Summary bar at top
+    html += `
+        <div class="import-summary" style="display: flex; gap: 12px; margin-bottom: 20px; padding: 12px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 8px;">
+            <div style="flex: 1; text-align: center; padding: 8px;">
+                <div style="font-size: 24px; font-weight: 700; color: #1e40af;">${data.total_from_api || 0}</div>
+                <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">From MVRetail</div>
+            </div>
+            <div style="width: 1px; background: #cbd5e1;"></div>
+            <div style="flex: 1; text-align: center; padding: 8px;">
+                <div style="font-size: 24px; font-weight: 700; color: #059669;">${hasExisting ? data.existing_employees.length : 0}</div>
+                <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Already Synced</div>
+            </div>
+            <div style="width: 1px; background: #cbd5e1;"></div>
+            <div style="flex: 1; text-align: center; padding: 8px;">
+                <div style="font-size: 24px; font-weight: 700; color: #dc2626;">${hasNew ? data.new_employees.length : 0}</div>
+                <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">New to Import</div>
+            </div>
+        </div>
+    `;
+
+    // Updated notification if any were updated
+    if (updatedEmployees.length > 0) {
+        html += `
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: #059669; font-size: 18px;">&#10003;</span>
+                <span style="color: #047857; font-size: 13px;"><strong>${updatedEmployees.length}</strong> employee(s) updated with latest MVRetail data</span>
+            </div>
+        `;
     }
 
-    // Section: Existing employees (already synced)
-    if (data.existing_employees && data.existing_employees.length > 0) {
+    // Existing employees section (collapsible)
+    if (hasExisting) {
         html += `
-            <div class="import-section">
-                <h4 style="margin-bottom: 10px; color: var(--pc-navy);">
-                    ✓ Already in System (${data.existing_employees.length})
-                </h4>
-                <div class="existing-employees-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 20px;">
+            <details class="import-section-details" style="margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <summary style="padding: 12px 16px; background: #f8fafc; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 600; color: #334155; user-select: none;">
+                    <span style="color: #059669;">&#10003;</span>
+                    Already in System (${data.existing_employees.length})
+                    <span style="margin-left: auto; font-size: 12px; color: #94a3b8; font-weight: 400;">Click to expand</span>
+                </summary>
+                <div style="max-height: 200px; overflow-y: auto; padding: 8px;">
         `;
 
         for (const emp of data.existing_employees) {
             const updateBadge = emp.was_updated
-                ? '<span style="background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">UPDATED</span>'
+                ? '<span style="background: #059669; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;">Updated</span>'
                 : '';
 
             html += `
-                <div class="existing-employee-item" style="padding: 8px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-weight: 500;">${emp.name}</span>
-                        ${updateBadge}
-                        <div style="font-size: 12px; color: #6c757d;">
-                            Local ID: ${emp.id} | Rep ID: ${emp.external_id}
-                        </div>
+                <div style="display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #f1f5f9;">
+                    <div style="width: 36px; height: 36px; background: #e0f2fe; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px;">
+                        <span style="color: #0284c7; font-weight: 600; font-size: 14px;">${emp.name.charAt(0).toUpperCase()}</span>
                     </div>
-                    <span style="color: #27ae60;">✓</span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                            ${emp.name} ${updateBadge}
+                        </div>
+                        <div style="font-size: 11px; color: #94a3b8;">ID: ${emp.crossmark_employee_id || emp.id}</div>
+                    </div>
+                    <span style="color: #059669; font-size: 18px;">&#10003;</span>
                 </div>
             `;
         }
 
-        html += '</div></div>';
+        html += '</div></details>';
     }
 
-    // Section: New employees (available to import)
-    if (data.new_employees && data.new_employees.length > 0) {
+    // New employees section
+    if (hasNew) {
         html += `
-            <div class="import-section">
-                <h4 style="margin-bottom: 10px; color: var(--pc-blue);">
-                    📥 Available to Import (${data.new_employees.length})
-                </h4>
-                <div class="import-actions" style="margin-bottom: 10px;">
-                    <button type="button" class="btn btn-small btn-secondary" onclick="selectAllImportEmployees()">Select All</button>
-                    <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllImportEmployees()">Deselect All</button>
+            <div class="import-section-new" style="border: 2px solid #3b82f6; border-radius: 8px; overflow: hidden;">
+                <div style="padding: 12px 16px; background: #eff6ff; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">&#128229;</span>
+                        <span style="font-weight: 600; color: #1e40af;">Available to Import (${data.new_employees.length})</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" onclick="selectAllImportEmployees()" style="padding: 6px 12px; font-size: 12px; background: white; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; color: #475569;">Select All</button>
+                        <button type="button" onclick="deselectAllImportEmployees()" style="padding: 6px 12px; font-size: 12px; background: white; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; color: #475569;">Clear</button>
+                    </div>
                 </div>
-                <div class="new-employees-list" id="new-employees-list">
+                <div id="new-employees-list" style="max-height: 250px; overflow-y: auto; padding: 8px;">
         `;
 
         for (const emp of data.new_employees) {
             const repData = JSON.stringify(emp).replace(/'/g, '&#39;');
             html += `
-                <div class="import-employee-item" style="padding: 10px 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
-                    <input type="checkbox" id="import-rep-${emp.rep_id}" value="${emp.rep_id}" data-rep='${repData}' style="width: 18px; height: 18px;">
-                    <div class="import-employee-info" style="flex: 1;">
-                        <div class="import-employee-name" style="font-weight: 500; color: var(--text-primary);">${emp.name}</div>
-                        <div style="font-size: 12px; color: #6c757d;">
-                            Rep ID: ${emp.rep_id} | Employee ID: ${emp.employee_id || 'N/A'}
+                <label style="display: flex; align-items: center; padding: 12px; margin: 4px; background: white; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;"
+                       onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#f8fafc';"
+                       onmouseout="if(!this.querySelector('input').checked) { this.style.borderColor='#e2e8f0'; this.style.background='white'; }">
+                    <input type="checkbox" value="${emp.rep_id}" data-rep='${repData}'
+                           style="width: 20px; height: 20px; margin-right: 12px; accent-color: #3b82f6; cursor: pointer;"
+                           onchange="this.parentElement.style.borderColor = this.checked ? '#3b82f6' : '#e2e8f0'; this.parentElement.style.background = this.checked ? '#eff6ff' : 'white';">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px;">
+                        <span style="color: #2563eb; font-weight: 600; font-size: 16px;">${emp.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #1e293b; font-size: 14px;">${emp.name}</div>
+                        <div style="font-size: 12px; color: #64748b;">
+                            <span style="display: inline-block; padding: 2px 6px; background: #f1f5f9; border-radius: 3px; margin-right: 6px;">Rep: ${emp.rep_id}</span>
+                            <span style="display: inline-block; padding: 2px 6px; background: #f1f5f9; border-radius: 3px;">${emp.employee_id || 'No Employee ID'}</span>
                         </div>
                     </div>
-                </div>
+                </label>
             `;
         }
 
         html += '</div></div>';
-    } else if (!data.existing_employees || data.existing_employees.length === 0) {
-        html = '<div class="alert alert-info">No employees found in MVRetail system.</div>';
+    } else if (!hasExisting) {
+        html = `
+            <div style="text-align: center; padding: 40px 20px; color: #64748b;">
+                <div style="font-size: 48px; margin-bottom: 16px;">&#128269;</div>
+                <div style="font-size: 16px; font-weight: 500; color: #334155; margin-bottom: 8px;">No Employees Found</div>
+                <div style="font-size: 14px;">Check your MVRetail session and try again.</div>
+            </div>
+        `;
     } else {
         html += `
-            <div class="alert alert-info" style="margin-top: 15px;">
-                All MVRetail employees are already in your local system. Nothing to import.
+            <div style="text-align: center; padding: 30px 20px; background: #f0fdf4; border-radius: 8px; margin-top: 10px;">
+                <div style="font-size: 36px; margin-bottom: 12px;">&#9989;</div>
+                <div style="font-size: 15px; font-weight: 500; color: #166534;">All employees are synced!</div>
+                <div style="font-size: 13px; color: #4ade80; margin-top: 4px;">Nothing new to import from MVRetail.</div>
             </div>
         `;
     }
 
     list.innerHTML = html;
 
-    // Update button visibility based on whether there are new employees
+    // Update button visibility
     const importBtn = document.querySelector('#import-employees-modal .btn-primary');
     if (importBtn) {
-        if (data.new_employees && data.new_employees.length > 0) {
-            importBtn.style.display = 'inline-block';
-            importBtn.textContent = 'Import Selected';
+        if (hasNew) {
+            importBtn.style.display = 'inline-flex';
+            importBtn.innerHTML = '<span style="margin-right: 6px;">&#128229;</span> Import Selected';
         } else {
             importBtn.style.display = 'none';
         }
@@ -425,12 +479,22 @@ function renderImportEmployeeResults(data) {
 function selectAllImportEmployees() {
     document.querySelectorAll('#new-employees-list input[type="checkbox"]').forEach(cb => {
         cb.checked = true;
+        const label = cb.closest('label');
+        if (label) {
+            label.style.borderColor = '#3b82f6';
+            label.style.background = '#eff6ff';
+        }
     });
 }
 
 function deselectAllImportEmployees() {
     document.querySelectorAll('#new-employees-list input[type="checkbox"]').forEach(cb => {
         cb.checked = false;
+        const label = cb.closest('label');
+        if (label) {
+            label.style.borderColor = '#e2e8f0';
+            label.style.background = 'white';
+        }
     });
 }
 
