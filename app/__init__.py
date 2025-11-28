@@ -177,6 +177,9 @@ def register_blueprints(app, db, models):
     from app.routes.auto_scheduler import auto_scheduler_bp
     app.register_blueprint(auto_scheduler_bp)
 
+    # Exempt auto_scheduler from rate limiting - it makes many API calls during scheduling
+    limiter.exempt(auto_scheduler_bp)
+
     from app.routes.admin import admin_bp
     app.register_blueprint(admin_bp)
 
