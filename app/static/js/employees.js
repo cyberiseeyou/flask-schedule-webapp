@@ -117,11 +117,11 @@ function createEmployeeCard(employee) {
 
             <div class="employee-actions">
                 <div class="employee-actions-left">
-                    <button class="btn btn-small btn-primary" onclick="editEmployee('${employee.id}')">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="toggleEmployeeStatus('${employee.id}', ${!employee.is_active})">
+                    <button type="button" class="btn btn-small btn-primary" onclick="editEmployee('${employee.id}')">Edit</button>
+                    <button type="button" class="btn btn-small btn-secondary" onclick="toggleEmployeeStatus('${employee.id}', ${!employee.is_active})">
                         ${employee.is_active ? 'Deactivate' : 'Activate'}
                     </button>
-                    <button class="btn btn-small btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
+                    <button type="button" class="btn btn-small btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
                 </div>
             </div>
         </div>
