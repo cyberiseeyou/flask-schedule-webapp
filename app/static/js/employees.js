@@ -171,6 +171,9 @@ function openAddEmployeeModal() {
         ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].forEach(day => {
             document.getElementById(`avail-${day}`).checked = true;
         });
+
+        // Set modal title to "Add New Employee"
+        document.querySelector('#add-employee-modal .modal-header h2').textContent = 'Add New Employee';
     }
 }
 
@@ -238,20 +241,19 @@ async function handleAddEmployeeSubmit(e) {
             return;
         }
 
-        // Success! Now lookup external_id from MVRetail
-        const savedEmployeeId = data.employee_id || editingEmployeeId;
+        // Close modal immediately
+        closeAddEmployeeModal();
 
-        showModalAlert('Employee saved! Looking up scheduling ID from MVRetail...', 'info');
+        // Success! Show success message
+        const savedEmployeeId = data.employee_id || editingEmployeeId;
+        showFlashMessage(`Employee ${editingEmployeeId ? 'updated' : 'saved'} successfully`, 'success');
 
         // Lookup employee in MVRetail system
+        showFlashMessage('Looking up scheduling ID from MVRetail...', 'info');
         await lookupEmployeeExternalId(savedEmployeeId, employeeName, employeeIdInput);
 
-        // Close modal and reload
-        setTimeout(() => {
-            closeAddEmployeeModal();
-            loadEmployees();
-            showFlashMessage(`Employee ${editingEmployeeId ? 'updated' : 'added'} successfully`, 'success');
-        }, 1500);
+        // Reload employees list
+        loadEmployees();
 
     } catch (error) {
         console.error('Error saving employee:', error);
@@ -277,15 +279,14 @@ async function lookupEmployeeExternalId(employeeId, employeeName, employeeIdInpu
         const result = await response.json();
 
         if (result.found) {
-            showModalAlert(`✓ Found in MVRetail! Scheduling ID: ${result.external_id}`, 'success');
+            showFlashMessage(`Found in MVRetail! Scheduling ID: ${result.external_id}`, 'success');
         } else {
-            // Employee not found in MVRetail - deactivate them
-            showModalAlert(`⚠ WARNING: Employee NOT FOUND in MVRetail system. Employee has been set to INACTIVE and cannot be scheduled until they are added to MVRetail.`, 'warning');
+            showFlashMessage(`Employee not found in MVRetail system - cannot be scheduled until added to MVRetail`, 'warning');
         }
 
     } catch (error) {
         console.error('Error looking up employee external ID:', error);
-        showModalAlert('Could not verify employee in MVRetail system', 'warning');
+        showFlashMessage('Could not verify employee in MVRetail system', 'warning');
     }
 }
 
@@ -433,10 +434,11 @@ async function editEmployee(employeeId) {
         const form = document.getElementById('add-employee-form');
         form.dataset.editingEmployeeId = employeeId;
 
+        // Update modal title
+        document.querySelector('#add-employee-modal .modal-header h2').textContent = `Editing ${employee.name}`;
+
         // Open modal
         openAddEmployeeModal();
-
-        showModalAlert(`Editing ${employee.name}`, 'info');
 
     } catch (error) {
         console.error('Error loading employee for edit:', error);
