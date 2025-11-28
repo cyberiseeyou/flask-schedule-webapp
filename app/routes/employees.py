@@ -473,7 +473,11 @@ def get_available_reps():
             # Crossmark API returns 'reps' as an object with repId keys
             if 'reps' in reps_data:
                 reps_obj = reps_data['reps']
-                representatives = list(reps_obj.values()) if isinstance(reps_obj, dict) else []
+                # Convert object with numeric keys to list
+                if isinstance(reps_obj, dict):
+                    representatives = list(reps_obj.values())
+                else:
+                    representatives = reps_obj if isinstance(reps_obj, list) else []
             elif 'representatives' in reps_data:
                 representatives = reps_data['representatives']
             elif 'data' in reps_data:
@@ -535,10 +539,18 @@ def lookup_employee_id():
                 'message': 'Unable to connect to MVRetail'
             })
 
-        # Parse representatives
+        # Parse representatives - same logic as get_available_reps
         representatives = []
         if isinstance(reps_data, dict):
-            if 'representatives' in reps_data:
+            # Crossmark API returns 'reps' as an object with repId keys
+            if 'reps' in reps_data:
+                reps_obj = reps_data['reps']
+                # Convert object with numeric keys to list
+                if isinstance(reps_obj, dict):
+                    representatives = list(reps_obj.values())
+                else:
+                    representatives = reps_obj if isinstance(reps_obj, list) else []
+            elif 'representatives' in reps_data:
                 representatives = reps_data['representatives']
             elif 'data' in reps_data:
                 representatives = reps_data['data']
