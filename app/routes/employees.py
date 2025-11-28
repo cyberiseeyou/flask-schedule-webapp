@@ -455,25 +455,31 @@ def delete_time_off(time_off_id):
 
 @employees_bp.route('/api/get_available_reps', methods=['GET'])
 def get_available_reps():
-    """Get available representatives from MVRetail/Crossmark API"""
+    """
+    Get available representatives from MVRetail/Crossmark API and compare with local database.
+
+    Returns:
+        - existing_employees: Employees already in local DB (with sync status)
+        - new_employees: Employees from MVRetail not in local DB (available to import)
+        - updated_count: Number of existing employees that were updated
+    """
     from app.integrations.external_api.session_api_service import session_api as external_api
+
+    db = current_app.extensions['sqlalchemy']
+    Employee = current_app.config['Employee']
 
     try:
         # Get available representatives from the API
         reps_data = external_api.get_available_representatives()
 
         if not reps_data:
-            return jsonify({'error': 'Failed to fetch representatives from MVRetail'}), 500
+            return jsonify({'error': 'Failed to fetch representatives from MVRetail. Please check your session.'}), 500
 
-        # Parse the response - structure may vary
+        # Parse the response - Crossmark API returns 'reps' as an object with repId keys
         representatives = []
-
-        # Handle different possible response structures
         if isinstance(reps_data, dict):
-            # Crossmark API returns 'reps' as an object with repId keys
             if 'reps' in reps_data:
                 reps_obj = reps_data['reps']
-                # Convert object with numeric keys to list
                 if isinstance(reps_obj, dict):
                     representatives = list(reps_obj.values())
                 else:
@@ -485,31 +491,121 @@ def get_available_reps():
             elif 'records' in reps_data:
                 representatives = reps_data['records']
             else:
-                # If the response is a dict with items, try to extract them
                 representatives = list(reps_data.values()) if reps_data else []
         elif isinstance(reps_data, list):
             representatives = reps_data
 
-        # Format the response
-        formatted_reps = []
+        # Get all local employees for comparison
+        local_employees = Employee.query.all()
+
+        # Build lookup dictionaries for matching
+        # Match by: external_id (repId), crossmark_employee_id (employeeId), or name
+        local_by_external_id = {emp.external_id: emp for emp in local_employees if emp.external_id}
+        local_by_crossmark_id = {emp.crossmark_employee_id: emp for emp in local_employees if emp.crossmark_employee_id}
+        local_by_name = {emp.name.upper(): emp for emp in local_employees}
+
+        existing_employees = []
+        new_employees = []
+        updated_count = 0
+
         for rep in representatives:
-            if isinstance(rep, dict):
-                formatted_reps.append({
-                    'id': rep.get('repId') or rep.get('id') or rep.get('RepID'),
-                    'name': rep.get('title') or rep.get('name') or rep.get('Name') or f"{rep.get('FirstName', '')} {rep.get('LastName', '')}".strip(),
+            if not isinstance(rep, dict):
+                continue
+
+            # Extract MVRetail data
+            rep_id = str(rep.get('repId') or rep.get('id') or '')
+            title = rep.get('title') or rep.get('name') or ''
+            employee_id = rep.get('employeeId') or rep.get('repMvid') or ''
+
+            if not rep_id or not title:
+                continue
+
+            # Try to find matching local employee
+            local_employee = None
+            match_type = None
+
+            # Priority 1: Match by external_id (repId)
+            if rep_id and rep_id in local_by_external_id:
+                local_employee = local_by_external_id[rep_id]
+                match_type = 'external_id'
+            # Priority 2: Match by crossmark_employee_id (employeeId)
+            elif employee_id and employee_id in local_by_crossmark_id:
+                local_employee = local_by_crossmark_id[employee_id]
+                match_type = 'crossmark_id'
+            # Priority 3: Match by name (case-insensitive)
+            elif title.upper() in local_by_name:
+                local_employee = local_by_name[title.upper()]
+                match_type = 'name'
+
+            if local_employee:
+                # Employee exists - check if we need to update any fields
+                needs_update = False
+                updates = []
+
+                # Check if external_id (repId) needs update
+                if local_employee.external_id != rep_id:
+                    updates.append(f"external_id: {local_employee.external_id} -> {rep_id}")
+                    local_employee.external_id = rep_id
+                    needs_update = True
+
+                # Check if crossmark_employee_id needs update
+                if local_employee.crossmark_employee_id != employee_id:
+                    updates.append(f"crossmark_employee_id: {local_employee.crossmark_employee_id} -> {employee_id}")
+                    local_employee.crossmark_employee_id = employee_id
+                    needs_update = True
+
+                # Check if name needs update (must match title exactly, including case)
+                if local_employee.name != title:
+                    updates.append(f"name: {local_employee.name} -> {title}")
+                    local_employee.name = title
+                    needs_update = True
+
+                if needs_update:
+                    local_employee.last_synced = datetime.utcnow()
+                    local_employee.sync_status = 'synced'
+                    updated_count += 1
+                    current_app.logger.info(f"Updated employee {local_employee.id}: {', '.join(updates)}")
+
+                existing_employees.append({
+                    'id': local_employee.id,
+                    'name': local_employee.name,
+                    'external_id': rep_id,
+                    'crossmark_employee_id': employee_id,
+                    'match_type': match_type,
+                    'was_updated': needs_update,
+                    'updates': updates if needs_update else []
+                })
+            else:
+                # New employee - not in local database
+                new_employees.append({
+                    'rep_id': rep_id,
+                    'name': title,
+                    'employee_id': employee_id,
                     'email': rep.get('email') or rep.get('Email'),
                     'phone': rep.get('phone') or rep.get('Phone'),
-                    'employee_id': rep.get('employeeId') or rep.get('RepID') or rep.get('repMvid'),
                 })
 
-        current_app.logger.info(f"Retrieved {len(formatted_reps)} representatives from MVRetail")
+        # Commit any updates to existing employees
+        if updated_count > 0:
+            db.session.commit()
+            current_app.logger.info(f"Committed updates to {updated_count} existing employees")
+
+        current_app.logger.info(
+            f"MVRetail sync: {len(representatives)} total reps, "
+            f"{len(existing_employees)} existing, {len(new_employees)} new, "
+            f"{updated_count} updated"
+        )
 
         return jsonify({
             'success': True,
-            'representatives': formatted_reps
+            'existing_employees': existing_employees,
+            'new_employees': new_employees,
+            'updated_count': updated_count,
+            'total_from_api': len(representatives)
         })
 
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Error getting available reps: {str(e)}")
         return jsonify({'error': f'Error fetching representatives: {str(e)}'}), 500
 
@@ -597,11 +693,12 @@ def lookup_employee_id():
 @employees_bp.route('/api/import_employees', methods=['POST'])
 def import_employees():
     """
-    Import selected employees from MVRetail
-    Only updates external_id for existing employees, creates new ones otherwise
+    Import selected employees from MVRetail.
+    Creates new employees with proper external_id (repId) and crossmark_employee_id (employeeId).
     """
     db = current_app.extensions['sqlalchemy']
     Employee = current_app.config['Employee']
+    EmployeeWeeklyAvailability = current_app.config['EmployeeWeeklyAvailability']
 
     data = request.get_json()
     selected_employees = data.get('employees', [])
@@ -611,52 +708,63 @@ def import_employees():
 
     try:
         imported_count = 0
-        updated_count = 0
         errors = []
 
         for emp_data in selected_employees:
-            employee_id_input = emp_data.get('employee_id')  # US###### ID if provided
-            external_id = emp_data.get('id')  # Numeric scheduling ID
-            name = emp_data.get('name')
+            rep_id = emp_data.get('rep_id')  # Numeric scheduling ID (external_id)
+            name = emp_data.get('name')  # Full name from title field
+            employee_id = emp_data.get('employee_id')  # US###### ID (crossmark_employee_id)
 
-            if not name or not external_id:
+            if not name or not rep_id:
                 errors.append(f'Missing required fields for employee: {name or "Unknown"}')
                 continue
 
-            # Generate employee_id if not provided
-            if not employee_id_input:
-                employee_id_input = name.upper().replace(' ', '_')
+            # Generate local employee ID from name
+            local_id = name.upper().replace(' ', '_')
 
-            # Check if employee already exists
-            employee = Employee.query.filter_by(id=employee_id_input).first()
+            # Check if employee already exists by local ID
+            existing = Employee.query.filter_by(id=local_id).first()
+            if existing:
+                errors.append(f'Employee "{name}" already exists with ID: {local_id}')
+                continue
 
-            if employee:
-                # Update only the external_id, don't modify other fields
-                employee.external_id = external_id
-                updated_count += 1
-                current_app.logger.info(f"Updated external_id for existing employee: {name}")
-            else:
-                # Create new employee
-                employee = Employee(
-                    id=employee_id_input,
-                    name=name,
-                    email=emp_data.get('email'),
-                    phone=emp_data.get('phone'),
-                    external_id=external_id,
-                    is_active=True,
-                    job_title='Event Specialist'  # Default
-                )
-                db.session.add(employee)
-                imported_count += 1
-                current_app.logger.info(f"Created new employee: {name}")
+            # Create new employee
+            employee = Employee(
+                id=local_id,
+                name=name,
+                email=emp_data.get('email'),
+                phone=emp_data.get('phone'),
+                external_id=rep_id,  # The repId for scheduling
+                crossmark_employee_id=employee_id,  # The US###### ID
+                is_active=True,
+                job_title='Event Specialist',  # Default
+                sync_status='synced',
+                last_synced=datetime.utcnow()
+            )
+            db.session.add(employee)
+
+            # Create default weekly availability (all days available)
+            weekly_availability = EmployeeWeeklyAvailability(
+                employee_id=local_id,
+                monday=True,
+                tuesday=True,
+                wednesday=True,
+                thursday=True,
+                friday=True,
+                saturday=True,
+                sunday=True
+            )
+            db.session.add(weekly_availability)
+
+            imported_count += 1
+            current_app.logger.info(f"Imported employee: {name} (external_id={rep_id}, crossmark_id={employee_id})")
 
         db.session.commit()
 
         return jsonify({
             'success': True,
-            'message': f'Imported {imported_count} new employees, updated {updated_count} existing employees',
+            'message': f'Successfully imported {imported_count} employee(s)',
             'imported': imported_count,
-            'updated': updated_count,
             'errors': errors
         })
 

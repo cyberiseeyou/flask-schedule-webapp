@@ -301,7 +301,7 @@ async function openImportEmployeesModal() {
 
     modal.classList.add('modal-open');
     alerts.innerHTML = '';
-    list.innerHTML = '<div class="loading">Loading available employees from MVRetail</div>';
+    list.innerHTML = '<div class="loading">Loading employees from MVRetail and syncing with local database...</div>';
 
     try {
         const response = await fetch('/api/get_available_reps');
@@ -312,12 +312,8 @@ async function openImportEmployeesModal() {
             return;
         }
 
-        if (!data.representatives || data.representatives.length === 0) {
-            list.innerHTML = '<div class="alert alert-info">No employees found in MVRetail system.</div>';
-            return;
-        }
-
-        renderImportEmployeeList(data.representatives);
+        // Show sync results
+        renderImportEmployeeResults(data);
 
     } catch (error) {
         console.error('Error loading MVRetail employees:', error);
@@ -329,35 +325,117 @@ function closeImportEmployeesModal() {
     document.getElementById('import-employees-modal').classList.remove('modal-open');
 }
 
-function renderImportEmployeeList(representatives) {
+function renderImportEmployeeResults(data) {
     const list = document.getElementById('import-employee-list');
+    const alerts = document.getElementById('import-modal-alerts');
 
-    list.innerHTML = representatives.map(rep => `
-        <div class="import-employee-item">
-            <input type="checkbox" id="import-rep-${rep.id}" value="${rep.id}" data-rep='${JSON.stringify(rep)}'>
-            <div class="import-employee-info">
-                <div class="import-employee-name">${rep.name}</div>
-                <div class="import-employee-id">ID: ${rep.id}</div>
-                ${rep.email ? `<div style="font-size: 12px; color: #6c757d;">📧 ${rep.email}</div>` : ''}
+    let html = '';
+
+    // Show sync summary
+    if (data.updated_count > 0) {
+        alerts.innerHTML = `<div class="alert alert-success">✅ Synced ${data.updated_count} existing employee(s) with MVRetail data.</div>`;
+    }
+
+    // Section: Existing employees (already synced)
+    if (data.existing_employees && data.existing_employees.length > 0) {
+        html += `
+            <div class="import-section">
+                <h4 style="margin-bottom: 10px; color: var(--pc-navy);">
+                    ✓ Already in System (${data.existing_employees.length})
+                </h4>
+                <div class="existing-employees-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 20px;">
+        `;
+
+        for (const emp of data.existing_employees) {
+            const updateBadge = emp.was_updated
+                ? '<span style="background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">UPDATED</span>'
+                : '';
+
+            html += `
+                <div class="existing-employee-item" style="padding: 8px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-weight: 500;">${emp.name}</span>
+                        ${updateBadge}
+                        <div style="font-size: 12px; color: #6c757d;">
+                            Local ID: ${emp.id} | Rep ID: ${emp.external_id}
+                        </div>
+                    </div>
+                    <span style="color: #27ae60;">✓</span>
+                </div>
+            `;
+        }
+
+        html += '</div></div>';
+    }
+
+    // Section: New employees (available to import)
+    if (data.new_employees && data.new_employees.length > 0) {
+        html += `
+            <div class="import-section">
+                <h4 style="margin-bottom: 10px; color: var(--pc-blue);">
+                    📥 Available to Import (${data.new_employees.length})
+                </h4>
+                <div class="import-actions" style="margin-bottom: 10px;">
+                    <button type="button" class="btn btn-small btn-secondary" onclick="selectAllImportEmployees()">Select All</button>
+                    <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllImportEmployees()">Deselect All</button>
+                </div>
+                <div class="new-employees-list" id="new-employees-list">
+        `;
+
+        for (const emp of data.new_employees) {
+            const repData = JSON.stringify(emp).replace(/'/g, '&#39;');
+            html += `
+                <div class="import-employee-item" style="padding: 10px 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                    <input type="checkbox" id="import-rep-${emp.rep_id}" value="${emp.rep_id}" data-rep='${repData}' style="width: 18px; height: 18px;">
+                    <div class="import-employee-info" style="flex: 1;">
+                        <div class="import-employee-name" style="font-weight: 500; color: var(--text-primary);">${emp.name}</div>
+                        <div style="font-size: 12px; color: #6c757d;">
+                            Rep ID: ${emp.rep_id} | Employee ID: ${emp.employee_id || 'N/A'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div></div>';
+    } else if (!data.existing_employees || data.existing_employees.length === 0) {
+        html = '<div class="alert alert-info">No employees found in MVRetail system.</div>';
+    } else {
+        html += `
+            <div class="alert alert-info" style="margin-top: 15px;">
+                All MVRetail employees are already in your local system. Nothing to import.
             </div>
-        </div>
-    `).join('');
+        `;
+    }
+
+    list.innerHTML = html;
+
+    // Update button visibility based on whether there are new employees
+    const importBtn = document.querySelector('#import-employees-modal .btn-primary');
+    if (importBtn) {
+        if (data.new_employees && data.new_employees.length > 0) {
+            importBtn.style.display = 'inline-block';
+            importBtn.textContent = 'Import Selected';
+        } else {
+            importBtn.style.display = 'none';
+        }
+    }
 }
 
 function selectAllImportEmployees() {
-    document.querySelectorAll('#import-employee-list input[type="checkbox"]').forEach(cb => {
+    document.querySelectorAll('#new-employees-list input[type="checkbox"]').forEach(cb => {
         cb.checked = true;
     });
 }
 
 function deselectAllImportEmployees() {
-    document.querySelectorAll('#import-employee-list input[type="checkbox"]').forEach(cb => {
+    document.querySelectorAll('#new-employees-list input[type="checkbox"]').forEach(cb => {
         cb.checked = false;
     });
 }
 
 async function importSelectedEmployees() {
-    const checkboxes = document.querySelectorAll('#import-employee-list input[type="checkbox"]:checked');
+    const checkboxes = document.querySelectorAll('#new-employees-list input[type="checkbox"]:checked');
 
     if (checkboxes.length === 0) {
         showImportAlert('Please select at least one employee to import', 'warning');
@@ -385,7 +463,10 @@ async function importSelectedEmployees() {
             return;
         }
 
-        const message = `Successfully imported ${data.imported} employee(s). Updated ${data.updated} existing employee(s).`;
+        let message = `Successfully imported ${data.imported} employee(s).`;
+        if (data.errors && data.errors.length > 0) {
+            message += ` ${data.errors.length} error(s) occurred.`;
+        }
         showImportAlert(message, 'success');
 
         // Close modal and reload after short delay
@@ -547,5 +628,13 @@ function showFlashMessage(message, type) {
     setTimeout(() => {
         alertDiv.remove();
     }, 5000);
+}
+
+// ========================================
+// Utility Functions
+// ========================================
+
+function getCsrfToken() {
+    return document.querySelector('input[name="csrf_token"]').value;
 }
 
