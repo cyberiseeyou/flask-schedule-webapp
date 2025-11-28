@@ -158,7 +158,7 @@ function setupModalHandlers() {
 // ========================================
 
 function openAddEmployeeModal() {
-    document.getElementById('add-employee-modal').classList.add('active');
+    document.getElementById('add-employee-modal').classList.add('modal-open');
     document.getElementById('modal-alerts').innerHTML = '';
 
     // Reset form if not editing
@@ -175,7 +175,7 @@ function openAddEmployeeModal() {
 }
 
 function closeAddEmployeeModal() {
-    document.getElementById('add-employee-modal').classList.remove('active');
+    document.getElementById('add-employee-modal').classList.remove('modal-open');
     const form = document.getElementById('add-employee-form');
     delete form.dataset.editingEmployeeId;
     form.reset();
@@ -298,7 +298,7 @@ async function openImportEmployeesModal() {
     const list = document.getElementById('import-employee-list');
     const alerts = document.getElementById('import-modal-alerts');
 
-    modal.classList.add('active');
+    modal.classList.add('modal-open');
     alerts.innerHTML = '';
     list.innerHTML = '<div class="loading">Loading available employees from MVRetail</div>';
 
@@ -325,7 +325,7 @@ async function openImportEmployeesModal() {
 }
 
 function closeImportEmployeesModal() {
-    document.getElementById('import-employees-modal').classList.remove('active');
+    document.getElementById('import-employees-modal').classList.remove('modal-open');
 }
 
 function renderImportEmployeeList(representatives) {
