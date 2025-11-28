@@ -45,7 +45,7 @@ class DatabaseRefreshManager {
 
         // ESC key to close
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.modal.style.display === 'flex') {
+            if (e.key === 'Escape' && this.modal.classList.contains('modal-open')) {
                 this.closeModal();
             }
         });
@@ -59,8 +59,7 @@ class DatabaseRefreshManager {
         this.confirmBtn.disabled = false;
         this.isRefreshing = false;
 
-        // Show modal
-        this.modal.style.display = 'flex';
+        // Show modal (CSS handles display via .modal-open class)
         this.modal.classList.add('modal-open');
         document.body.style.overflow = 'hidden';
 
@@ -77,10 +76,8 @@ class DatabaseRefreshManager {
             return;
         }
 
+        // Hide modal (CSS handles visibility via .modal-open class)
         this.modal.classList.remove('modal-open');
-        setTimeout(() => {
-            this.modal.style.display = 'none';
-        }, 200); // Wait for animation to complete
         document.body.style.overflow = '';
         this.modal.setAttribute('aria-hidden', 'true');
 

@@ -174,7 +174,7 @@
     </header>
 
     <!-- Database Refresh Modal -->
-    <div id="refreshDatabaseModal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="refreshModalTitle">
+    <div id="refreshDatabaseModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="refreshModalTitle">
         <div class="modal-overlay"></div>
         <div class="modal-container modal-container--medium">
             <div class="modal-header">
@@ -203,7 +203,7 @@
     </div>
 
     <!-- Event Times Configuration Warning Modal -->
-    <div id="eventTimesWarningModal" class="modal" style="display: none;">
+    <div id="eventTimesWarningModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header" style="background: #dc3545; color: white;">
                 <h2 style="margin: 0; font-size: 1.3em;">⚠️ Event Times Not Configured</h2>
@@ -304,9 +304,7 @@
         const showEventTimesWarning = () => {
             const modal = document.getElementById('eventTimesWarningModal');
             if (modal) {
-                modal.style.display = 'flex';
-                modal.style.alignItems = 'center';
-                modal.style.justifyContent = 'center';
+                modal.classList.add('modal-open');
             }
         };
 
@@ -321,7 +319,7 @@
                     // Dismiss for this session only
                     sessionStorage.setItem('eventTimesWarningDismissed', 'true');
                     if (modal) {
-                        modal.style.display = 'none';
+                        modal.classList.remove('modal-open');
                     }
                 });
             }
