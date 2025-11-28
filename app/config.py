@@ -36,7 +36,7 @@ class Config:
 
     # Logging settings
     LOG_LEVEL = config('LOG_LEVEL', default='INFO')
-    LOG_FILE = config('LOG_FILE', default='scheduler.log')
+    LOG_FILE = config('LOG_FILE', default='logs/scheduler.log')
 
     # Walmart Retail Link EDR settings
     # SECURITY: No default values - must be set in environment variables

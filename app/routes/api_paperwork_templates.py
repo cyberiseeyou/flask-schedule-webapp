@@ -293,9 +293,10 @@ def upload_template_file():
         file: PDF file to upload
         name: Template name (optional, will use filename if not provided)
         description: Template description (optional)
+        overwrite: Boolean flag to allow overwriting existing files (optional)
 
     Returns:
-        JSON: Created template object with file path
+        JSON: Created template object with file path, or conflict info if file exists
     """
     try:
         db = current_app.extensions['sqlalchemy']
@@ -323,23 +324,53 @@ def upload_template_file():
 
         file_path = os.path.join(docs_dir, filename)
 
+        # Check if overwrite is allowed
+        overwrite = request.form.get('overwrite', '').lower() == 'true'
+
         # Check if file already exists
-        if os.path.exists(file_path):
+        if os.path.exists(file_path) and not overwrite:
+            # Find existing template record if any
+            existing_template = PaperworkTemplate.query.filter_by(file_path=filename).first()
+
             return jsonify({
                 'success': False,
-                'error': f'File {filename} already exists. Please rename the file or delete the existing one.'
-            }), 400
+                'conflict': True,
+                'filename': filename,
+                'existing_template': existing_template.to_dict() if existing_template else None,
+                'message': f'File {filename} already exists. Would you like to overwrite it?'
+            }), 409  # 409 Conflict status code
 
-        # Save the file
+        # Save the file (overwrites if exists and overwrite=true)
         file.save(file_path)
 
         # Get template name from form or use filename
         template_name = request.form.get('name', filename.rsplit('.', 1)[0])
         template_description = request.form.get('description', '')
 
-        # Check if template with this name already exists
-        existing = PaperworkTemplate.query.filter_by(name=template_name).first()
-        if existing:
+        # Check if template with this file_path already exists (when overwriting)
+        existing_by_file = PaperworkTemplate.query.filter_by(file_path=filename).first()
+
+        if existing_by_file and overwrite:
+            # Update existing template record
+            existing_by_file.updated_at = datetime.utcnow()
+            # Optionally update name and description if provided and different
+            if request.form.get('name'):
+                existing_by_file.name = template_name
+            if request.form.get('description'):
+                existing_by_file.description = template_description
+
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': 'File overwritten successfully',
+                'template': existing_by_file.to_dict(),
+                'overwritten': True
+            }), 200
+
+        # Check if template with this name already exists (for new uploads)
+        existing_by_name = PaperworkTemplate.query.filter_by(name=template_name).first()
+        if existing_by_name:
             # Delete uploaded file since template name exists
             os.remove(file_path)
             return jsonify({
@@ -351,7 +382,7 @@ def upload_template_file():
         max_order = db.session.query(db.func.max(PaperworkTemplate.display_order)).scalar()
         display_order = (max_order or 0) + 1
 
-        # Create template record
+        # Create new template record
         template = PaperworkTemplate(
             name=template_name,
             description=template_description,

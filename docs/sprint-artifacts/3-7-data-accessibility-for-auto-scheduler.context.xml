@@ -1,0 +1,160 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-7" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-7</storyId>
+    <title>Data Accessibility for Auto-Scheduler</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-7-data-accessibility-for-auto-scheduler.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer of the auto-scheduler</asA>
+    <iWant>imported employee data including MV Retail numbers immediately accessible</iWant>
+    <soThat>the auto-scheduler can use employee data for scheduling operations without delays</soThat>
+    <tasks>
+- Task 1: Verify Employee model fields are accessible
+- Task 2: Test query for employees with MV Retail numbers
+- Task 3: Verify no cache invalidation delay
+- Task 4: Test auto-scheduler integration
+- Task 5: Document field names for auto-scheduler team
+- Task 6: Add integration tests
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: employees have been successfully imported from Crossmark API
+When: the auto-scheduler queries for employees with MV Retail numbers
+Then: all imported employees are returned with mv_retail_employee_number field populated
+And: the data is available immediately after import (no cache invalidation delay per NFR-R3)
+And: the auto-scheduler can filter employees by mv_retail_employee_number IS NOT NULL
+And: the crossmark_employee_id field can be used for future sync/update operations
+And: existing auto-scheduler code continues to work without modification (NFR-I1)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Data Integrity (FR28-FR31, FR39):
+- FR28: System ensures MV Retail employee number (repId) is stored for all imported employees
+- FR29: System ensures imported employee data is accessible to auto-scheduler component
+- FR39: System maintains compatibility with existing auto-scheduler component
+- NFR-I1: Solution integrates with existing Employee model without breaking current employee management features
+- NFR-I3: MV Retail employee number storage format is compatible with existing auto-scheduler data expectations
+- NFR-R3: Imported employee data must be immediately available to auto-scheduler without cache invalidation delays
+
+Architecture - Data Architecture (lines 513-575): Database migration specification
+    </docs>
+    <code>
+EMPLOYEE MODEL FIELDS (app/models/employee.py):
+```python
+class Employee(db.Model):
+    __tablename__ = 'employees'
+
+    id = db.Column(db.String(50), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True)
+    phone = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_supervisor = db.Column(db.Boolean, nullable=False, default=False)
+    job_title = db.Column(db.String(50), nullable=False, default='Event Specialist')
+    adult_beverage_trained = db.Column(db.Boolean, nullable=False, default=False)
+
+    # EMPLOYEE IMPORT FIELDS (added in Story 1.1)
+    mv_retail_employee_number = db.Column(db.String(50), nullable=True, index=True)
+    crossmark_employee_id = db.Column(db.String(50), nullable=True, unique=True)
+```
+
+AUTO-SCHEDULER QUERY PATTERNS:
+```python
+# Query employees with MV Retail numbers
+employees_with_retail_numbers = Employee.query.filter(
+    Employee.mv_retail_employee_number.isnot(None)
+).all()
+
+# Query specific employee by MV Retail number
+employee = Employee.query.filter_by(
+    mv_retail_employee_number='12345'
+).first()
+
+# Query for scheduling eligibility
+schedulable_employees = Employee.query.filter(
+    Employee.is_active == True,
+    Employee.mv_retail_employee_number.isnot(None)
+).all()
+```
+
+INTEGRATION TEST:
+```python
+def test_imported_employee_accessible_to_scheduler():
+    """Verify imported employees are immediately accessible"""
+    # Import employee via bulk_import_employees
+    api_emp = CrossmarkEmployee(
+        id='12345',
+        repId='12345',
+        employeeId='E12345',
+        title='Test Employee',
+        # ... other fields
+    )
+    count = EmployeeImportService.bulk_import_employees([api_emp])
+
+    # Verify immediate availability (no cache delay)
+    employee = Employee.query.filter_by(
+        mv_retail_employee_number='12345'
+    ).first()
+
+    assert employee is not None
+    assert employee.name == 'Test Employee'
+    assert employee.mv_retail_employee_number == '12345'
+    assert employee.crossmark_employee_id == 'E12345'
+```
+    </code>
+    <dependencies>
+Employee model with mv_retail_employee_number and crossmark_employee_id fields
+Database migration (Story 1.1) must be applied
+SQLAlchemy query API
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+NFR-R3: Data must be immediately available after commit (no cache invalidation delays)
+NFR-I1: Must not break existing employee management features
+NFR-I3: MV Retail number storage format must be compatible with auto-scheduler expectations
+BACKWARDS COMPATIBILITY: Existing auto-scheduler queries must continue to work
+FIELD NAMING: Fields must be clearly documented for auto-scheduler developers
+  </constraints>
+
+  <interfaces>
+EMPLOYEE MODEL FIELDS:
+- mv_retail_employee_number: String(50), nullable, indexed
+- crossmark_employee_id: String(50), nullable, unique
+- All existing fields remain unchanged
+
+QUERY PATTERNS FOR AUTO-SCHEDULER:
+```python
+# Filter by MV Retail number presence
+Employee.query.filter(Employee.mv_retail_employee_number.isnot(None))
+
+# Filter by specific MV Retail number
+Employee.query.filter_by(mv_retail_employee_number='12345')
+
+# Filter for active employees with MV Retail numbers
+Employee.query.filter(
+    Employee.is_active == True,
+    Employee.mv_retail_employee_number.isnot(None)
+)
+```
+
+FIELD DOCUMENTATION:
+- mv_retail_employee_number: MV Retail employee identifier (from Crossmark repId)
+- crossmark_employee_id: Crossmark system employee identifier (from Crossmark employeeId)
+- Both fields are nullable (manual adds won't have Crossmark IDs)
+- Only employees imported from Crossmark will have these fields populated
+  </interfaces>
+
+  <tests>
+    <standards>Integration tests verifying auto-scheduler can access imported data</standards>
+    <locations>tests/test_employee_import_service.py, integration tests with auto-scheduler</locations>
+    <ideas>Test query employees with MV Retail numbers, test immediate availability after import, test auto-scheduler compatibility, test backwards compatibility with existing queries, verify field naming conventions</ideas>
+  </tests>
+</story-context>

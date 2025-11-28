@@ -1,0 +1,78 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/2-2" v="1.0">
+  <metadata>
+    <epicId>epic-2</epicId>
+    <storyId>2-2</storyId>
+    <title>Duplicate Detection on Manual Employee Add</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-2-duplicate-detection-on-manual-employee-add.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>the system to prevent me from adding an employee with a duplicate name</iWant>
+    <soThat>I don't accidentally create multiple records for the same person</soThat>
+    <tasks>
+- Task 1: Add duplicate detection to form handler
+- Task 2: Display duplicate error message
+- Task 3: Preserve form data on validation failure
+- Task 4: Add comprehensive duplicate detection tests
+- Task 5: Measure and verify performance (< 2 seconds)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: an employee named "Jane Doe" already exists in the database
+When: I submit the add form with name "jane doe" (different case)
+Then: the form does NOT create a new employee
+And: an error message displays: "Employee 'jane doe' already exists"
+And: the form remains open with my entered data preserved
+And: I can correct the name and resubmit
+And: server-side validation always checks for duplicates
+And: the duplicate check completes in < 2 seconds (NFR-P1)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - FR5: System checks for duplicate employee names (case-insensitive)
+PRD - FR6: System displays error message if duplicate detected
+PRD - NFR-P1: Manual employee add form submission completes within 2 seconds
+Architecture - Error Handling Pattern (lines 354-377): Server-side validation patterns
+    </docs>
+    <code>
+EmployeeImportService.check_duplicate_name(name: str) -> Optional[Employee]
+- Already implemented in app/services/employee_import_service.py (lines 21-48)
+- Returns Employee if duplicate found, None otherwise
+- Uses case-insensitive matching via database index
+
+Route handler (app/routes/employees.py /employees/add):
+- After form.validate_on_submit() passes, call check_duplicate_name
+- If duplicate found, add field error and re-render form
+- Pattern: form.name.errors.append(f"Employee '{form.name.data}' already exists")
+    </code>
+    <dependencies>
+EmployeeImportService from app/services/employee_import_service
+WTForms field error rendering
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+Server-side validation is mandatory (client-side is UX only)
+Performance: < 2 seconds for duplicate check (should be < 100ms with index)
+Error messages must be clear and actionable
+Form data must be preserved on validation failure
+  </constraints>
+
+  <interfaces>
+Integration: Call EmployeeImportService.check_duplicate_name from route handler
+Error display: WTForms field errors in template
+Form preservation: WTForms automatically handles this
+  </interfaces>
+
+  <tests>
+    <standards>Test all case variations, whitespace, partial matches</standards>
+    <locations>tests/test_employee_routes.py</locations>
+    <ideas>Test exact case match, different case, mixed case, whitespace variations, performance measurement</ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,331 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>2</storyId>
+    <title>employee-import-service-layer-setup</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-2-employee-import-service-layer-setup.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>a dedicated service layer for employee import business logic</iWant>
+    <soThat>duplicate detection, API interaction, and import operations are centralized and testable</soThat>
+    <tasks>
+- Task 1: Create EmployeeImportService class structure (AC: Service class exists with static methods)
+  - Subtask 1.1: Create file `app/services/employee_import_service.py`
+  - Subtask 1.2: Import required dependencies (Employee model, db, func from SQLAlchemy, SessionAPIService)
+  - Subtask 1.3: Define EmployeeImportService class with docstring
+  - Subtask 1.4: Add type hints imports (List, Optional, tuple from typing)
+
+- Task 2: Implement check_duplicate_name method (AC: Case-insensitive name lookup)
+  - Subtask 2.1: Define static method signature with type hints
+  - Subtask 2.2: Add comprehensive docstring explaining case-insensitive behavior
+  - Subtask 2.3: Implement query using `func.lower()` against database index
+  - Subtask 2.4: Return Optional[Employee] (None if not found, Employee object if found)
+  - Subtask 2.5: Verify query plan uses ix_employee_name_lower index
+
+- Task 3: Implement filter_duplicate_employees method (AC: Returns new and casing-update lists)
+  - Subtask 3.1: Define static method signature with type hints
+  - Subtask 3.2: Add docstring explaining filtering logic and return tuple structure
+  - Subtask 3.3: Build case-insensitive name lookup map from existing employees
+  - Subtask 3.4: Iterate api_employees and classify: new vs. existing with casing differences
+  - Subtask 3.5: Return tuple: (new_employees_list, employees_needing_casing_update_list)
+
+- Task 4: Implement fetch_crossmark_employees method (AC: API wrapper returns employee list)
+  - Subtask 4.1: Define static method signature with type hints
+  - Subtask 4.2: Add docstring explaining API interaction and return type
+  - Subtask 4.3: Import and use SessionAPIService from `app/integrations/external_api/session_api_service.py`
+  - Subtask 4.4: Call API endpoint `/schedulingcontroller/getAvailableReps` (POST)
+  - Subtask 4.5: Parse response and return List[CrossmarkEmployee] (note: requires Pydantic model from Story 1.3)
+  - Subtask 4.6: Handle API errors gracefully (raise appropriate exceptions)
+
+- Task 5: Implement bulk_import_employees method (AC: Atomic import with transaction)
+  - Subtask 5.1: Define static method signature with type hints
+  - Subtask 5.2: Add docstring explaining atomic transaction behavior
+  - Subtask 5.3: Start database transaction using `db.session.begin()`
+  - Subtask 5.4: Iterate selected_employees and create Employee model instances
+  - Subtask 5.5: Set default values: is_active=True, is_supervisor=False, job_title='Event Specialist'
+  - Subtask 5.6: Map Crossmark fields: repId → mv_retail_employee_number, employeeId → crossmark_employee_id
+  - Subtask 5.7: Commit transaction on success, rollback on error
+  - Subtask 5.8: Return count of imported employees
+
+- Task 6: Write comprehensive unit tests (AC: All methods independently testable)
+  - Subtask 6.1: Create `tests/test_employee_import_service.py`
+  - Subtask 6.2: Test check_duplicate_name with existing/non-existing employees (case variations)
+  - Subtask 6.3: Test filter_duplicate_employees with various scenarios (all new, all duplicates, mixed)
+  - Subtask 6.4: Test bulk_import_employees with transaction rollback on error
+  - Subtask 6.5: Mock fetch_crossmark_employees API call
+  - Subtask 6.6: Verify index usage in duplicate detection tests
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+**Given** the Flask application structure at `app/services/`
+**When** the EmployeeImportService class is created
+**Then** the service provides the following static methods:
+- `check_duplicate_name(name: str) -> Optional[Employee]` - Case-insensitive name lookup
+- `filter_duplicate_employees(api_employees, existing_employees) -> tuple[List, List]` - Returns (new_employees, employees_needing_casing_update)
+- `bulk_import_employees(selected_employees: List[CrossmarkEmployee]) -> int` - Atomic import with transaction
+- `fetch_crossmark_employees() -> List[CrossmarkEmployee]` - API wrapper
+
+**And** the service uses the database index on `lower(name)` for O(log n) duplicate lookups
+
+**And** the service handles case-insensitive matching using `func.lower()`
+
+**And** all methods include docstrings with type hints
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.2: Employee Import Service Layer Setup (lines 164-196)</section>
+        <snippet>Service layer for employee import business logic with four static methods: check_duplicate_name for case-insensitive lookups, filter_duplicate_employees for separating new from duplicates, bulk_import_employees for atomic imports, and fetch_crossmark_employees for API integration. Uses database index for O(log n) duplicate lookups with func.lower().</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>Service Layer Pattern (lines 272-313)</section>
+        <snippet>Static methods for stateless operations, no HTTP context required. Import Employee model and db session from app. Use SessionAPIService for external API calls. Type hints required for all method signatures.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>Duplicate Detection Pattern (lines 381-416)</section>
+        <snippet>Use func.lower() for case-insensitive name matching. Leverage database index ix_employee_name_lower. O(log n) lookup performance. Filter duplicates by building lowercase name map for O(n) lookup, then iterating API employees to classify new vs existing with casing differences.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>API Contracts - Employee Import Service (lines 578-651)</section>
+        <snippet>Complete method signatures with docstrings. check_duplicate_name returns Optional[Employee]. fetch_crossmark_employees returns List[CrossmarkEmployee] and raises APIAuthenticationError or APINetworkError. filter_duplicate_employees returns tuple of (new_employees, employees_needing_casing_update). bulk_import_employees returns int count and raises ImportError on transaction failure.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>Crossmark API Import Requirements</section>
+        <snippet>API endpoint POST to /schedulingcontroller/getAvailableReps. Field mapping: title → name, repId → mv_retail_employee_number, employeeId → crossmark_employee_id. Filter duplicates BEFORE display using case-insensitive name comparison. Default values on import: is_active=True, is_supervisor=False, job_title='Event Specialist'.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/sprint-artifacts/1-1-database-schema-migration-for-employee-import-fields.md</path>
+        <title>Story 1.1 - Database Schema Migration</title>
+        <section>Completion Notes and File List</section>
+        <snippet>Added mv_retail_employee_number and crossmark_employee_id fields to Employee model at app/models/employee.py. Created case-insensitive index ix_employee_name_lower using func.lower(name). Test infrastructure at tests/conftest.py provides app and db fixtures. Migration applied successfully, 12 employees intact with NULL values in new fields.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>app/models/employee.py</path>
+        <kind>model</kind>
+        <symbol>Employee</symbol>
+        <lines></lines>
+        <reason>Employee model with mv_retail_employee_number and crossmark_employee_id fields. Uses factory pattern via create_employee_model(db). Has case-insensitive index ix_employee_name_lower on lower(name) for duplicate detection.</reason>
+      </artifact>
+      <artifact>
+        <path>app/integrations/external_api/session_api_service.py</path>
+        <kind>service</kind>
+        <symbol>SessionAPIService</symbol>
+        <lines>1-80</lines>
+        <reason>Existing Crossmark API integration service. Handles PHP session authentication with PHPSESSID cookie management. Provides base_url, authentication, retry strategy, and session management. Use this for fetch_crossmark_employees implementation.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/conftest.py</path>
+        <kind>test infrastructure</kind>
+        <symbol>app, db fixtures</symbol>
+        <lines></lines>
+        <reason>Pytest fixtures for Flask app and database testing. Provides session-scoped app fixture and db fixture. Created in Story 1.1 for testing database migrations. Reuse these fixtures for service layer tests.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/test_employee_import_fields_migration.py</path>
+        <kind>test</kind>
+        <symbol>TestEmployeeImportFieldsMigration</symbol>
+        <lines></lines>
+        <reason>Existing test suite for database fields and indexes. Reference for testing patterns: fixture usage, case-insensitive queries with func.lower(), SQLAlchemy inspection, and database transaction testing.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="Flask" version="3.0.3">Web framework</package>
+        <package name="SQLAlchemy" version="3.1.1">ORM and database operations with func.lower() for queries</package>
+        <package name="requests" version="latest">HTTP library used by SessionAPIService</package>
+        <package name="pytest" version="latest">Testing framework</package>
+        <package name="pydantic" version="latest">Note: CrossmarkEmployee model will be created in Story 1.3</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Service Layer Pattern**: Static methods only, no instance state. No HTTP context required - pure business logic. Type hints mandatory for all parameters and return values.
+- **Duplicate Detection Performance**: Must use database index ix_employee_name_lower for O(log n) case-insensitive lookups. Query with func.lower() to leverage index (NFR-P5 requirement: <500ms for 10k employees).
+- **Transaction Atomicity**: bulk_import_employees must use db.session.begin() for atomic operations. Rollback on any error. All-or-nothing semantics required.
+- **API Integration**: Use existing SessionAPIService from app/integrations/external_api/session_api_service.py. Do not create new API client. Follow established authentication patterns.
+- **Error Handling**: Raise appropriate exceptions (APIAuthenticationError, APINetworkError, ImportError). Include descriptive error messages.
+- **Field Mapping**: Crossmark API fields map to: title → Employee.name, repId → mv_retail_employee_number, employeeId → crossmark_employee_id. All mappings must be explicit.
+- **Default Values**: Imported employees get: is_active=True, is_supervisor=False, job_title='Event Specialist'. These are business requirements from PRD.
+- **Testing Independence**: All service methods must be testable without HTTP context. Mock external dependencies (SessionAPIService API calls).
+- **Type Safety**: Return types must match contracts: Optional[Employee], List[CrossmarkEmployee], tuple[List, List], int. No implicit returns.
+- **Backward Compatibility**: Service must work with existing Employee records that have NULL values in mv_retail_employee_number and crossmark_employee_id fields.
+</constraints>
+
+  <interfaces>
+    <interface>
+      <name>EmployeeImportService.check_duplicate_name</name>
+      <kind>Service Method</kind>
+      <signature>
+@staticmethod
+def check_duplicate_name(name: str) -> Optional[Employee]:
+    """
+    Check if employee name exists (case-insensitive).
+
+    Args:
+        name: Employee name to check
+
+    Returns:
+        Employee instance if duplicate found, None otherwise
+    """
+    return db.session.query(Employee).filter(
+        func.lower(Employee.name) == func.lower(name)
+    ).first()
+</signature>
+      <path>app/services/employee_import_service.py</path>
+    </interface>
+    <interface>
+      <name>EmployeeImportService.filter_duplicate_employees</name>
+      <kind>Service Method</kind>
+      <signature>
+@staticmethod
+def filter_duplicate_employees(
+    api_employees: List[CrossmarkEmployee],
+    existing_employees: List[Employee]
+) -> tuple[List[CrossmarkEmployee], List[tuple[Employee, str]]]:
+    """
+    Filter out duplicate employees, identify casing updates.
+
+    Args:
+        api_employees: Employees from Crossmark API
+        existing_employees: Current employees in database
+
+    Returns:
+        Tuple of (new_employees, employees_needing_casing_update)
+        where employees_needing_casing_update is list of (Employee, new_name)
+    """
+    # Build lowercase name map for O(n) lookup
+    existing_names_lower = {e.name.lower(): e for e in existing_employees}
+
+    new_employees = []
+    employees_to_update = []
+
+    for api_emp in api_employees:
+        api_name_lower = api_emp.title.lower()
+        if api_name_lower in existing_names_lower:
+            existing_emp = existing_names_lower[api_name_lower]
+            if existing_emp.name != api_emp.title:
+                employees_to_update.append((existing_emp, api_emp.title))
+        else:
+            new_employees.append(api_emp)
+
+    return new_employees, employees_to_update
+</signature>
+      <path>app/services/employee_import_service.py</path>
+    </interface>
+    <interface>
+      <name>EmployeeImportService.fetch_crossmark_employees</name>
+      <kind>Service Method</kind>
+      <signature>
+@staticmethod
+def fetch_crossmark_employees() -> List[CrossmarkEmployee]:
+    """
+    Fetch employees from Crossmark API for current time range.
+
+    Returns:
+        List of CrossmarkEmployee instances
+
+    Raises:
+        APIAuthenticationError: If session invalid
+        APINetworkError: If network failure
+    """
+    # Use SessionAPIService to call /schedulingcontroller/getAvailableReps
+    # Parse response and return List[CrossmarkEmployee]
+    pass
+</signature>
+      <path>app/services/employee_import_service.py</path>
+    </interface>
+    <interface>
+      <name>EmployeeImportService.bulk_import_employees</name>
+      <kind>Service Method</kind>
+      <signature>
+@staticmethod
+def bulk_import_employees(selected_employees: List[CrossmarkEmployee]) -> int:
+    """
+    Import selected employees with default values. Atomic transaction.
+
+    Args:
+        selected_employees: Employees to import
+
+    Returns:
+        Count of successfully imported employees
+
+    Raises:
+        ImportError: If transaction fails
+    """
+    try:
+        imported_count = 0
+        for api_emp in selected_employees:
+            emp = Employee(
+                id=api_emp.repId or api_emp.id,
+                name=api_emp.title,
+                mv_retail_employee_number=api_emp.repId,
+                crossmark_employee_id=api_emp.employeeId,
+                is_active=True,
+                is_supervisor=False,
+                job_title='Event Specialist'
+            )
+            db.session.add(emp)
+            imported_count += 1
+        db.session.commit()
+        return imported_count
+    except Exception as e:
+        db.session.rollback()
+        raise ImportError(f"Failed to import employees: {str(e)}")
+</signature>
+      <path>app/services/employee_import_service.py</path>
+    </interface>
+    <interface>
+      <name>SessionAPIService</name>
+      <kind>External API Client</kind>
+      <signature>
+class SessionAPIService:
+    """Service class for Crossmark API integration"""
+
+    def __init__(self, app=None)
+    def init_app(self, app)
+    def login(self) -> bool
+    # Use this existing service for API calls in fetch_crossmark_employees
+    # POST to /schedulingcontroller/getAvailableReps
+</signature>
+      <path>app/integrations/external_api/session_api_service.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Follow existing Flask testing patterns using pytest. Use fixtures from tests/conftest.py (app, db). Service methods should be testable without HTTP context - no Flask test client needed. Mock external API calls to SessionAPIService. Test case-insensitive matching with various name casings. Verify database transactions with rollback scenarios. Use SQLAlchemy queries to verify index usage.
+</standards>
+    <locations>
+tests/
+tests/test_employee_import_service.py (to be created)
+</locations>
+    <ideas>
+- **AC 1 Test - check_duplicate_name**: Test with existing employee (exact case), existing employee (different case), non-existing employee. Verify returns Optional[Employee] correctly.
+- **AC 2 Test - filter_duplicate_employees**: Test scenarios: all new employees, all duplicates, mixed (some new some duplicate), casing differences requiring updates. Verify tuple structure returned.
+- **AC 3 Test - bulk_import_employees**: Test successful import of multiple employees. Test transaction rollback on error (simulate DB constraint violation). Verify atomic behavior (all-or-nothing). Check default values applied correctly. Verify field mapping (repId → mv_retail_employee_number).
+- **AC 4 Test - fetch_crossmark_employees**: Mock SessionAPIService API call. Test successful fetch returns List[CrossmarkEmployee]. Test error handling (APIAuthenticationError, APINetworkError). Verify endpoint called correctly.
+- **Performance Test**: Verify check_duplicate_name uses ix_employee_name_lower index. Query plan inspection or performance measurement with large dataset.
+- **Integration Test**: Test complete flow: fetch → filter → import. Verify no duplicates created. Verify casing updates applied.
+</ideas>
+  </tests>
+</story-context>

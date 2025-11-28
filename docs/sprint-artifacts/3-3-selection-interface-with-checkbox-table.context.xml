@@ -1,0 +1,160 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-3" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-3</storyId>
+    <title>Selection Interface with Checkbox Table</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-3-selection-interface-with-checkbox-table.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>a clear table showing new employees with checkboxes so I can select which ones to import</iWant>
+    <soThat>I have control over exactly who joins my roster</soThat>
+    <tasks>
+- Task 1: Create import_select.html template
+- Task 2: Add table with checkbox column
+- Task 3: Add heading with employee count
+- Task 4: Add "Import Selected" button (initially disabled)
+- Task 5: Style table consistently with existing UI
+- Task 6: Test responsive layout (up to 1000 employees)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: there are 30 new employees available for import
+When: the selection interface is displayed
+Then: I see a table with columns: Checkbox (unchecked by default), Name, Employee ID (Crossmark ID), MV Retail # (repId)
+And: the table shows all 30 employees in a scannable format
+And: a heading displays: "30 new employees available to import"
+And: "Select All" and "Deselect All" links appear above the table
+And: an "Import Selected" button appears below the table (disabled initially)
+And: the interface remains responsive with up to 1000 employees (NFR-P3)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Selection Interface (FR18-FR22):
+- FR18: System presents NEW employees in selectable table format
+- FR19: Users can select individual employees using checkboxes
+- FR22: System displays count of new employees available
+- NFR-P3: Import selection interface remains responsive with up to 1000 employees displayed
+- NFR-U2: Import selection interface allows batch selection ("Select All")
+
+Architecture - UI Integration (lines 213-230): Import flow specification
+Architecture - ADR-006: Server-Rendered Selection Interface (lines 1046-1063)
+  </docs>
+    <code>
+NEW TEMPLATE: app/templates/employees/import_select.html
+```html
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>{{ count }} new employees available to import</h2>
+
+    <div class="selection-controls">
+        <a href="#" id="select-all">Select All</a> |
+        <a href="#" id="deselect-all">Deselect All</a>
+    </div>
+
+    <form method="POST" action="{{ url_for('employees.import_crossmark_execute') }}">
+        {{ form.hidden_tag() }}  {# CSRF token #}
+
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="header-checkbox"></th>
+                    <th>Name</th>
+                    <th>Employee ID</th>
+                    <th>MV Retail #</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td><input type="checkbox" name="selected_employees" value="{{ emp.repId }}" class="employee-select"></td>
+                    <td>{{ emp.title }}</td>
+                    <td>{{ emp.employeeId }}</td>
+                    <td>{{ emp.repId }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button type="submit" id="import-button" class="btn btn-primary" disabled>
+            Import Selected
+        </button>
+    </form>
+</div>
+{% endblock %}
+```
+
+ROUTE HANDLER: GET /employees/import-crossmark
+```python
+@employees_bp.route('/import-crossmark', methods=['GET'])
+@login_required
+def import_crossmark_init():
+    # Fetch and filter (Stories 3.1, 3.2)
+    api_employees = EmployeeImportService.fetch_crossmark_employees()
+    existing_employees = Employee.query.all()
+    new_employees, casing_updates = EmployeeImportService.filter_duplicate_employees(
+        api_employees, existing_employees
+    )
+
+    # Update casing
+    for emp, new_name in casing_updates:
+        emp.name = new_name
+    db.session.commit()
+
+    if not new_employees:
+        flash('No new employees to import.', 'info')
+        return redirect(url_for('employees.employees'))
+
+    return render_template(
+        'employees/import_select.html',
+        employees=new_employees,
+        count=len(new_employees),
+        form=SelectEmployeesForm()  # CSRF protection
+    )
+```
+    </code>
+    <dependencies>
+Jinja2 template engine (Flask bundled)
+Bootstrap CSS for table styling (if used in project)
+Flask-WTF for CSRF token
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+PERFORMANCE: NFR-P3 requires interface remains responsive with up to 1000 employees
+STYLING: Must match existing employee list table styling
+CSRF: Form must include CSRF token via Flask-WTF
+DEFAULTS: All checkboxes unchecked by default, button disabled until selection made
+  </constraints>
+
+  <interfaces>
+ROUTE: GET /employees/import-crossmark
+TEMPLATE: app/templates/employees/import_select.html
+TEMPLATE VARIABLES:
+- employees: List[CrossmarkEmployee] - New employees to display
+- count: int - Number of new employees
+- form: SelectEmployeesForm - Form with CSRF token
+
+TABLE COLUMNS:
+- Checkbox: Input type=checkbox, name=selected_employees, value=emp.repId
+- Name: emp.title
+- Employee ID: emp.employeeId (Crossmark ID)
+- MV Retail #: emp.repId
+
+FORM SUBMISSION: POST /employees/import-crossmark/execute (Story 3.5)
+  </interfaces>
+
+  <tests>
+    <standards>Test template rendering, responsive layout, CSRF protection</standards>
+    <locations>tests/test_employee_routes.py</locations>
+    <ideas>Test table renders with employees, test count display, test checkbox elements, test button initially disabled, test CSRF token present, test responsive with 1000 employees</ideas>
+  </tests>
+</story-context>

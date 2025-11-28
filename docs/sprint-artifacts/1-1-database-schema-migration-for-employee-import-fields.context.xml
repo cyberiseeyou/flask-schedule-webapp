@@ -1,0 +1,192 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>database-schema-migration-for-employee-import-fields</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-1-database-schema-migration-for-employee-import-fields.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>database fields for MV Retail employee number and Crossmark employee ID added to the Employee model</iWant>
+    <soThat>imported employees can store critical identifiers needed by the auto-scheduler</soThat>
+    <tasks>
+- Task 1: Create Alembic migration file (AC: All criteria)
+  - Subtask 1.1: Run `flask db migrate -m "Add MV Retail and Crossmark ID fields"`
+  - Subtask 1.2: Review generated migration in `migrations/versions/`
+  - Subtask 1.3: Add index on `lower(name)` using `sa.text('lower(name)')`
+  - Subtask 1.4: Add unique constraint on `crossmark_employee_id`
+  - Subtask 1.5: Verify downgrade() function properly drops constraints and columns
+
+- Task 2: Update Employee model (AC: New fields defined)
+  - Subtask 2.1: Add `mv_retail_employee_number = db.Column(db.String(50), nullable=True, index=True)` to Employee class
+  - Subtask 2.2: Add `crossmark_employee_id = db.Column(db.String(50), nullable=True, unique=True)` to Employee class
+  - Subtask 2.3: Add `__table_args__` with `Index('ix_employee_name_lower', func.lower(name))`
+  - Subtask 2.4: Import `func` from sqlalchemy: `from sqlalchemy import func`
+
+- Task 3: Test migration locally (AC: Migration successful)
+  - Subtask 3.1: Backup local database (if using SQLite: copy file)
+  - Subtask 3.2: Run `flask db upgrade` and verify success
+  - Subtask 3.3: Verify columns exist: `flask shell` then inspect Employee model
+  - Subtask 3.4: Test downgrade: `flask db downgrade -1`
+  - Subtask 3.5: Test upgrade again to confirm repeatability
+
+- Task 4: Verify data integrity (AC: Existing records intact)
+  - Subtask 4.1: Query existing employee records before migration
+  - Subtask 4.2: Confirm all employees present after migration
+  - Subtask 4.3: Verify new fields are NULL for existing records
+  - Subtask 4.4: Test inserting new employee with new fields populated
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+**Given** the existing Employee model in `app/models/employee.py`
+**When** the database migration is created and applied
+**Then** the employees table has two new fields:
+- `mv_retail_employee_number` (String(50), nullable=True, indexed)
+- `crossmark_employee_id` (String(50), nullable=True, unique=True)
+
+**And** a database index exists on `lower(name)` for case-insensitive lookups
+
+**And** the migration includes both upgrade and downgrade paths
+
+**And** all existing employee records remain intact with new fields set to NULL
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>Web App Specific Requirements - Data Persistence</section>
+        <snippet>Employee Model fields needed: mv_retail_employee_number (maps to repId from API), crossmark_employee_id (maps to employeeId). Case-insensitive name lookup for duplicate detection. Database operations include batch insert for import.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>Non-Functional Requirements - Performance (NFR-P5)</section>
+        <snippet>Duplicate detection query executes within 500ms for rosters up to 10,000 existing employees. Database-level indexing leverages PostgreSQL query optimizer.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>Database Migration (lines 516-563)</section>
+        <snippet>Use Alembic for all schema changes. Always include both upgrade() and downgrade() functions. Use op.create_index() with sa.text('lower(name)') for functional indexes. Unique constraints prevent duplicate imports via crossmark_employee_id.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>Employee Model Extensions (lines 186-209)</section>
+        <snippet>Add mv_retail_employee_number and crossmark_employee_id fields. Include Index for case-insensitive name lookups using func.lower(). Fields are nullable for backward compatibility.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Architecture Document</title>
+        <section>ADR-002: Database-Level Duplicate Detection (lines 970-986)</section>
+        <snippet>Use SQLAlchemy func.lower() with database index for duplicate checking. Database index on lower(name) provides fast lookups and meets NFR-P5 performance target. Works with both PostgreSQL and SQLite.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.1: Database Schema Migration (lines 131-161)</section>
+        <snippet>Create Alembic migration, add mv_retail_employee_number and crossmark_employee_id fields. Index on lower(name) for case-insensitive lookups. Unique constraint on crossmark_employee_id prevents duplicates. Test migration with upgrade/downgrade.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>app/models/employee.py</path>
+        <kind>model</kind>
+        <symbol>Employee</symbol>
+        <lines></lines>
+        <reason>Existing Employee model that needs field extensions for MV Retail number and Crossmark ID</reason>
+      </artifact>
+      <artifact>
+        <path>migrations/versions/</path>
+        <kind>directory</kind>
+        <symbol>N/A</symbol>
+        <lines></lines>
+        <reason>Location where new Alembic migration file will be generated</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="Flask" version="3.0.3">Web framework</package>
+        <package name="SQLAlchemy" version="3.1.1">ORM and database operations</package>
+        <package name="Alembic" version="latest">Database migrations</package>
+        <package name="Flask-Migrate" version="latest">Flask-SQLAlchemy migration support</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Database Migration Pattern:** Use Alembic for all schema changes. Always include both upgrade() and downgrade() functions.
+- **Field Naming Convention:** Snake_case for all database fields (mv_retail_employee_number, crossmark_employee_id).
+- **Performance Consideration:** Index on lower(name) enables &lt;500ms duplicate detection for 10k employees (NFR-P5).
+- **Backward Compatibility:** New fields are nullable=True to maintain compatibility with existing employee records.
+- **Database Support:** Migration must work with both PostgreSQL (production) and SQLite (development).
+- **Unique Constraint:** crossmark_employee_id must be unique to prevent duplicate API imports.
+</constraints>
+
+  <interfaces>
+    <interface>
+      <name>Employee Model</name>
+      <kind>SQLAlchemy Model</kind>
+      <signature>
+class Employee(db.Model):
+    __tablename__ = 'employees'
+    # Existing fields remain unchanged
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    # NEW FIELDS TO ADD:
+    mv_retail_employee_number = db.Column(db.String(50), nullable=True, index=True)
+    crossmark_employee_id = db.Column(db.String(50), nullable=True, unique=True)
+    # NEW INDEX TO ADD:
+    __table_args__ = (
+        db.Index('ix_employee_name_lower', func.lower(name)),
+    )
+</signature>
+      <path>app/models/employee.py</path>
+    </interface>
+    <interface>
+      <name>Alembic Migration</name>
+      <kind>Database Migration Script</kind>
+      <signature>
+def upgrade():
+    op.add_column('employees', sa.Column('mv_retail_employee_number', sa.String(50), nullable=True))
+    op.add_column('employees', sa.Column('crossmark_employee_id', sa.String(50), nullable=True))
+    op.create_index('ix_employee_name_lower', 'employees', [sa.text('lower(name)')], unique=False)
+    op.create_index('ix_employee_crossmark_id', 'employees', ['crossmark_employee_id'], unique=True)
+
+def downgrade():
+    op.drop_index('ix_employee_crossmark_id', table_name='employees')
+    op.drop_index('ix_employee_name_lower', table_name='employees')
+    op.drop_column('employees', 'crossmark_employee_id')
+    op.drop_column('employees', 'mv_retail_employee_number')
+</signature>
+      <path>migrations/versions/XXXX_add_employee_import_fields.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Follow existing Flask testing patterns using pytest. Database migrations should be tested with both upgrade and downgrade paths. Test with sample data to verify data integrity. Use Flask test client for integration tests. SQLite in-memory database for unit tests, actual database for integration tests.
+</standards>
+    <locations>
+tests/
+tests/models/
+tests/migrations/
+</locations>
+    <ideas>
+- **AC 1 Test:** Verify new fields exist after migration upgrade
+- **AC 2 Test:** Verify case-insensitive index on lower(name) exists
+- **AC 3 Test:** Verify downgrade properly removes fields and indexes
+- **AC 4 Test:** Create employee records before migration, verify they persist with NULL values in new fields after migration
+- **Integration Test:** Full migration cycle: create sample employees → upgrade → verify data integrity → downgrade → verify rollback → upgrade again
+- **Performance Test:** Insert 10k employees, verify duplicate detection query with lower(name) index completes &lt;500ms
+- **Constraint Test:** Verify unique constraint on crossmark_employee_id prevents duplicate inserts
+</ideas>
+  </tests>
+</story-context>

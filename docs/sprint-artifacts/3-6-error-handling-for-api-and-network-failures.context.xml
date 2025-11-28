@@ -1,0 +1,163 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-6" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-6</storyId>
+    <title>Error Handling for API and Network Failures</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-6-error-handling-for-api-and-network-failures.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>clear error messages when Crossmark API fails or network issues occur</iWant>
+    <soThat>I understand what went wrong and can take appropriate action</soThat>
+    <tasks>
+- Task 1: Add network error handling to import route
+- Task 2: Add authentication error handling
+- Task 3: Add API response validation error handling
+- Task 4: Implement comprehensive logging
+- Task 5: Ensure no partial data saved on errors
+- Task 6: Add user-friendly error messages
+- Task 7: Test all error scenarios
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: I click "Import from Crossmark" button
+When: the Crossmark API is unreachable (network failure)
+Then: I see an error message: "Unable to connect to Crossmark API. Please try again."
+And: I remain on the Employees page (no broken state)
+
+When: my Crossmark session has expired (authentication error)
+Then: I am redirected to the login page
+And: I see a message: "Session expired. Please log in again."
+
+When: the API returns an unexpected format (validation error)
+Then: I see an error message: "Received unexpected data from Crossmark. Please contact support."
+
+And: all errors are logged with full details for debugging
+And: no partial data is saved when errors occur
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Error Handling (FR32-FR36):
+- FR32: System displays loading indicator during Crossmark API fetch operation
+- FR33: System handles Crossmark API network failures gracefully with error message
+- FR34: System handles Crossmark API authentication errors and redirects to login if session invalid
+- FR35: System provides clear error messages for all failure scenarios
+- FR36: System provides success feedback for all successful operations
+- NFR-S4: Employee data transmission uses HTTPS for all API calls
+- NFR-U3: All error messages are human-readable and actionable (not technical error codes)
+
+Architecture - Error Handling Pattern (lines 354-377): Comprehensive exception handling
+    </docs>
+    <code>
+ERROR HANDLING PATTERN (app/routes/employees.py /import-crossmark):
+```python
+from requests.exceptions import RequestException, Timeout
+from pydantic import ValidationError
+from app.integrations.external_api.session_api_service import SessionError
+
+@employees_bp.route('/import-crossmark', methods=['GET'])
+@login_required
+def import_crossmark_init():
+    """Fetch employees from Crossmark with comprehensive error handling"""
+    try:
+        # Fetch employees
+        api_employees = EmployeeImportService.fetch_crossmark_employees()
+
+        # Filter duplicates
+        existing_employees = Employee.query.all()
+        new_employees, casing_updates = EmployeeImportService.filter_duplicate_employees(
+            api_employees, existing_employees
+        )
+
+        # Update casing
+        for emp, new_name in casing_updates:
+            emp.name = new_name
+        db.session.commit()
+
+        if not new_employees:
+            flash('No new employees to import. All Crossmark employees are already in your roster.', 'info')
+            return redirect(url_for('employees.employees'))
+
+        return render_template('employees/import_select.html',
+                             employees=new_employees,
+                             count=len(new_employees))
+
+    except SessionError as e:
+        # Authentication error - session expired or invalid
+        current_app.logger.warning(f"Session error during import: {str(e)}")
+        flash('Session expired. Please log in again.', 'error')
+        return redirect(url_for('auth.login'))  # Adjust route name as needed
+
+    except (RequestException, Timeout) as e:
+        # Network error - API unreachable
+        current_app.logger.error(f"Network error during import: {str(e)}", exc_info=True)
+        flash('Unable to connect to Crossmark API. Please try again.', 'error')
+        return redirect(url_for('employees.employees'))
+
+    except ValidationError as e:
+        # Pydantic validation error - unexpected API response format
+        current_app.logger.error(f"API response validation error: {str(e)}", exc_info=True)
+        flash('Received unexpected data from Crossmark. Please contact support.', 'error')
+        return redirect(url_for('employees.employees'))
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        current_app.logger.error(f"Unexpected error during import: {str(e)}", exc_info=True)
+        flash('An unexpected error occurred. Please contact support.', 'error')
+        return redirect(url_for('employees.employees'))
+```
+
+LOGGING STANDARDS:
+- SessionError: WARNING level (expected error, user action required)
+- RequestException/Timeout: ERROR level with exc_info=True
+- ValidationError: ERROR level with exc_info=True
+- Generic Exception: ERROR level with exc_info=True
+- All error logs include full context (user, timestamp, request details)
+    </code>
+    <dependencies>
+requests.exceptions - RequestException, Timeout
+pydantic - ValidationError
+app.integrations.external_api.session_api_service - SessionError
+Flask current_app.logger for logging
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+NFR-U3: Error messages must be human-readable and actionable (not technical codes)
+NO PARTIAL DATA: Errors must not leave database in inconsistent state
+LOGGING: All errors logged with full details (exc_info=True) for debugging
+USER FEEDBACK: Always provide clear flash message, never silent failure
+REDIRECT: On error, redirect to safe page (employees list or login), never broken state
+  </constraints>
+
+  <interfaces>
+EXCEPTION TYPES TO HANDLE:
+1. SessionError: Authentication/session issues → Redirect to login
+2. RequestException/Timeout: Network failures → Error message, stay on employees page
+3. ValidationError: Invalid API response → Error message, contact support
+4. Exception: Catch-all for unexpected errors → Error message, contact support
+
+ERROR MESSAGES:
+- Network: "Unable to connect to Crossmark API. Please try again."
+- Authentication: "Session expired. Please log in again."
+- Validation: "Received unexpected data from Crossmark. Please contact support."
+- Unexpected: "An unexpected error occurred. Please contact support."
+
+LOGGING FORMAT:
+- current_app.logger.error(f"Error type: {str(e)}", exc_info=True)
+- Include full stack trace for debugging
+- Log at appropriate level (WARNING for expected, ERROR for unexpected)
+  </interfaces>
+
+  <tests>
+    <standards>Mock all error scenarios, verify error handling, check logging</standards>
+    <locations>tests/test_employee_routes.py</locations>
+    <ideas>Test network timeout, test authentication error, test validation error, test unexpected error, verify flash messages, verify redirects, verify logging, verify no partial data saved</ideas>
+  </tests>
+</story-context>

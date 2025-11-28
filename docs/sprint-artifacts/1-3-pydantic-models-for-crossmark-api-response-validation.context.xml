@@ -1,0 +1,298 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/1-3" v="1.0">
+  <metadata>
+    <epicId>epic-1</epicId>
+    <storyId>1-3</storyId>
+    <title>Pydantic Models for Crossmark API Response Validation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-3-pydantic-models-for-crossmark-api-response-validation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>type-safe validation of Crossmark API responses using Pydantic</iWant>
+    <soThat>API contract changes are caught early and field mapping is self-documenting</soThat>
+    <tasks>
+- Task 1: Add Pydantic dependency to project (AC: Pydantic v2.x in requirements.txt)
+- Task 2: Create CrossmarkEmployee Pydantic model (AC: Model validates all required fields)
+- Task 3: Update fetch_crossmark_employees to use Pydantic model (AC: Returns List[CrossmarkEmployee])
+- Task 4: Update bulk_import_employees to accept Pydantic model (AC: Type signature uses CrossmarkEmployee)
+- Task 5: Add comprehensive tests for Pydantic validation (AC: Validation errors caught)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: Crossmark API returns JSON employee objects
+When: the Pydantic model is defined
+Then: the CrossmarkEmployee model validates these fields:
+  - id: str - MV Retail employee number (repId fallback)
+  - repId: str - Primary MV Retail number
+  - employeeId: str - Crossmark employee ID
+  - title: str - Full employee name
+  - lastName: str, nameSort: str - Name components
+  - availableHoursPerDay: str, scheduledHours: str, visitCount: str - Metadata
+  - role: Optional[str] - Optional role field
+
+And: validation errors raise clear exceptions with field names
+And: the model is used in EmployeeImportService.fetch_crossmark_employees()
+And: Pydantic dependency (v2.x) is added to requirements.txt
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD REQUIREMENTS (docs/prd.md):
+- FR12: System extracts and maps employee data from Crossmark API response (title→name, repId→MV Retail #, employeeId→Crossmark ID, metadata)
+- FR28: System ensures MV Retail employee number (repId) is stored for all imported employees
+- FR35: System provides clear error messages for all failure scenarios
+- NFR-I3: MV Retail employee number storage format is compatible with existing auto-scheduler data expectations
+
+ARCHITECTURE DECISIONS (docs/architecture.md):
+Integration Points (lines 148-182) - Crossmark API Integration:
+```python
+from pydantic import BaseModel
+from typing import Optional
+
+class CrossmarkEmployee(BaseModel):
+    id: str                          # MV Retail employee number (repId)
+    repId: str                       # Also MV Retail number (use this as primary)
+    employeeId: str                  # Crossmark employee ID
+    repMvid: str                     # Same as employeeId
+    title: str                       # Full employee name
+    lastName: str
+    nameSort: str
+    availableHoursPerDay: str
+    scheduledHours: str
+    visitCount: str
+    role: Optional[str] = None
+```
+
+ADR-004: Pydantic for API Response Validation (lines 1008-1024):
+Decision: Use Pydantic models to validate and parse API responses
+Rationale:
+- Type-safe parsing with automatic validation
+- Self-documenting (model shows expected structure)
+- Catches API contract changes early
+- Modern Python best practice
+Consequences:
+- New dependency: pydantic>=2.0
+- API response validation errors caught before processing
+- Clear error messages if API structure changes
+
+EPIC BREAKDOWN (docs/epics.md):
+Story 1.3 (lines 198-233) - Complete story definition with:
+- Detailed acceptance criteria
+- Technical notes on Pydantic integration
+- Service layer pattern references
+- API integration points documentation
+    </docs>
+    <code>
+EXISTING SERVICE IMPLEMENTATION (app/services/employee_import_service.py):
+Current implementation (lines 108-157):
+```python
+@staticmethod
+def fetch_crossmark_employees() -> List[dict]:
+    """
+    Fetch employees from Crossmark API for current time range.
+    Uses SessionAPIService to call /schedulingcontroller/getAvailableReps endpoint.
+
+    Returns:
+        List of employee dicts from Crossmark API
+        Each dict contains: id, repId, employeeId, title, lastName, etc.
+
+    Raises:
+        SessionError: If authentication fails or session invalid
+        RequestException: If network failure or API error
+    """
+    from app.integrations.external_api.session_api_service import session_api
+    from datetime import datetime, timedelta
+
+    # Get employees for next 7 days (default date range)
+    start_date = datetime.now()
+    end_date = start_date + timedelta(days=7)
+
+    # Fetch from Crossmark API
+    response = session_api.get_available_representatives(
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    if not response:
+        raise Exception("Failed to fetch employees from Crossmark API")
+
+    # Extract employee list from response
+    if isinstance(response, list):
+        return response
+    elif isinstance(response, dict) and 'employees' in response:
+        return response['employees']
+    elif isinstance(response, dict) and 'representatives' in response:
+        return response['representatives']
+    else:
+        raise ValueError(f"Unexpected API response format: {type(response)}")
+```
+
+Current bulk_import_employees signature (lines 159-226):
+```python
+@staticmethod
+def bulk_import_employees(selected_employees: List[dict]) -> int:
+    """Import selected employees with default values. Atomic transaction."""
+    from flask import current_app
+    Employee = current_app.config['Employee']
+
+    try:
+        imported_count = 0
+
+        for api_emp in selected_employees:
+            # Extract fields from API response
+            name = api_emp.get('title', '')
+            rep_id = api_emp.get('repId', '')
+            employee_id = api_emp.get('employeeId', '')
+
+            employee = Employee(
+                id=rep_id,
+                name=name,
+                mv_retail_employee_number=rep_id,
+                crossmark_employee_id=employee_id,
+                is_active=True,
+                is_supervisor=False,
+                job_title='Event Specialist'
+            )
+
+            db.session.add(employee)
+            imported_count += 1
+
+        db.session.commit()
+        return imported_count
+
+    except Exception as e:
+        db.session.rollback()
+        raise Exception(f"Failed to import employees: {str(e)}")
+```
+
+CROSSMARK API SERVICE (app/integrations/external_api/session_api_service.py):
+get_available_representatives method (lines 427-482) - Returns API response that needs Pydantic validation
+    </code>
+    <dependencies>
+CURRENT DEPENDENCIES (requirements.txt):
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+Flask-WTF==1.2.1
+requests==2.32.3
+# ... other deps
+
+TO ADD:
+pydantic>=2.0
+
+PYTHON VERSION:
+Python 3.11+ (supports modern type hints)
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+ARCHITECTURE CONSTRAINTS:
+1. Service Layer Pattern: Keep service methods as static methods, maintain comprehensive docstrings
+2. Error Handling: Follow existing try/except patterns with specific exceptions
+3. Type Safety: Use type hints for all method signatures and return types
+4. Documentation: Add docstrings with examples showing usage patterns
+
+DATA INTEGRITY CONSTRAINTS (PRD NFR-R2):
+1. 100% accuracy in field extraction from API responses
+2. Zero data corruption - validation must catch all malformed responses
+3. Atomic operations - either all fields validated or clear error raised
+
+BACKWARDS COMPATIBILITY:
+1. Maintain existing method signatures where possible during transition
+2. Ensure tests continue to pass during Pydantic integration
+3. Support both dict and Pydantic model interfaces during transition period
+  </constraints>
+
+  <interfaces>
+SERVICE LAYER INTERFACES TO UPDATE:
+```python
+from typing import List
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from typing import Optional
+
+class CrossmarkEmployee(BaseModel):
+    """Pydantic model for Crossmark API employee response validation."""
+    id: str = Field(..., description="MV Retail employee number")
+    repId: str = Field(..., description="Primary MV Retail employee number")
+    employeeId: str = Field(..., description="Crossmark employee ID")
+    repMvid: str = Field(..., description="Crossmark employee MVID")
+    title: str = Field(..., description="Full employee name")
+    lastName: str = Field(..., description="Employee last name")
+    nameSort: str = Field(..., description="Name for sorting")
+    availableHoursPerDay: str = Field(..., description="Available hours per day")
+    scheduledHours: str = Field(..., description="Currently scheduled hours")
+    visitCount: str = Field(..., description="Number of visits")
+    role: Optional[str] = Field(None, description="Employee role")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "12345",
+                "repId": "12345",
+                "employeeId": "E12345",
+                "repMvid": "E12345",
+                "title": "John Smith",
+                "lastName": "Smith",
+                "nameSort": "SMITH,JOHN",
+                "availableHoursPerDay": "8",
+                "scheduledHours": "32",
+                "visitCount": "5",
+                "role": "Event Specialist"
+            }
+        }
+
+# Updated method signatures:
+class EmployeeImportService:
+    @staticmethod
+    def fetch_crossmark_employees() -> List[CrossmarkEmployee]:
+        """Returns List[CrossmarkEmployee] instead of List[dict]"""
+
+    @staticmethod
+    def bulk_import_employees(selected_employees: List[CrossmarkEmployee]) -> int:
+        """Accepts List[CrossmarkEmployee] instead of List[dict]"""
+```
+
+INTEGRATION WITH EXISTING CODE:
+- Routes will receive List[CrossmarkEmployee] from service layer
+- Access fields via model attributes: emp.repId, emp.title, emp.employeeId
+- ValidationError from Pydantic provides field-level error details
+  </interfaces>
+
+  <tests>
+    <standards>
+TESTING STANDARDS (from Story 1.2):
+- Unit tests for service methods with mocked dependencies
+- Test coverage target: 80%+
+- Use pytest fixtures for common test data
+- Mock Crossmark API responses
+- Test both success and failure scenarios
+- Validate error messages are user-friendly
+    </standards>
+    <locations>
+tests/test_employee_import_service.py - Update existing tests to use CrossmarkEmployee model
+- Test valid employee data creates CrossmarkEmployee instance
+- Test missing required field raises ValidationError
+- Test invalid field type raises ValidationError
+- Test optional role field (present and absent)
+- Test ValidationError message includes field name
+- Test fetch_crossmark_employees with invalid API response
+    </locations>
+    <ideas>
+TEST IDEAS:
+1. Valid API Response: Test parsing complete employee data with all fields
+2. Missing Required Field: Test repId missing raises ValidationError with clear message
+3. Invalid Field Type: Test numeric field as non-string raises ValidationError
+4. Optional Field Handling: Test role=None works correctly
+5. Multiple Employees: Test parsing list of 10+ employees
+6. Malformed JSON: Test invalid JSON structure raises appropriate error
+7. Field Access: Test accessing emp.title vs emp.get('title') patterns
+8. Type Checking: Test IDE autocomplete works with CrossmarkEmployee model
+9. Error Messages: Verify ValidationError includes field name and expected type
+10. Backwards Compatibility: Test dict-to-Pydantic conversion helpers if needed
+    </ideas>
+  </tests>
+</story-context>

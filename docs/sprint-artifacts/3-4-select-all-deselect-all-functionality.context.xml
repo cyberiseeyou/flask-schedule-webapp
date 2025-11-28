@@ -1,0 +1,142 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-4" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-4</storyId>
+    <title>Select All / Deselect All Functionality</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-4-select-all-deselect-all-functionality.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>"Select All" and "Deselect All" shortcuts</iWant>
+    <soThat>I can quickly select all employees for import without checking boxes individually</soThat>
+    <tasks>
+- Task 1: Create employee_import.js JavaScript file
+- Task 2: Implement Select All functionality
+- Task 3: Implement Deselect All functionality
+- Task 4: Update Import button state dynamically
+- Task 5: Display selected count in button text
+- Task 6: Test all interactions
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: the import selection table is displayed with multiple employees
+When: I click "Select All"
+Then: all checkboxes in the table become checked
+And: the "Import Selected" button becomes enabled
+And: the button text updates to show count: "Import Selected (30)"
+
+When: I click "Deselect All"
+Then: all checkboxes become unchecked
+And: the "Import Selected" button becomes disabled/grayed out
+And: the button text reverts to: "Import Selected"
+
+And: individual checkbox clicks also update the button count dynamically
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Selection Controls (FR20-FR24):
+- FR20: Users can select all displayed employees using "Select All" control
+- FR21: Users can deselect all employees using "Deselect All" control
+- FR23: System disables "Import Selected" button when no employees are checked
+- FR24: System updates "Import Selected" button to show count of selected employees
+- NFR-U2: Import selection interface allows batch selection for efficient large imports
+
+Architecture - ADR-006: Server-Rendered Selection Interface (lines 1046-1063)
+Rationale: Simple checkbox interactions don't require React/Vue, vanilla JS sufficient
+    </docs>
+    <code>
+NEW FILE: app/static/js/employee_import.js
+```javascript
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllLink = document.getElementById('select-all');
+    const deselectAllLink = document.getElementById('deselect-all');
+    const importButton = document.getElementById('import-button');
+    const checkboxes = document.querySelectorAll('input[type="checkbox"].employee-select');
+
+    // Select All functionality
+    selectAllLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        checkboxes.forEach(cb => cb.checked = true);
+        updateButtonState();
+    });
+
+    // Deselect All functionality
+    deselectAllLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        checkboxes.forEach(cb => cb.checked = false);
+        updateButtonState();
+    });
+
+    // Update button state on individual checkbox change
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateButtonState);
+    });
+
+    // Update button state and text
+    function updateButtonState() {
+        const selectedCount = document.querySelectorAll('input[type="checkbox"].employee-select:checked').length;
+
+        if (selectedCount === 0) {
+            importButton.disabled = true;
+            importButton.textContent = 'Import Selected';
+        } else {
+            importButton.disabled = false;
+            importButton.textContent = `Import Selected (${selectedCount})`;
+        }
+    }
+
+    // Initialize button state
+    updateButtonState();
+});
+```
+
+UPDATE TEMPLATE: app/templates/employees/import_select.html
+```html
+<!-- Add at bottom of template -->
+<script src="{{ url_for('static', filename='js/employee_import.js') }}"></script>
+```
+    </code>
+    <dependencies>
+Vanilla JavaScript (no frameworks required)
+DOM API: querySelector, querySelectorAll, addEventListener
+Modern browser support (ES6)
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+NO FRAMEWORKS: Use vanilla JavaScript only (per ADR-006)
+BUTTON STATE: Disabled when count === 0, enabled otherwise
+COUNT DISPLAY: Dynamic update on any checkbox change
+EVENT HANDLING: Prevent default link behavior for Select/Deselect All
+INITIALIZATION: Set correct button state on page load
+  </constraints>
+
+  <interfaces>
+DOM ELEMENTS:
+- #select-all: Link for selecting all checkboxes
+- #deselect-all: Link for deselecting all checkboxes
+- .employee-select: Class for individual employee checkboxes
+- #import-button: Button for importing selected employees
+
+BUTTON STATES:
+- Disabled: disabled=true, text="Import Selected"
+- Enabled: disabled=false, text="Import Selected (N)" where N is count
+
+EVENT LISTENERS:
+- Click on select-all: Check all checkboxes, update button
+- Click on deselect-all: Uncheck all checkboxes, update button
+- Change on any checkbox: Update button state and count
+  </interfaces>
+
+  <tests>
+    <standards>Manual testing, browser compatibility checks</standards>
+    <locations>Manual browser testing, automated UI tests (optional)</locations>
+    <ideas>Test select all, test deselect all, test individual checkbox changes, test button state updates, test count display, test button enable/disable, test browser compatibility</ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,76 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/2-1" v="1.0">
+  <metadata>
+    <epicId>epic-2</epicId>
+    <storyId>2-1</storyId>
+    <title>Manual Employee Add Form with Validation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-1-manual-employee-add-form-with-validation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>an "Add Employee" form that requires only a name and makes all other fields optional</iWant>
+    <soThat>I can quickly add employees manually when needed without filling unnecessary fields</soThat>
+    <tasks>
+- Task 1: Update or create Add Employee route
+- Task 2: Create or update WTForm class for employee add (Name required, others optional)
+- Task 3: Create or update add_employee.html template
+- Task 4: Wire up route handler for GET and POST
+- Task 5: Integrate with existing Employees page
+- Task 6: Test form end-to-end
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: I am on the Employees page
+When: I click "Add Employee" button
+Then: a form opens with fields: Name* (required), Employee ID (optional), MV Retail # (optional with tooltip), Email, Phone, Role, Status, Availability (all optional)
+And: the form includes CSRF protection via Flask-WTF
+And: client-side validation marks Name field as required
+And: the form displays in a modal or dedicated page (consistent with existing UI pattern)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Employee Addition Manual (FR1-FR8): Manual add capability requirements
+Architecture - Form Validation Messages (lines 489-497): WTForms patterns
+Epic Breakdown - Story 2.1 (lines 277-314): Complete story definition
+    </docs>
+    <code>
+EXISTING ROUTES (app/routes/employees.py):
+- Route /employees exists (line 13)
+- API route /api/employees for CRUD operations (lines 27-218)
+- Need to add dedicated UI form route: /employees/add
+
+Employee Model (app/models/employee.py):
+- Fields: id, name, email, phone, is_active, is_supervisor, job_title, adult_beverage_trained, mv_retail_employee_number, crossmark_employee_id
+- Defaults: is_active=True, is_supervisor=False, job_title='Event Specialist'
+    </code>
+    <dependencies>
+Flask-WTF==1.2.1 - Form handling with CSRF protection
+WTForms - Field types and validators
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+CSRF Protection: Mandatory for all forms via Flask-WTF
+Name Field: Required (server-side validation)
+Optional Fields: Must have sensible defaults (Role: Event Specialist, Status: Inactive)
+MV Retail Field: Tooltip explaining "Only available via Crossmark import"
+  </constraints>
+
+  <interfaces>
+Route: POST /employees/add
+Form fields: name (required), employee_id, mv_retail_employee_number, email, phone, job_title, is_active, availability
+WTForm class: AddEmployeeForm(FlaskForm)
+Template: app/templates/employees/add_employee.html
+  </interfaces>
+
+  <tests>
+    <standards>Form validation tests, CSRF protection, field requirements</standards>
+    <locations>tests/test_employee_routes.py</locations>
+    <ideas>Test name required, test optional fields, test CSRF token, test form rendering, test default values</ideas>
+  </tests>
+</story-context>

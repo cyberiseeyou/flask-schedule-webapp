@@ -1,0 +1,80 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/1-4" v="1.0">
+  <metadata>
+    <epicId>epic-1</epicId>
+    <storyId>1-4</storyId>
+    <title>Case-Insensitive Duplicate Detection Implementation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-4-case-insensitive-duplicate-detection-implementation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>a reliable case-insensitive duplicate detection mechanism</iWant>
+    <soThat>employees named "John Smith", "john smith", and "JOHN SMITH" are recognized as duplicates</soThat>
+    <tasks>
+- Task 1: Verify check_duplicate_name implementation (AC: Returns employee if name matches case-insensitive)
+- Task 2: Verify filter_duplicate_employees implementation (AC: O(n) hash map for batch checking)
+- Task 3: Implement casing update logic (AC: Existing employee names updated to match API casing)
+- Task 4: Add performance benchmarking tests (AC: < 500ms for 10k employees)
+- Task 5: Add edge case handling and tests (AC: 100% accuracy, zero false negatives per NFR-R2)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: the Employee model with case-insensitive index
+When: EmployeeImportService.check_duplicate_name("john SMITH") is called
+Then: it returns the existing employee record if "John Smith" exists in the database
+And: the lookup uses the database index for performance (< 500ms for 10k employees per NFR-P5)
+And: the method returns None if no duplicate exists
+And: the filtering logic in filter_duplicate_employees() uses O(n) hash map approach for batch checking
+And: when case differs, the existing employee is marked for casing update to match API
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Employee Data Integrity (FR28-FR31):
+- FR28: System ensures MV Retail employee number is stored
+- FR29: Imported employee data accessible to auto-scheduler
+- FR30: System prevents duplicate employee records
+- FR31: System maintains data consistency between employee name casing and Crossmark API source
+
+PRD - NFR-P5: Duplicate detection query executes within 500ms for rosters up to 10,000 existing employees
+PRD - NFR-R2: Duplicate detection must be 100% accurate - zero false negatives
+
+Architecture - Duplicate Detection Pattern (lines 381-416): Case-insensitive Name Matching using func.lower()
+Epic Breakdown (lines 235-266): Complete verification and enhancement story
+    </docs>
+    <code>
+EXISTING IMPLEMENTATION (app/services/employee_import_service.py):
+check_duplicate_name method (lines 21-48) - Already implemented with func.lower()
+filter_duplicate_employees method (lines 50-106) - Already implemented with hash map approach
+
+Employee Model (app/models/employee.py):
+- Database index ix_employee_name_lower on func.lower('name') exists (line 68)
+- Supports case-insensitive lookups efficiently
+    </code>
+    <dependencies>
+SQLAlchemy 3.1.1 - func.lower() for case-insensitive queries
+PostgreSQL - ILIKE operator support for case-insensitive matching
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+PERFORMANCE: NFR-P5 requires < 500ms for 10k employees
+RELIABILITY: NFR-R2 requires 100% accuracy, zero false negatives
+DATA INTEGRITY: Must update existing employee names to match API casing (canonical source)
+  </constraints>
+
+  <interfaces>
+EmployeeImportService.check_duplicate_name(name: str) -> Optional[Employee]
+EmployeeImportService.filter_duplicate_employees(api_employees, existing_employees) -> Tuple[List, List]
+  </interfaces>
+
+  <tests>
+    <standards>Unit tests with mocked database, performance benchmarks, edge case coverage</standards>
+    <locations>tests/test_employee_import_service.py</locations>
+    <ideas>Test exact case match, different case, mixed case, special characters, whitespace, unicode, performance benchmarks</ideas>
+  </tests>
+</story-context>

@@ -117,6 +117,23 @@ class EDRReportGenerator:
     def step1_submit_password(self) -> bool:
         """Step 1: Submit username and password."""
         login_url = "https://retaillink.login.wal-mart.com/api/login"
+
+        # First, visit the login page to get fresh cookies
+        print("➡️ Step 1a: Visiting login page to obtain fresh cookies...")
+        try:
+            login_page_response = self.session.get(
+                'https://retaillink.login.wal-mart.com/login',
+                headers={
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
+            )
+            print(f"   Login page status: {login_page_response.status_code}")
+            print(f"   Cookies received: {len(self.session.cookies)} cookies")
+        except Exception as e:
+            print(f"⚠️ Could not pre-fetch login page: {e}")
+            print("   Continuing anyway...")
+
         headers = {
             'accept': '*/*',
             'accept-language': 'en-US,en;q=0.9',
@@ -132,19 +149,23 @@ class EDRReportGenerator:
             'sec-fetch-site': 'same-origin',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
-        
-        # Set initial cookies
-        for name, value in self._get_initial_cookies().items():
-            self.session.cookies.set(name, value)
-        
+
         payload = {"username": self.username, "password": self.password, "language": "en"}
-        
-        print("➡️ Step 1: Submitting username and password...")
+
+        print("➡️ Step 1b: Submitting username and password...")
         try:
             response = self.session.post(login_url, headers=headers, json=payload)
+            print(f"   Response status: {response.status_code}")
+            print(f"   Response body preview: {response.text[:200] if response.text else 'empty'}")
             response.raise_for_status()
             print("✅ Password accepted. MFA required.")
             return True
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ Step 1 failed with HTTP error: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"   Status code: {e.response.status_code}")
+                print(f"   Response body: {e.response.text[:500] if e.response.text else 'empty'}")
+            return False
         except requests.exceptions.RequestException as e:
             print(f"❌ Step 1 failed: {e}")
             return False

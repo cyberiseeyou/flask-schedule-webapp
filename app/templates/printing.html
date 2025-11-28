@@ -2407,7 +2407,8 @@ function generateCompletePaperworkAfterAuth(date) {
     fetch('/printing/complete-paperwork', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
             date: date
@@ -2589,7 +2590,8 @@ function generateEventPaperworkAfterAuth(eventNumber) {
     fetch('/printing/event-paperwork', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
             event_number: eventNumber
@@ -2837,6 +2839,14 @@ function hideLoading() {
     if (backdrop) {
         backdrop.remove();
     }
+}
+
+// Helper function to get CSRF token from cookie
+function getCsrfToken() {
+    const token = document.cookie.split('; ')
+        .find(row => row.startsWith('csrf_token='))
+        ?.split('=')[1];
+    return token || '';
 }
 </script>
 

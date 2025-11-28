@@ -1,0 +1,177 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-5" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-5</storyId>
+    <title>Atomic Bulk Import Execution</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-5-atomic-bulk-import-execution.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>selected employees imported in a single atomic operation</iWant>
+    <soThat>either all my selections are imported successfully or none are, preventing partial imports</soThat>
+    <tasks>
+- Task 1: Create import execution route
+- Task 2: Parse selected employees from form submission
+- Task 3: Call bulk_import_employees service method
+- Task 4: Handle success scenario
+- Task 5: Handle failure scenario with rollback
+- Task 6: Add performance logging
+- Task 7: Add comprehensive tests
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: I have selected 15 employees from the import table
+When: I click "Import Selected (15)" button
+Then: the system creates 15 new Employee records in a single database transaction
+And: each imported employee has: Name from API title, MV Retail # from repId, Crossmark ID from employeeId, Role='Event Specialist', Status='Inactive', Availability=None
+And: if ANY employee fails to import, the ENTIRE transaction rolls back (zero employees imported)
+And: the import completes in < 5 seconds for batches up to 100 employees (NFR-P4)
+And: on success, I am redirected to Employees list with message: "15 employees imported successfully"
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Import Execution (FR25-FR27):
+- FR25: System imports selected employees when user activates "Import Selected" button
+- FR26: System sets default values for imported employees
+- FR27: System displays success message with count after import completes
+- FR28: System ensures MV Retail employee number is stored
+- FR29: System ensures imported employee data is accessible to auto-scheduler
+- NFR-R1: System gracefully handles Crossmark API failures without data corruption or partial imports
+- NFR-R3: Imported employee data must be immediately available to auto-scheduler
+- NFR-R4: Manual add and import operations are atomic - either fully succeed or fully fail
+- NFR-P4: Batch import completes within 5 seconds for batches up to 100 employees
+
+Architecture - Transaction Pattern (lines 419-446): Atomic bulk import implementation
+    </docs>
+    <code>
+EmployeeImportService.bulk_import_employees EXISTS (lines 159-226):
+```python
+@staticmethod
+def bulk_import_employees(selected_employees: List[dict]) -> int:
+    """Import selected employees with default values. Atomic transaction."""
+    from flask import current_app
+    Employee = current_app.config['Employee']
+
+    try:
+        imported_count = 0
+
+        for api_emp in selected_employees:
+            name = api_emp.get('title', '')
+            rep_id = api_emp.get('repId', '')
+            employee_id = api_emp.get('employeeId', '')
+
+            employee = Employee(
+                id=rep_id,  # Primary key
+                name=name,
+                mv_retail_employee_number=rep_id,
+                crossmark_employee_id=employee_id,
+                is_active=True,  # Default: active (Note: PRD says Inactive, may need update)
+                is_supervisor=False,
+                job_title='Event Specialist'
+            )
+
+            db.session.add(employee)
+            imported_count += 1
+
+        # Commit all or nothing
+        db.session.commit()
+        return imported_count
+
+    except Exception as e:
+        # Rollback on any error
+        db.session.rollback()
+        raise Exception(f"Failed to import employees: {str(e)}")
+```
+
+NEW ROUTE: POST /employees/import-crossmark/execute
+```python
+@employees_bp.route('/import-crossmark/execute', methods=['POST'])
+@login_required
+def import_crossmark_execute():
+    """Execute bulk import of selected employees"""
+    import time
+    start_time = time.time()
+
+    try:
+        # Parse selected employee IDs from form
+        selected_ids = request.form.getlist('selected_employees')
+
+        if not selected_ids:
+            flash('No employees selected for import', 'warning')
+            return redirect(url_for('employees.import_crossmark_init'))
+
+        # Re-fetch API employees (or retrieve from session/cache)
+        api_employees = EmployeeImportService.fetch_crossmark_employees()
+
+        # Filter to only selected employees
+        selected_employees = [
+            emp for emp in api_employees
+            if emp.repId in selected_ids  # Assumes Pydantic model from Story 1.3
+        ]
+
+        # Bulk import
+        count = EmployeeImportService.bulk_import_employees(selected_employees)
+
+        # Log performance
+        elapsed = time.time() - start_time
+        current_app.logger.info(f"Imported {count} employees from Crossmark in {elapsed:.2f}s")
+
+        flash(f'{count} employees imported successfully', 'success')
+        return redirect(url_for('employees.employees'))
+
+    except Exception as e:
+        current_app.logger.error(f"Import failed: {str(e)}", exc_info=True)
+        flash('Failed to import employees. Please try again.', 'error')
+        return redirect(url_for('employees.import_crossmark_init'))
+```
+    </code>
+    <dependencies>
+EmployeeImportService.bulk_import_employees (already implemented)
+Employee model with mv_retail_employee_number and crossmark_employee_id fields
+Database transaction management (db.session.commit/rollback)
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+ATOMICITY: NFR-R4 requires all-or-nothing semantics - single transaction for all imports
+PERFORMANCE: NFR-P4 requires < 5 seconds for batches up to 100 employees
+DATA INTEGRITY: NFR-R3 requires immediate availability to auto-scheduler (no cache invalidation delays)
+DEFAULT VALUES: Role='Event Specialist', Status='Inactive' (check existing implementation)
+ERROR HANDLING: Must rollback on ANY error, log full details, display user-friendly message
+  </constraints>
+
+  <interfaces>
+ROUTE: POST /employees/import-crossmark/execute
+FORM DATA: selected_employees (list of repId values)
+SERVICE CALL: EmployeeImportService.bulk_import_employees(selected_employees)
+RETURN: Redirect to /employees with flash message
+LOGGING: Log import count, elapsed time, any errors
+
+SUCCESS FLOW:
+1. Parse selected IDs from form
+2. Re-fetch or retrieve API employee data
+3. Filter to selected employees only
+4. Call bulk_import_employees
+5. Flash success message with count
+6. Redirect to employee list
+
+ERROR FLOW:
+1. Exception caught in route handler
+2. Service method rolls back transaction
+3. Error logged with full details
+4. User-friendly error message flashed
+5. Redirect back to selection interface
+  </interfaces>
+
+  <tests>
+    <standards>Test atomic transactions, rollback on error, performance benchmarks</standards>
+    <locations>tests/test_employee_import_service.py, tests/test_employee_routes.py</locations>
+    <ideas>Test successful import, test partial failure triggers rollback, test performance with 100 employees, test default values applied, test employee appears in database, test flash message, test redirect</ideas>
+  </tests>
+</story-context>

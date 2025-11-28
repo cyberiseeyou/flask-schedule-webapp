@@ -1,0 +1,121 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2025-11-20"
+project: "flask-schedule-webapp"
+project_type: "brownfield"
+selected_track: "bmad-method"
+field_type: "brownfield"
+workflow_path: "method-brownfield.yaml"
+
+workflow_status:
+  # PREREQUISITE - Recommended for brownfield projects
+  prerequisite:
+    document-project:
+      status: "docs/index.md"
+      agent: "analyst"
+      command: "/bmad:bmm:workflows:document-project"
+      purpose: "Understand existing codebase before planning"
+      note: "HIGHLY RECOMMENDED: Creates comprehensive docs for AI agents"
+      completed: "2025-11-20"
+      output_files:
+        - "docs/index.md"
+        - "docs/project-overview.md"
+        - "docs/api-contracts.md"
+        - "docs/data-models.md"
+        - "docs/source-tree-analysis.md"
+
+  # PHASE 0 - Discovery (Optional)
+  discovery:
+    brainstorm-project:
+      status: "skipped"
+      agent: "analyst"
+      command: "/bmad:bmm:workflows:brainstorm-project"
+
+    research:
+      status: "skipped"
+      agent: "analyst"
+      command: "/bmad:bmm:workflows:research"
+
+    product-brief:
+      status: "skipped"
+      agent: "analyst"
+      command: "/bmad:bmm:workflows:product-brief"
+
+  # PHASE 1 - Planning
+  planning:
+    prd:
+      status: "docs/prd.md"
+      agent: "pm"
+      command: "/bmad:bmm:workflows:prd"
+      output: "PRD focused on new features/changes"
+      note: "Must consider existing system constraints"
+      completed: "2025-11-20"
+      focus: "Employee Management - Add & Import Fix (Auto-scheduler blocker)"
+
+    validate-prd:
+      status: "optional"
+      agent: "pm"
+      command: "/bmad:bmm:workflows:validate-prd"
+
+    create-design:
+      status: "conditional"
+      condition: "if_has_ui"
+      agent: "ux-designer"
+      command: "/bmad:bmm:workflows:create-ux-design"
+
+  # PHASE 2 - Solutioning
+  solutioning:
+    create-architecture:
+      status: "docs/architecture.md"
+      agent: "architect"
+      command: "/bmad:bmm:workflows:architecture"
+      output: "Integration architecture - solution design for THIS project"
+      note: "HIGHLY RECOMMENDED: Distills massive brownfield context into focused solution design. Prevents agent confusion."
+      completed: "2025-11-20"
+      focus: "Employee Import Enhancement - Service layer, API integration, duplicate detection"
+
+    create-epics-and-stories:
+      status: "required"
+      agent: "pm"
+      command: "/bmad:bmm:workflows:create-epics-and-stories"
+      note: "Break down PRD into implementable epics and stories"
+
+    test-design:
+      status: "recommended"
+      agent: "tea"
+      command: "/bmad:bmm:workflows:test-design"
+      output: "System-level testability review"
+
+    validate-architecture:
+      status: "optional"
+      agent: "architect"
+      command: "/bmad:bmm:workflows:validate-architecture"
+
+    implementation-readiness:
+      status: "required"
+      agent: "architect"
+      command: "/bmad:bmm:workflows:implementation-readiness"
+      note: "Validates PRD + UX + Architecture + Epics cohesion before implementation"
+
+  # PHASE 3 - Implementation
+  implementation:
+    sprint-planning:
+      status: "required"
+      agent: "sm"
+      command: "/bmad:bmm:workflows:sprint-planning"
+      note: "Creates sprint plan with stories"

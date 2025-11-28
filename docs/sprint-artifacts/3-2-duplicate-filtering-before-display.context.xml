@@ -1,0 +1,116 @@
+<story-context id="flask-schedule-webapp/employee-management-enhancement/3-2" v="1.0">
+  <metadata>
+    <epicId>epic-3</epicId>
+    <storyId>3-2</storyId>
+    <title>Duplicate Filtering Before Display</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-2-duplicate-filtering-before-display.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>scheduling manager</asA>
+    <iWant>the system to automatically filter out employees who already exist in my roster</iWant>
+    <soThat>I only see NEW employees available for import and don't waste time reviewing duplicates</soThat>
+    <tasks>
+- Task 1: Call filter_duplicate_employees in import route
+- Task 2: Update existing employee name casing
+- Task 3: Handle "no new employees" scenario
+- Task 4: Pass filtered employees to selection interface
+- Task 5: Add performance tests (< 500ms for 10k employees)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+Given: the system has fetched 50 employees from Crossmark API and 20 already exist (case-insensitive match)
+When: the system prepares the selection interface
+Then: only the 30 NEW employees are displayed for selection
+And: the 20 duplicates are completely filtered out (not shown at all)
+And: for duplicates where name casing differs, the existing employee's name is updated to match API casing
+And: the filtering completes in < 500ms for rosters up to 10k employees (NFR-P5)
+And: the count message shows: "30 new employees available to import"
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+PRD - Employee Import Duplicate Filtering (FR13-FR17):
+- FR13: System compares fetched employees against existing roster using case-insensitive name matching
+- FR14: System identifies employees as duplicates if names match regardless of case
+- FR15: System updates existing employee name casing to match Crossmark API data when case differs
+- FR16: System filters out duplicate employees and presents only NEW employees
+- FR17: System displays "No new employees to import" message when all already exist
+- FR30: System prevents duplicate employee records through import process
+- FR31: System maintains data consistency between employee name casing and Crossmark API source
+- NFR-P5: Filtering completes in < 500ms for rosters up to 10k employees
+    </docs>
+    <code>
+EmployeeImportService.filter_duplicate_employees EXISTS (lines 50-106):
+```python
+@staticmethod
+def filter_duplicate_employees(
+    api_employees: List[dict],  # Update to List[CrossmarkEmployee]
+    existing_employees: List['Employee']
+) -> Tuple[List[dict], List[Tuple['Employee', str]]]:
+    """
+    Filter out duplicate employees and identify casing updates.
+    Returns: (new_employees, employees_needing_casing_update)
+    """
+    # Builds O(n) hash map: {name.lower(): employee}
+    # Identifies duplicates and casing differences
+    # Returns tuple: (new_employees, employees_to_update)
+```
+
+ROUTE USAGE (app/routes/employees.py /import-crossmark):
+```python
+# After fetching from API
+api_employees = EmployeeImportService.fetch_crossmark_employees()
+existing_employees = Employee.query.all()
+
+new_employees, casing_updates = EmployeeImportService.filter_duplicate_employees(
+    api_employees,
+    existing_employees
+)
+
+# Update name casing for existing employees
+for emp, new_name in casing_updates:
+    emp.name = new_name
+db.session.commit()
+
+if not new_employees:
+    flash('No new employees to import. All Crossmark employees are already in your roster.', 'info')
+    return redirect(url_for('employees.employees'))
+
+# Continue to selection interface with new_employees
+```
+    </code>
+    <dependencies>
+EmployeeImportService.filter_duplicate_employees (already implemented)
+Employee model query for existing employees
+Database session for casing updates
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+PERFORMANCE: NFR-P5 requires < 500ms for 10k employees (O(n) hash map approach achieves this)
+DATA INTEGRITY: Crossmark API is canonical source for name casing - always update to match API
+RELIABILITY: NFR-R2 requires 100% accuracy - zero false negatives in duplicate detection
+ATOMICITY: Casing updates must be committed before displaying selection interface
+  </constraints>
+
+  <interfaces>
+Integration point in /employees/import-crossmark route:
+1. Fetch: api_employees = fetch_crossmark_employees()
+2. Get existing: existing_employees = Employee.query.all()
+3. Filter: new_employees, casing_updates = filter_duplicate_employees(api_employees, existing_employees)
+4. Update casing: for emp, new_name in casing_updates: emp.name = new_name; db.session.commit()
+5. Check count: if not new_employees: flash and redirect
+6. Continue: Pass new_employees to selection template
+  </interfaces>
+
+  <tests>
+    <standards>Test various duplicate scenarios, performance benchmarks, casing updates</standards>
+    <locations>tests/test_employee_import_service.py, tests/test_employee_routes.py</locations>
+    <ideas>Test all new (0 duplicates), all duplicates (0 new), mixed scenario, casing update verification, "no new employees" message, performance with 10k employees</ideas>
+  </tests>
+</story-context>
