@@ -487,20 +487,17 @@ def approve_schedule():
 
                 if api_result.get('success'):
                     # Extract the scheduled event ID from the API response
-                    # First try the direct field, then fall back to response_data
+                    # The schedule_event_id is extracted by the API service using robust parsing
                     scheduled_event_id = api_result.get('schedule_event_id')
 
-                    if not scheduled_event_id:
-                        response_data = api_result.get('response_data', {})
-                        if response_data:
-                            scheduled_event_id = (
-                                response_data.get('scheduleEventID') or
-                                response_data.get('id') or
-                                response_data.get('scheduledEventId') or
-                                response_data.get('ID')
-                            )
-
                     current_app.logger.info(f"Extracted scheduled_event_id: {scheduled_event_id}")
+
+                    # If we can't get the ID, log a warning but still proceed
+                    if not scheduled_event_id:
+                        current_app.logger.warning(
+                            f"Could not extract external_id from API response for event {event.project_ref_num}. "
+                            f"Response: {api_result}. Will create schedule without external_id."
+                        )
 
                     # API submission successful - create local schedule record
                     schedule = models['Schedule'](
@@ -509,14 +506,14 @@ def approve_schedule():
                         schedule_datetime=pending.schedule_datetime,
                         external_id=str(scheduled_event_id) if scheduled_event_id else None,
                         last_synced=datetime.utcnow(),
-                        sync_status='synced'
+                        sync_status='synced' if scheduled_event_id else 'pending_sync'
                     )
                     db.session.add(schedule)
 
                     # Mark event as scheduled
                     event.is_scheduled = True
                     event.condition = 'Scheduled'
-                    event.sync_status = 'synced'
+                    event.sync_status = 'synced' if scheduled_event_id else 'pending_sync'
                     event.last_synced = datetime.utcnow()
 
                     # Update pending schedule status
@@ -765,49 +762,27 @@ def approve_single_schedule(pending_id):
 
             if api_result.get('success'):
                 # Extract the scheduled event ID from the API response
-                # First try the direct field, then fall back to response_data
+                # The schedule_event_id is extracted by the API service using robust parsing
                 scheduled_event_id = api_result.get('schedule_event_id')
-
-                if not scheduled_event_id:
-                    response_data = api_result.get('response_data', {})
-                    if response_data:
-                        scheduled_event_id = (
-                            response_data.get('scheduleEventID') or
-                            response_data.get('id') or
-                            response_data.get('scheduledEventId') or
-                            response_data.get('ID')
-                        )
 
                 current_app.logger.info(f"Extracted scheduled_event_id: {scheduled_event_id}")
 
-                # CRITICAL VALIDATION: Ensure we have external_id for sync integrity
+                # If we can't get the ID, log a warning but still proceed
+                # The event was scheduled successfully on the remote system
                 if not scheduled_event_id:
-                    error_msg = 'API response missing scheduleEventID - cannot create schedule without external_id'
-                    current_app.logger.error(
-                        f"Failed to extract external_id from API response for event {event.project_ref_num}. "
-                        f"Response: {api_result}"
+                    current_app.logger.warning(
+                        f"Could not extract external_id from API response for event {event.project_ref_num}. "
+                        f"Response: {api_result}. Will create schedule without external_id."
                     )
-                    pending.status = 'api_failed'
-                    pending.api_error_details = error_msg
-                    db.session.commit()
-
-                    return jsonify({
-                        'success': False,
-                        'error': error_msg,
-                        'event_ref_num': pending.event_ref_num,
-                        'event_name': event.project_name,
-                        'employee_name': employee.name,
-                        'api_response': api_result
-                    }), 500
 
                 # API submission successful - create local schedule record
                 schedule = models['Schedule'](
                     event_ref_num=pending.event_ref_num,
                     employee_id=pending.employee_id,
                     schedule_datetime=pending.schedule_datetime,
-                    external_id=str(scheduled_event_id),  # Guaranteed to exist now
+                    external_id=str(scheduled_event_id) if scheduled_event_id else None,
                     last_synced=datetime.utcnow(),
-                    sync_status='synced'
+                    sync_status='synced' if scheduled_event_id else 'pending_sync'
                 )
                 db.session.add(schedule)
 

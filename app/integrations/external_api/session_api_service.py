@@ -323,6 +323,71 @@ class SessionAPIService:
             self.logger.warning("Non-JSON response: %s", response.text[:300])
             return None
 
+    def _extract_schedule_event_id(self, result_data: Optional[Dict]) -> Optional[str]:
+        """
+        Extract schedule event ID from various API response formats.
+
+        The Crossmark API may return the ID in different fields or nested structures:
+        - Direct: {scheduleEventID: 123} or {id: 123}
+        - Nested: {data: {scheduleEventID: 123}} or {result: {id: 123}}
+        - Array: [{scheduleEventID: 123}] or {data: [{id: 123}]}
+
+        Returns:
+            The schedule event ID as a string, or None if not found
+        """
+        if not result_data:
+            return None
+
+        # List of possible field names for the schedule event ID
+        id_fields = ['scheduleEventID', 'id', 'scheduledEventId', 'ID', 'eventId',
+                     'schedule_event_id', 'scheduleId', 'ScheduleEventID']
+
+        # Try direct fields first
+        for field in id_fields:
+            if field in result_data and result_data[field]:
+                return str(result_data[field])
+
+        # Try nested 'data' field
+        if 'data' in result_data:
+            data = result_data['data']
+            if isinstance(data, dict):
+                for field in id_fields:
+                    if field in data and data[field]:
+                        return str(data[field])
+            elif isinstance(data, list) and len(data) > 0:
+                # First item in array
+                first_item = data[0]
+                if isinstance(first_item, dict):
+                    for field in id_fields:
+                        if field in first_item and first_item[field]:
+                            return str(first_item[field])
+
+        # Try nested 'result' field
+        if 'result' in result_data:
+            result = result_data['result']
+            if isinstance(result, dict):
+                for field in id_fields:
+                    if field in result and result[field]:
+                        return str(result[field])
+
+        # Try nested 'response' field
+        if 'response' in result_data:
+            resp = result_data['response']
+            if isinstance(resp, dict):
+                for field in id_fields:
+                    if field in resp and resp[field]:
+                        return str(resp[field])
+
+        # Try if result_data itself is a list
+        if isinstance(result_data, list) and len(result_data) > 0:
+            first_item = result_data[0]
+            if isinstance(first_item, dict):
+                for field in id_fields:
+                    if field in first_item and first_item[field]:
+                        return str(first_item[field])
+
+        return None
+
     def _format_date(self, value) -> str:
         """Format date for Crossmark API (MM/DD/YYYY format)"""
         if isinstance(value, datetime):
@@ -1045,17 +1110,12 @@ class SessionAPIService:
                 self.logger.info(f"Successfully scheduled mPlan {mplan_id}")
                 self.logger.info(f"Schedule API response: {result_data}")
 
-                # Extract scheduleEventID if present
-                schedule_event_id = None
-                if result_data:
-                    schedule_event_id = (
-                        result_data.get('scheduleEventID') or
-                        result_data.get('id') or
-                        result_data.get('scheduledEventId') or
-                        result_data.get('ID')
-                    )
-                    if schedule_event_id:
-                        self.logger.info(f"Extracted scheduleEventID: {schedule_event_id}")
+                # Extract scheduleEventID - try multiple field names and nested structures
+                schedule_event_id = self._extract_schedule_event_id(result_data)
+                if schedule_event_id:
+                    self.logger.info(f"Extracted scheduleEventID: {schedule_event_id}")
+                else:
+                    self.logger.warning(f"Could not extract scheduleEventID from response: {result_data}")
 
                 return {
                     'success': True,
