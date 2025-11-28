@@ -742,6 +742,8 @@ def import_employees():
                 last_synced=datetime.utcnow()
             )
             db.session.add(employee)
+            # Flush to ensure employee exists before adding availability (for FK constraint)
+            db.session.flush()
 
             # Create default weekly availability (all days available)
             weekly_availability = EmployeeWeeklyAvailability(
