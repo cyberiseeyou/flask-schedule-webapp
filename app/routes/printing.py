@@ -574,6 +574,62 @@ def get_daily_item_list():
     return jsonify({'error': 'Not yet implemented'}), 501
 
 
+@printing_bp.route('/core-events-count', methods=['GET'])
+@require_authentication()
+def get_core_events_count():
+    """
+    Get the count of Core events for a specific date.
+    Used for progress feedback in paperwork generation.
+
+    Query Parameters:
+        date: Date in YYYY-MM-DD format
+
+    Returns:
+        JSON with event count and list of event numbers
+    """
+    try:
+        date_str = request.args.get('date')
+        if not date_str:
+            return jsonify({'error': 'Date parameter is required'}), 400
+
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Get models from app config
+        db = current_app.extensions['sqlalchemy']
+        Schedule = current_app.config['Schedule']
+        Event = current_app.config['Event']
+
+        # Get Core events for the specific day
+        core_events = db.session.query(Schedule, Event).join(
+            Event, Schedule.event_ref_num == Event.project_ref_num
+        ).filter(
+            db.func.date(Schedule.schedule_datetime) == target_date,
+            Event.event_type == 'Core'
+        ).order_by(Schedule.schedule_datetime).all()
+
+        # Extract unique event numbers
+        event_numbers = []
+        seen = set()
+        for schedule, event in core_events:
+            event_num = event.project_name[:6] if event.project_name else None
+            if event_num and event_num not in seen:
+                seen.add(event_num)
+                event_numbers.append({
+                    'number': event_num,
+                    'name': event.project_name
+                })
+
+        return jsonify({
+            'success': True,
+            'count': len(event_numbers),
+            'events': event_numbers
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting core events count: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @printing_bp.route('/complete-paperwork', methods=['POST'])
 @require_authentication()
 def get_complete_paperwork():

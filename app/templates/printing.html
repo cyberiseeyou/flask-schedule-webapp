@@ -356,7 +356,13 @@
                 <div class="spinner-border text-primary mb-3" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <p id="loadingMessage">Processing...</p>
+                <div id="loadingMessage" style="white-space: pre-line; font-size: 1.1em;">Processing...</div>
+                <div id="loadingProgress" class="mt-3" style="display: none;">
+                    <div class="progress" style="height: 20px;">
+                        <div id="loadingProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <small id="loadingProgressText" class="text-muted mt-1 d-block"></small>
+                </div>
             </div>
         </div>
     </div>
@@ -2049,7 +2055,7 @@ function printEDRs() {
 
 function authenticateWalmartEDR(callback) {
     // Step 1: Request MFA code
-    showLoading('Requesting MFA code from Walmart...');
+    showLoading('📱 Requesting MFA code...\n\nPlease wait while we send a verification code to your phone.');
 
     fetch('/printing/edr/request-mfa', {
         method: 'POST'
@@ -2064,7 +2070,7 @@ function authenticateWalmartEDR(callback) {
             }
 
             // Step 2: Prompt user for MFA code
-            const mfaCode = prompt('A 6-digit MFA code has been sent to your phone.\n\nPlease enter the code:');
+            const mfaCode = prompt('📲 MFA Code Sent!\n\nA 6-digit verification code has been sent to your phone.\n\nPlease enter the code:');
 
             if (!mfaCode || mfaCode.trim() === '') {
                 alert('Authentication cancelled');
@@ -2078,7 +2084,7 @@ function authenticateWalmartEDR(callback) {
             }
 
             // Step 3: Complete authentication with MFA code
-            showLoading('Authenticating with Walmart...');
+            showLoading('🔐 Verifying MFA code...\n\nPlease wait while we authenticate with Walmart.');
 
             fetch('/printing/edr/authenticate', {
                 method: 'POST',
@@ -2184,60 +2190,26 @@ function printBatchEDRs() {
             // Create URL for the PDF blob
             const url = URL.createObjectURL(blob);
 
-            // Hide loading before opening the PDF window
+            // Hide loading
             hideLoading();
 
-            // Small delay to ensure loading modal is fully removed, then open print window
-            setTimeout(() => {
-                // Now open the print window with the PDF
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    // Write HTML that will load the PDF and trigger print dialog
-                    printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>EDR Reports - Print</title>
-                        <style>
-                            body, html {
-                                margin: 0;
-                                padding: 0;
-                                height: 100%;
-                                overflow: hidden;
-                            }
-                            iframe {
-                                width: 100%;
-                                height: 100%;
-                                border: none;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <iframe id="pdfFrame" src="${url}"></iframe>
-                        <script>
-                            // Wait for PDF to load, then trigger print
-                            document.getElementById('pdfFrame').onload = function() {
-                                setTimeout(function() {
-                                    window.print();
-                                }, 500);
-                            };
-                        <\/script>
-                    </body>
-                    </html>
-                `);
-                    printWindow.document.close();
-                } else {
-                    // Fallback: open in new window with print trigger
-                    const newWindow = window.open(url, '_blank');
-                    if (newWindow) {
-                        newWindow.onload = function() {
-                            setTimeout(function() {
-                                newWindow.print();
-                            }, 500);
-                        };
-                    }
-                }
-            }, 300); // 300ms delay to ensure modal is hidden
+            // Open PDF directly in a new tab for proper printing
+            const pdfWindow = window.open(url, '_blank');
+
+            if (pdfWindow) {
+                // The PDF opens in the browser's built-in PDF viewer
+                // User can use Ctrl+P or the print button in the PDF viewer
+                alert('EDR Report generated successfully!\n\nThe PDF is now open in a new tab.\nUse Ctrl+P or the print button to print.');
+            } else {
+                // Popup was blocked, try download instead
+                alert('Popup was blocked. Downloading the PDF instead...');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `EDR_Reports_${date}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         })
         .catch(error => {
             hideLoading();
@@ -2388,20 +2360,86 @@ function generateCompletePaperwork() {
         return;
     }
 
-    // Check if already authenticated
-    if (!edrAuthenticated) {
-        // Need to authenticate first
-        authenticateWalmartEDR(() => {
-            generateCompletePaperworkAfterAuth(date);
+    // First, get the event count for the date to show in progress messages
+    showLoading('📋 Checking events for this date...');
+
+    fetch(`/printing/core-events-count?date=${date}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                hideLoading();
+                alert('Error checking events: ' + (data.error || 'Unknown error'));
+                return;
+            }
+
+            const eventCount = data.count;
+            const events = data.events;
+
+            if (eventCount === 0) {
+                hideLoading();
+                alert('No Core events found for this date.');
+                return;
+            }
+
+            // Store event info for progress updates
+            window.paperworkEventCount = eventCount;
+            window.paperworkEvents = events;
+
+            hideLoading();
+
+            // Check if already authenticated
+            if (!edrAuthenticated) {
+                // Need to authenticate first
+                authenticateWalmartEDR(() => {
+                    generateCompletePaperworkAfterAuth(date, eventCount, events);
+                });
+            } else {
+                generateCompletePaperworkAfterAuth(date, eventCount, events);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Error checking events:', error);
+            alert('Error checking events: ' + (error.message || 'Unknown error'));
         });
-    } else {
-        generateCompletePaperworkAfterAuth(date);
-    }
 }
 
-function generateCompletePaperworkAfterAuth(date) {
-    // Show loading modal
-    showLoading('Generating complete paperwork package...\n\nThis may take several minutes as we gather all documents.');
+function generateCompletePaperworkAfterAuth(date, eventCount, events) {
+    // Use stored values if not passed (for backward compatibility)
+    eventCount = eventCount || window.paperworkEventCount || 0;
+    events = events || window.paperworkEvents || [];
+
+    // Show loading modal with progress bar
+    const eventList = events.map(e => e.number).join(', ');
+    showLoading(`📄 <strong>Generating Complete Paperwork</strong>\n\nPreparing documents for ${eventCount} event(s)...\n<small class="text-muted">Events: ${eventList}</small>`, true);
+
+    // Simulate progress updates as we wait for the server
+    let progressStep = 0;
+    const progressSteps = [
+        { pct: 10, msg: '📅 Generating daily schedule...' },
+        { pct: 20, msg: '📋 Creating item list...' }
+    ];
+
+    // Add steps for each event
+    events.forEach((event, idx) => {
+        const stepPct = 20 + ((idx + 1) / eventCount) * 70;
+        progressSteps.push({
+            pct: Math.round(stepPct),
+            msg: `📝 Processing event ${idx + 1} of ${eventCount} (${event.number})...`
+        });
+    });
+
+    progressSteps.push({ pct: 95, msg: '📎 Merging all documents...' });
+    progressSteps.push({ pct: 100, msg: '✅ Finalizing PDF...' });
+
+    // Start progress simulation
+    const progressInterval = setInterval(() => {
+        if (progressStep < progressSteps.length) {
+            const step = progressSteps[progressStep];
+            updateLoadingProgress(step.pct, 100, step.msg);
+            progressStep++;
+        }
+    }, 2000); // Update every 2 seconds
 
     // Call the complete paperwork endpoint
     fetch('/printing/complete-paperwork', {
@@ -2442,6 +2480,9 @@ function generateCompletePaperworkAfterAuth(date) {
             return response.blob();
         })
         .then(blob => {
+            // Stop progress simulation
+            clearInterval(progressInterval);
+
             console.log('Received blob:', blob.type, blob.size, 'bytes');
 
             if (blob.size === 0) {
@@ -2453,62 +2494,36 @@ function generateCompletePaperworkAfterAuth(date) {
             // Create URL for the PDF blob
             const url = URL.createObjectURL(blob);
 
-            // Hide loading before opening the PDF window
-            hideLoading();
+            // Update progress to show completion
+            updateLoadingProgress(100, 100, '✅ Complete! Opening PDF...');
 
-            // Small delay to ensure loading modal is fully removed, then open print window
+            // Hide loading after a brief delay
             setTimeout(() => {
-                // Now open the print window with the PDF
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    // Write HTML that will load the PDF and trigger print dialog
-                    printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Complete Paperwork - Print</title>
-                        <style>
-                            body, html {
-                                margin: 0;
-                                padding: 0;
-                                height: 100%;
-                                overflow: hidden;
-                            }
-                            iframe {
-                                width: 100%;
-                                height: 100%;
-                                border: none;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <iframe id="pdfFrame" src="${url}"></iframe>
-                        <script>
-                            // Wait for PDF to load, then trigger print
-                            document.getElementById('pdfFrame').onload = function() {
-                                setTimeout(function() {
-                                    window.print();
-                                }, 500);
-                            };
-                        <\/script>
-                    </body>
-                    </html>
-                `);
-                    printWindow.document.close();
+                hideLoading();
+
+                // Open PDF directly in a new tab - this allows the browser's native PDF viewer
+                // to handle printing correctly with proper page count
+                const pdfWindow = window.open(url, '_blank');
+
+                if (pdfWindow) {
+                    // The PDF opens in the browser's built-in PDF viewer
+                    // User can use Ctrl+P or the print button in the PDF viewer
+                    // This shows the correct page count unlike iframe embedding
+                    alert('PDF generated successfully!\n\nThe PDF is now open in a new tab.\nUse Ctrl+P or the print button to print.');
                 } else {
-                    // Fallback: open in new window with print trigger
-                    const newWindow = window.open(url, '_blank');
-                    if (newWindow) {
-                        newWindow.onload = function() {
-                            setTimeout(function() {
-                                newWindow.print();
-                            }, 500);
-                        };
-                    }
+                    // Popup was blocked, try download instead
+                    alert('Popup was blocked. Downloading the PDF instead...');
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Complete_Paperwork_${date}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
                 }
-            }, 300); // 300ms delay to ensure modal is hidden
+            }, 500);
         })
         .catch(error => {
+            clearInterval(progressInterval);
             hideLoading();
             console.error('Error generating complete paperwork:', error);
             alert('Error generating complete paperwork: ' + (error.message || error.error || error));
@@ -2584,7 +2599,7 @@ function generateEventPaperwork() {
 
 function generateEventPaperworkAfterAuth(eventNumber) {
     // Show loading modal
-    showLoading('Generating event paperwork...\n\nThis may take a moment as we gather all documents.');
+    showLoading(`📝 <strong>Generating Event Paperwork</strong>\n\nProcessing event ${eventNumber}...\n<small class="text-muted">Fetching EDR, Instructions, and templates</small>`);
 
     // Call the event paperwork endpoint
     fetch('/printing/event-paperwork', {
@@ -2636,60 +2651,25 @@ function generateEventPaperworkAfterAuth(eventNumber) {
             // Create URL for the PDF blob
             const url = URL.createObjectURL(blob);
 
-            // Hide loading before opening the PDF window
+            // Hide loading
             hideLoading();
 
-            // Small delay to ensure loading modal is fully removed, then open print window
-            setTimeout(() => {
-                // Now open the print window with the PDF
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    // Write HTML that will load the PDF and trigger print dialog
-                    printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Event Paperwork ${eventNumber} - Print</title>
-                        <style>
-                            body, html {
-                                margin: 0;
-                                padding: 0;
-                                height: 100%;
-                                overflow: hidden;
-                            }
-                            iframe {
-                                width: 100%;
-                                height: 100%;
-                                border: none;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <iframe id="pdfFrame" src="${url}"></iframe>
-                        <script>
-                            // Wait for PDF to load, then trigger print
-                            document.getElementById('pdfFrame').onload = function() {
-                                setTimeout(function() {
-                                    window.print();
-                                }, 500);
-                            };
-                        <\/script>
-                    </body>
-                    </html>
-                `);
-                    printWindow.document.close();
-                } else {
-                    // Fallback: open in new window with print trigger
-                    const newWindow = window.open(url, '_blank');
-                    if (newWindow) {
-                        newWindow.onload = function() {
-                            setTimeout(function() {
-                                newWindow.print();
-                            }, 500);
-                        };
-                    }
-                }
-            }, 300); // 300ms delay to ensure modal is hidden
+            // Open PDF directly in a new tab for proper printing
+            const pdfWindow = window.open(url, '_blank');
+
+            if (pdfWindow) {
+                // The PDF opens in the browser's built-in PDF viewer
+                alert(`Event ${eventNumber} paperwork generated successfully!\n\nThe PDF is now open in a new tab.\nUse Ctrl+P or the print button to print.`);
+            } else {
+                // Popup was blocked, try download instead
+                alert('Popup was blocked. Downloading the PDF instead...');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Event_${eventNumber}_Paperwork.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         })
         .catch(error => {
             hideLoading();
@@ -2812,9 +2792,18 @@ function generatePrintableSchedule(dateStr, printableEvents) {
     `;
 }
 
-function showLoading(message) {
-    document.getElementById('loadingMessage').textContent = message;
+function showLoading(message, showProgress = false) {
+    document.getElementById('loadingMessage').innerHTML = message;
     const modalElement = document.getElementById('loadingModal');
+    const progressElement = document.getElementById('loadingProgress');
+
+    // Show or hide progress bar
+    progressElement.style.display = showProgress ? 'block' : 'none';
+    if (!showProgress) {
+        document.getElementById('loadingProgressBar').style.width = '0%';
+        document.getElementById('loadingProgressText').textContent = '';
+    }
+
     modalElement.style.display = 'block';
     modalElement.classList.add('show');
     document.body.classList.add('modal-open');
@@ -2828,11 +2817,26 @@ function showLoading(message) {
     }
 }
 
+function updateLoadingProgress(current, total, message) {
+    const percentage = Math.round((current / total) * 100);
+    document.getElementById('loadingProgressBar').style.width = percentage + '%';
+    document.getElementById('loadingProgressText').textContent = message || `${current} of ${total}`;
+}
+
+function updateLoadingMessage(message) {
+    document.getElementById('loadingMessage').innerHTML = message;
+}
+
 function hideLoading() {
     const modalElement = document.getElementById('loadingModal');
     modalElement.style.display = 'none';
     modalElement.classList.remove('show');
     document.body.classList.remove('modal-open');
+
+    // Reset progress bar
+    document.getElementById('loadingProgress').style.display = 'none';
+    document.getElementById('loadingProgressBar').style.width = '0%';
+    document.getElementById('loadingProgressText').textContent = '';
 
     // Remove backdrop
     const backdrop = document.querySelector('.modal-backdrop');
