@@ -224,7 +224,10 @@ async function handleAddEmployeeSubmit(e) {
     try {
         const response = await fetch('/api/employees', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify(formData)
         });
 
@@ -260,7 +263,10 @@ async function lookupEmployeeExternalId(employeeId, employeeName, employeeIdInpu
     try {
         const response = await fetch('/api/lookup_employee_id', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({
                 employee_id: employeeId,
                 name: employeeName,
@@ -364,7 +370,10 @@ async function importSelectedEmployees() {
     try {
         const response = await fetch('/api/import_employees', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({ employees: selectedReps })
         });
 
@@ -449,7 +458,10 @@ async function toggleEmployeeStatus(employeeId, newActiveStatus) {
     try {
         const response = await fetch('/api/employees', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({
                 id: employeeId,
                 is_active: newActiveStatus
@@ -487,7 +499,10 @@ async function deleteEmployee(employeeId) {
         }
 
         const deleteResponse = await fetch(`/api/employees/${employeeId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
         });
 
         const data = await deleteResponse.json();
