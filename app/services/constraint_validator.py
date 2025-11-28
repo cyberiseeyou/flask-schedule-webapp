@@ -49,6 +49,7 @@ class ConstraintValidator:
         self.EmployeeAvailability = models.get('EmployeeAvailability')
         self.EmployeeWeeklyAvailability = models.get('EmployeeWeeklyAvailability')
         self.PendingSchedule = models.get('PendingSchedule')
+        self.CompanyHoliday = models.get('CompanyHoliday')
         self.current_run_id = None  # Track current scheduler run
 
     def set_current_run(self, run_id: int) -> None:
@@ -83,6 +84,7 @@ class ConstraintValidator:
             duration_minutes = event.estimated_time or event.get_default_duration(event.event_type)
 
         # Check all constraints
+        self._check_company_holiday(schedule_datetime, result)
         self._check_time_off(employee, schedule_datetime, result)
         self._check_availability(employee, schedule_datetime, result)
         self._check_role_requirements(event, employee, result)
@@ -91,6 +93,28 @@ class ConstraintValidator:
         self._check_due_date(event, schedule_datetime, result)
 
         return result
+
+    def _check_company_holiday(self, schedule_datetime: datetime,
+                               result: ValidationResult) -> None:
+        """Check if the date is a company holiday (everyone off)"""
+        if not self.CompanyHoliday:
+            return
+
+        target_date = schedule_datetime.date()
+        holiday = self.CompanyHoliday.is_holiday(target_date)
+
+        if holiday:
+            result.add_violation(ConstraintViolation(
+                constraint_type=ConstraintType.TIME_OFF,  # Reuse TIME_OFF type for holidays
+                message=f"Cannot schedule on {target_date} - Company Holiday: {holiday.name}",
+                severity=ConstraintSeverity.HARD,
+                details={
+                    'holiday_id': holiday.id,
+                    'holiday_name': holiday.name,
+                    'date': str(target_date),
+                    'is_company_holiday': True
+                }
+            ))
 
     def _check_time_off(self, employee: object, schedule_datetime: datetime,
                        result: ValidationResult) -> None:

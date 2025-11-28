@@ -76,7 +76,8 @@ def run_scheduler():
     models = {k: current_app.config[k] for k in [
         'Employee', 'Event', 'Schedule', 'SchedulerRunHistory',
         'PendingSchedule', 'RotationAssignment', 'ScheduleException',
-        'EmployeeTimeOff', 'EmployeeAvailability', 'EmployeeWeeklyAvailability'
+        'EmployeeTimeOff', 'EmployeeAvailability', 'EmployeeWeeklyAvailability',
+        'CompanyHoliday'
     ]}
 
     engine = SchedulingEngine(db.session, models)

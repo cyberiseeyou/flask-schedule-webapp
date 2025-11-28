@@ -104,6 +104,7 @@ def create_app(config_name=None):
     EmployeeAttendance = models['EmployeeAttendance']
     PaperworkTemplate = models['PaperworkTemplate']
     UserSession = models['UserSession']
+    CompanyHoliday = models['CompanyHoliday']
 
     # Extract audit models (if available)
     AuditLog = models.get('AuditLog')
@@ -128,6 +129,7 @@ def create_app(config_name=None):
     app.config['EmployeeAttendance'] = EmployeeAttendance
     app.config['PaperworkTemplate'] = PaperworkTemplate
     app.config['UserSession'] = UserSession
+    app.config['CompanyHoliday'] = CompanyHoliday
 
     # Register blueprints
     register_blueprints(app, db, models)
@@ -211,6 +213,9 @@ def register_blueprints(app, db, models):
 
     from app.routes.api_paperwork_templates import api_paperwork_templates_bp
     app.register_blueprint(api_paperwork_templates_bp)
+
+    from app.routes.api_company_holidays import api_company_holidays_bp
+    app.register_blueprint(api_company_holidays_bp)
 
     # Configure CSRF exemptions for specific routes (after blueprint registration)
     if 'auth.login' in app.view_functions:

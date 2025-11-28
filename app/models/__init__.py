@@ -12,6 +12,7 @@ from .audit import create_audit_models
 from .employee_attendance import create_employee_attendance_model
 from .paperwork_template import create_paperwork_template_model
 from .user_session import create_user_session_model
+from .company_holiday import create_company_holiday_model
 
 
 def init_models(db):
@@ -34,6 +35,7 @@ def init_models(db):
     EmployeeAttendance = create_employee_attendance_model(db)
     PaperworkTemplate = create_paperwork_template_model(db)
     UserSession = create_user_session_model(db)
+    CompanyHoliday = create_company_holiday_model(db)
 
     return {
         'Employee': Employee,
@@ -53,7 +55,8 @@ def init_models(db):
         'AuditNotificationSettings': AuditNotificationSettings,
         'EmployeeAttendance': EmployeeAttendance,
         'PaperworkTemplate': PaperworkTemplate,
-        'UserSession': UserSession
+        'UserSession': UserSession,
+        'CompanyHoliday': CompanyHoliday
     }
 
 
@@ -69,6 +72,7 @@ __all__ = [
     'create_employee_attendance_model',
     'create_paperwork_template_model',
     'create_user_session_model',
+    'create_company_holiday_model',
     # Model registry exports
     'model_registry',
     'get_models',

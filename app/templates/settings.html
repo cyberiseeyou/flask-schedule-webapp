@@ -87,6 +87,63 @@
             <div id="ai-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
+        <!-- Company Holidays Section -->
+        <section class="settings-section" id="company-holidays">
+            <h3>Company Holidays</h3>
+            <p class="section-description">Define days when the company is closed and no one is working (e.g., Christmas, Thanksgiving)</p>
+
+            <div class="holiday-actions" style="margin-bottom: 15px;">
+                <button type="button" id="add-holiday-btn" class="btn btn-primary btn-small">
+                    <span>+</span> Add Holiday
+                </button>
+            </div>
+
+            <div id="holidays-list" class="holidays-list">
+                <div class="loading-message">Loading holidays...</div>
+            </div>
+
+            <!-- Add/Edit Holiday Modal -->
+            <div id="holiday-modal" class="modal-overlay" style="display: none;">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h4 id="holiday-modal-title">Add Holiday</h4>
+                        <button type="button" class="modal-close" onclick="closeHolidayModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="holiday-id">
+
+                        <div class="form-group">
+                            <label for="holiday-name">Holiday Name:</label>
+                            <input type="text" id="holiday-name" class="form-control" placeholder="e.g., Christmas Day" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="holiday-date">Date:</label>
+                            <input type="date" id="holiday-date" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="holiday-recurring">
+                                <label for="holiday-recurring">Repeat every year on this date</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="holiday-notes">Notes (optional):</label>
+                            <textarea id="holiday-notes" class="form-control" rows="2" placeholder="Any additional notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeHolidayModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveHoliday()">Save Holiday</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="holiday-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
+        </section>
+
         <!-- Paperwork Documentation Section -->
         <section class="settings-section" id="paperwork-templates">
             <h3>Paperwork Documentation</h3>
@@ -795,6 +852,218 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
+    // ===== COMPANY HOLIDAYS MANAGEMENT =====
+    const holidaysList = document.getElementById('holidays-list');
+    const addHolidayBtn = document.getElementById('add-holiday-btn');
+    let holidays = [];
+
+    // Load holidays on page load
+    loadHolidays();
+
+    addHolidayBtn.addEventListener('click', function() {
+        openHolidayModal();
+    });
+
+    function loadHolidays() {
+        fetch('/api/company-holidays/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    holidays = data.holidays;
+                    renderHolidays();
+                } else {
+                    holidaysList.innerHTML = '<div class="empty-templates">Error loading holidays</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading holidays:', error);
+                holidaysList.innerHTML = '<div class="empty-templates">Error loading holidays</div>';
+            });
+    }
+
+    function renderHolidays() {
+        if (holidays.length === 0) {
+            holidaysList.innerHTML = '<div class="empty-templates">No company holidays defined. Add holidays for days when no one should be scheduled.</div>';
+            return;
+        }
+
+        // Sort by date
+        const sortedHolidays = [...holidays].sort((a, b) => new Date(a.holiday_date) - new Date(b.holiday_date));
+
+        holidaysList.innerHTML = sortedHolidays.map(holiday => {
+            const dateObj = new Date(holiday.holiday_date + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+
+            const recurringBadge = holiday.is_recurring
+                ? '<span class="badge badge-info" style="background: #17a2b8; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 8px;">Yearly</span>'
+                : '';
+
+            const isPast = dateObj < new Date(new Date().setHours(0,0,0,0));
+            const pastClass = isPast ? 'style="opacity: 0.6;"' : '';
+
+            return `
+                <div class="template-item" ${pastClass} data-holiday-id="${holiday.id}">
+                    <div class="template-info" style="flex: 1;">
+                        <span class="template-name">${holiday.name}${recurringBadge}</span>
+                        <span class="template-filename" style="color: #666; font-size: 12px;">${formattedDate}</span>
+                        ${holiday.notes ? `<span class="template-filename" style="color: #888; font-size: 11px; font-style: italic;">${holiday.notes}</span>` : ''}
+                    </div>
+                    <div class="template-actions-inline">
+                        <button type="button" class="btn btn-small btn-outline" onclick="editHoliday(${holiday.id})" title="Edit">
+                            ✏️
+                        </button>
+                        <button type="button" class="btn btn-small btn-danger" onclick="deleteHoliday(${holiday.id}, '${holiday.name.replace(/'/g, "\\'")}')" title="Delete">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.openHolidayModal = function(holiday = null) {
+        const modal = document.getElementById('holiday-modal');
+        const title = document.getElementById('holiday-modal-title');
+        const idField = document.getElementById('holiday-id');
+        const nameField = document.getElementById('holiday-name');
+        const dateField = document.getElementById('holiday-date');
+        const recurringField = document.getElementById('holiday-recurring');
+        const notesField = document.getElementById('holiday-notes');
+
+        if (holiday) {
+            title.textContent = 'Edit Holiday';
+            idField.value = holiday.id;
+            nameField.value = holiday.name;
+            dateField.value = holiday.holiday_date;
+            recurringField.checked = holiday.is_recurring;
+            notesField.value = holiday.notes || '';
+        } else {
+            title.textContent = 'Add Holiday';
+            idField.value = '';
+            nameField.value = '';
+            dateField.value = '';
+            recurringField.checked = false;
+            notesField.value = '';
+        }
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeHolidayModal = function() {
+        document.getElementById('holiday-modal').style.display = 'none';
+    };
+
+    window.editHoliday = function(holidayId) {
+        const holiday = holidays.find(h => h.id === holidayId);
+        if (holiday) {
+            openHolidayModal(holiday);
+        }
+    };
+
+    window.saveHoliday = function() {
+        const idField = document.getElementById('holiday-id');
+        const nameField = document.getElementById('holiday-name');
+        const dateField = document.getElementById('holiday-date');
+        const recurringField = document.getElementById('holiday-recurring');
+        const notesField = document.getElementById('holiday-notes');
+
+        const name = nameField.value.trim();
+        const holidayDate = dateField.value;
+        const isRecurring = recurringField.checked;
+        const notes = notesField.value.trim();
+
+        if (!name) {
+            alert('Please enter a holiday name');
+            return;
+        }
+
+        if (!holidayDate) {
+            alert('Please select a date');
+            return;
+        }
+
+        const data = {
+            name: name,
+            holiday_date: holidayDate,
+            is_recurring: isRecurring,
+            notes: notes || null
+        };
+
+        const holidayId = idField.value;
+        const url = holidayId ? `/api/company-holidays/${holidayId}` : '/api/company-holidays/';
+        const method = holidayId ? 'PUT' : 'POST';
+
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                closeHolidayModal();
+                loadHolidays();
+                showHolidayStatus(data.message || 'Holiday saved successfully', 'success');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to save holiday'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving holiday:', error);
+            alert('Error saving holiday: ' + error.message);
+        });
+    };
+
+    window.deleteHoliday = function(holidayId, holidayName) {
+        if (!confirm(`Are you sure you want to delete "${holidayName}"?`)) {
+            return;
+        }
+
+        fetch(`/api/company-holidays/${holidayId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadHolidays();
+                showHolidayStatus(data.message || 'Holiday deleted', 'success');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete holiday'));
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting holiday:', error);
+            alert('Error deleting holiday: ' + error.message);
+        });
+    };
+
+    function showHolidayStatus(message, type) {
+        const statusEl = document.getElementById('holiday-save-status');
+        statusEl.textContent = message;
+        statusEl.style.display = 'block';
+
+        if (type === 'success') {
+            statusEl.style.background = '#d4edda';
+            statusEl.style.border = '1px solid #c3e6cb';
+            statusEl.style.color = '#155724';
+        } else {
+            statusEl.style.background = '#f8d7da';
+            statusEl.style.border = '1px solid #f5c6cb';
+            statusEl.style.color = '#721c24';
+        }
+
+        setTimeout(() => {
+            statusEl.style.display = 'none';
+        }, 3000);
+    }
+
     // ===== PAPERWORK TEMPLATES MANAGEMENT =====
     const eventTemplatesList = document.getElementById('event-templates-list');
     const dailyTemplatesList = document.getElementById('daily-templates-list');
@@ -1047,18 +1316,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(response => response.json().then(data => ({ status: response.status, data })))
+            .then(({ status, data }) => {
                 if (data.success) {
                     alert(`${categoryLabel} template uploaded successfully!`);
                     loadTemplates();
+                } else if (data.conflict) {
+                    // File already exists - ask to overwrite
+                    if (confirm(data.message + '\n\nClick OK to overwrite, Cancel to abort.')) {
+                        // Retry with overwrite flag
+                        formData.append('overwrite', 'true');
+                        return fetch('/api/paperwork-templates/upload', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': getCsrfToken()
+                            },
+                            body: formData
+                        })
+                        .then(r => r.json())
+                        .then(retryData => {
+                            if (retryData.success) {
+                                alert(`${categoryLabel} template ${retryData.overwritten ? 'overwritten' : 'uploaded'} successfully!`);
+                                loadTemplates();
+                            } else {
+                                alert('Error uploading template: ' + (retryData.error || 'Unknown error'));
+                            }
+                        });
+                    }
                 } else {
-                    alert('Error uploading template: ' + data.error);
+                    alert('Error uploading template: ' + (data.error || data.message || 'Unknown error'));
                 }
             })
             .catch(error => {
                 console.error('Error uploading template:', error);
-                alert('Error uploading template');
+                alert('Error uploading template: ' + error.message);
             })
             .finally(() => {
                 btn.disabled = false;
