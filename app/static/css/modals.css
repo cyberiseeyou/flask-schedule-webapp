@@ -17,6 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
   opacity: 0;
   visibility: hidden;
   transition: opacity 200ms ease, visibility 200ms ease;
@@ -52,6 +53,25 @@
 }
 
 .modal.modal-open .modal-container {
+  transform: scale(1);
+}
+
+/* Support for .modal-content (alternative to .modal-container) */
+.modal-content {
+  position: relative;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow-y: auto;
+  transform: scale(0.95);
+  transition: transform 200ms ease;
+  z-index: 1001;
+}
+
+.modal.modal-open .modal-content {
   transform: scale(1);
 }
 
