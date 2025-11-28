@@ -41,4 +41,4 @@ application = app
 if __name__ == "__main__":
     # This allows running the file directly for testing
     # In production, use a WSGI server like Gunicorn
-    app.run()
+    app.run(debug=True, host='0.0.0.0', port=5000)
