@@ -713,19 +713,22 @@ def import_employees():
         for emp_data in selected_employees:
             rep_id = emp_data.get('rep_id')  # Numeric scheduling ID (external_id)
             name = emp_data.get('name')  # Full name from title field
-            employee_id = emp_data.get('employee_id')  # US###### ID (crossmark_employee_id)
+            employee_id = emp_data.get('employee_id')  # US###### ID - this is the primary ID
 
             if not name or not rep_id:
                 errors.append(f'Missing required fields for employee: {name or "Unknown"}')
                 continue
 
-            # Generate local employee ID from name
-            local_id = name.upper().replace(' ', '_')
+            # Use the MVRetail employee_id (US######) as the primary ID
+            # Fall back to name-based ID if employee_id is not available
+            local_id = employee_id if employee_id else name.upper().replace(' ', '_')
 
-            # Check if employee already exists by local ID
-            existing = Employee.query.filter_by(id=local_id).first()
+            # Check if employee already exists by local ID or by external_id
+            existing = Employee.query.filter(
+                (Employee.id == local_id) | (Employee.external_id == rep_id)
+            ).first()
             if existing:
-                errors.append(f'Employee "{name}" already exists with ID: {local_id}')
+                errors.append(f'Employee "{name}" already exists with ID: {existing.id}')
                 continue
 
             # Create new employee
@@ -735,7 +738,7 @@ def import_employees():
                 email=emp_data.get('email'),
                 phone=emp_data.get('phone'),
                 external_id=rep_id,  # The repId for scheduling
-                crossmark_employee_id=employee_id,  # The US###### ID
+                crossmark_employee_id=employee_id,  # The US###### ID (same as id)
                 is_active=True,
                 job_title='Event Specialist',  # Default
                 sync_status='synced',
