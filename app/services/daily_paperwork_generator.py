@@ -741,6 +741,8 @@ class DailyPaperworkGenerator:
                     # Prepare schedule info for PDF generation
                     schedule_info = {
                         'scheduled_date': schedule.schedule_datetime,
+                        'scheduled_time': schedule.schedule_datetime.time() if schedule.schedule_datetime else None,
+                        'event_type': event.event_type,
                         'start_date': event.start_date if hasattr(event, 'start_date') else None,
                         'due_date': event.due_date if hasattr(event, 'due_date') else None
                     }

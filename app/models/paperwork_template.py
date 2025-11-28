@@ -37,6 +37,7 @@ def create_paperwork_template_model(db):
         name = Column(String(200), nullable=False, unique=True)
         description = Column(String(500), nullable=True)
         file_path = Column(String(500), nullable=False)  # Relative path from docs directory
+        category = Column(String(50), nullable=False, default='event')  # 'event' or 'daily'
         display_order = Column(Integer, nullable=False, default=0)
         is_active = Column(Boolean, nullable=False, default=True)
         created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -52,6 +53,7 @@ def create_paperwork_template_model(db):
                 'name': self.name,
                 'description': self.description,
                 'file_path': self.file_path,
+                'category': self.category,
                 'display_order': self.display_order,
                 'is_active': self.is_active,
                 'created_at': self.created_at.isoformat() if self.created_at else None,

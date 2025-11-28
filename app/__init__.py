@@ -33,6 +33,9 @@ def create_app(config_name=None):
     config_class = get_config(config_name)
     app.config.from_object(config_class)
 
+    # Set dynamic version for cache busting (updates on each server restart)
+    app.config['VERSION'] = datetime.now().strftime('%Y%m%d%H%M%S')
+
     # Ensure instance directory exists
     basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     os.makedirs(os.path.join(basedir, "instance"), exist_ok=True)

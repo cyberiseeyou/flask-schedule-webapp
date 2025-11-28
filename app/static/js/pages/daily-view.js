@@ -40,7 +40,7 @@ class DailyView {
 
             const data = await response.json();
             this.renderEventTypeSummary(data.event_types, data.total_events);
-            this.renderTimeslotCoverage(data.timeslot_coverage);
+            this.renderTimeslotCoverage(data.timeslot_coverage, data.timeslot_metadata);
         } catch (error) {
             console.error('Failed to load daily summary:', error);
             this.showError('Failed to load daily summary. Please refresh the page.');
@@ -77,25 +77,50 @@ class DailyView {
 
     /**
      * Render timeslot coverage blocks
+     * Now uses timeslot metadata from settings instead of hardcoded values
      */
-    renderTimeslotCoverage(timeslotCoverage) {
+    renderTimeslotCoverage(timeslotCoverage, timeslotMetadata = null) {
         if (!this.timeslotContainer) return;
 
-        const timeslots = [
-            { time: '09:45:00', label: '9:45 AM' },
-            { time: '10:30:00', label: '10:30 AM' },
-            { time: '11:00:00', label: '11:00 AM' },
-            { time: '11:30:00', label: '11:30 AM' }
-        ];
+        // Build timeslots from metadata if available, otherwise use defaults
+        let timeslots;
+        if (timeslotMetadata && Object.keys(timeslotMetadata).length > 0) {
+            // Use times from settings
+            timeslots = Object.entries(timeslotMetadata).map(([timeKey, meta]) => ({
+                time: timeKey,
+                label: meta.label,
+                slot: meta.slot,
+                lunchBegin: meta.lunch_begin,
+                lunchEnd: meta.lunch_end,
+                end: meta.end
+            })).sort((a, b) => a.slot - b.slot);
+        } else {
+            // Fallback to default hardcoded times if settings not available
+            timeslots = [
+                { time: '09:45:00', label: '9:45 AM', slot: 1 },
+                { time: '10:30:00', label: '10:30 AM', slot: 2 },
+                { time: '11:00:00', label: '11:00 AM', slot: 3 },
+                { time: '11:30:00', label: '11:30 AM', slot: 4 }
+            ];
+        }
 
         const html = timeslots.map(slot => {
             const count = timeslotCoverage[slot.time] || 0;
             const status = this.getTimeslotStatus(count);
             const statusClass = `timeslot-block--${status}`;
 
+            // Build tooltip with shift details if available
+            let tooltip = `Employees with events starting at ${slot.label}: ${count}`;
+            if (slot.end) {
+                tooltip += `\nShift ends at ${this.formatTime12h(slot.end)}`;
+            }
+            if (slot.lunchBegin && slot.lunchEnd) {
+                tooltip += `\nLunch: ${this.formatTime12h(slot.lunchBegin)} - ${this.formatTime12h(slot.lunchEnd)}`;
+            }
+
             return `
                 <div class="timeslot-block ${statusClass}"
-                     title="Employees with events starting at ${slot.label}: ${count}"
+                     title="${tooltip}"
                      aria-label="${count} employees starting at ${slot.label}">
                     <div class="timeslot-block__time">${slot.label}</div>
                     <div class="timeslot-block__count">${count}</div>
@@ -105,6 +130,18 @@ class DailyView {
         }).join('');
 
         this.timeslotContainer.innerHTML = html;
+    }
+
+    /**
+     * Format 24h time (HH:MM) to 12h format
+     */
+    formatTime12h(timeStr) {
+        if (!timeStr) return '';
+        const [hour, minute] = timeStr.split(':').map(Number);
+        if (hour === 0) return `12:${minute.toString().padStart(2, '0')} AM`;
+        if (hour < 12) return `${hour}:${minute.toString().padStart(2, '0')} AM`;
+        if (hour === 12) return `12:${minute.toString().padStart(2, '0')} PM`;
+        return `${hour - 12}:${minute.toString().padStart(2, '0')} PM`;
     }
 
     /**

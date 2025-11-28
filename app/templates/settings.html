@@ -87,75 +87,41 @@
             <div id="ai-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
-        <!-- Auto-Scheduler Configuration Section -->
-        <section class="settings-section">
-            <h3>Auto-Scheduler Configuration</h3>
-            <p class="section-description">Control automatic scheduling behavior</p>
-
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="auto_scheduler_enabled" name="auto_scheduler_enabled"
-                       value="true" {% if settings.get('auto_scheduler_enabled', True) %}checked{% endif %}>
-                <label for="auto_scheduler_enabled">Enable Automatic Scheduler Runs</label>
-                <small class="form-text">When enabled, the scheduler will run automatically</small>
-            </div>
-
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="auto_scheduler_require_approval" name="auto_scheduler_require_approval"
-                       value="true" {% if settings.get('auto_scheduler_require_approval', True) %}checked{% endif %}>
-                <label for="auto_scheduler_require_approval">Require Approval Before Scheduling</label>
-                <small class="form-text">When enabled, schedules must be approved before submission</small>
-            </div>
-        </section>
-
-        <!-- Data Synchronization Section -->
-        <section class="settings-section">
-            <h3>Data Synchronization</h3>
-            <p class="section-description">Manually synchronize data from external systems</p>
-
-            <div class="sync-buttons-container">
-                <div class="sync-button-group">
-                    <button type="button" id="sync-mvretail-btn" class="btn btn-sync">
-                        <span class="sync-icon">🔄</span>
-                        Sync with MVRetail
-                    </button>
-                    <small class="form-text">Synchronize employee and schedule data from MVRetail system</small>
-                    <div id="mvretail-sync-status" class="sync-status" style="display: none;"></div>
-                </div>
-
-                <div class="sync-button-group">
-                    <button type="button" id="sync-retaillink-btn" class="btn btn-sync">
-                        <span class="sync-icon">🔄</span>
-                        Sync with Retail Link
-                    </button>
-                    <small class="form-text">Refresh EDR event data cache from Walmart Retail Link (requires MFA authentication)</small>
-                    <div id="retaillink-sync-status" class="sync-status" style="display: none;"></div>
-                </div>
-
-                <div class="sync-info">
-                    <strong>About Data Caching:</strong>
-                    <ul>
-                        <li>EDR event data is cached for 24 hours by default</li>
-                        <li>Retail Link sync requires MFA code for authentication</li>
-                        <li>Cached data allows report generation without repeated authentication</li>
-                        <li>Last sync time is displayed after successful synchronization</li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <!-- Paperwork Templates Section -->
+        <!-- Paperwork Documentation Section -->
         <section class="settings-section" id="paperwork-templates">
-            <h3>Paperwork Templates</h3>
-            <p class="section-description">Manage PDF templates that will be included in daily paperwork packages</p>
+            <h3>Paperwork Documentation</h3>
+            <p class="section-description">Manage PDF templates for daily paperwork packages</p>
 
-            <div class="template-actions">
-                <button type="button" id="add-template-btn" class="btn btn-primary">
-                    <span>+</span> Add Template
-                </button>
+            <!-- Event-Level Documentation -->
+            <div class="documentation-subsection">
+                <h4>Event-Level Documentation</h4>
+                <p class="subsection-description">These templates will be printed with each individual event (e.g., Event Detail Report)</p>
+
+                <div class="template-actions">
+                    <button type="button" id="add-event-template-btn" class="btn btn-primary btn-small">
+                        <span>+</span> Add Event Template
+                    </button>
+                </div>
+
+                <div id="event-templates-list" class="templates-list">
+                    <div class="loading-message">Loading event templates...</div>
+                </div>
             </div>
 
-            <div id="templates-list" class="templates-list">
-                <div class="loading-message">Loading templates...</div>
+            <!-- Daily-Level Documentation -->
+            <div class="documentation-subsection">
+                <h4>Daily-Level Documentation</h4>
+                <p class="subsection-description">These templates will be printed once after all event paperwork is complete</p>
+
+                <div class="template-actions">
+                    <button type="button" id="add-daily-template-btn" class="btn btn-primary btn-small">
+                        <span>+</span> Add Daily Template
+                    </button>
+                </div>
+
+                <div id="daily-templates-list" class="templates-list">
+                    <div class="loading-message">Loading daily templates...</div>
+                </div>
             </div>
         </section>
 
@@ -355,6 +321,34 @@
     margin-bottom: 20px;
 }
 
+.documentation-subsection {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+}
+
+.documentation-subsection h4 {
+    color: #2E4C73;
+    margin: 0 0 8px 0;
+    font-size: 1.05em;
+    border-bottom: 2px solid #4A90D9;
+    padding-bottom: 8px;
+}
+
+.subsection-description {
+    color: #777;
+    font-size: 0.85em;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+.btn-small {
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
 .form-group {
     margin-bottom: 20px;
 }
@@ -454,101 +448,8 @@
     color: #721c24;
 }
 
-.sync-buttons-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.sync-button-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.btn-sync {
-    background: #28a745;
-    color: white;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: fit-content;
-    transition: all 0.3s ease;
-}
-
-.btn-sync:hover:not(:disabled) {
-    background: #218838;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.btn-sync:disabled {
-    background: #6c757d;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.btn-sync.syncing .sync-icon {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.sync-status {
-    padding: 10px;
-    border-radius: 4px;
-    font-size: 0.9em;
-    margin-top: 5px;
-}
-
-.sync-status.success {
-    background: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
-}
-
-.sync-status.error {
-    background: #f8d7da;
-    border: 1px solid #f5c6cb;
-    color: #721c24;
-}
-
-.sync-status.info {
-    background: #d1ecf1;
-    border: 1px solid #bee5eb;
-    color: #0c5460;
-}
-
-.sync-info {
-    background: #e7f3ff;
-    border: 1px solid #b3d9ff;
-    border-radius: 4px;
-    padding: 15px;
-    margin-top: 10px;
-}
-
-.sync-info strong {
-    color: #004085;
-    display: block;
-    margin-bottom: 10px;
-}
-
-.sync-info ul {
-    margin: 0;
-    padding-left: 20px;
-}
-
-.sync-info li {
-    color: #004085;
-    margin-bottom: 5px;
-    font-size: 0.9em;
-}
-
 .template-actions {
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .templates-list {
@@ -770,8 +671,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const mfaCredentialId = document.getElementById('edr_mfa_credential_id').value.trim();
         const aiProvider = document.getElementById('ai_provider').value;
         const aiApiKey = document.getElementById('ai_api_key').value.trim();
-        const autoSchedulerEnabled = document.getElementById('auto_scheduler_enabled').checked;
-        const autoSchedulerRequireApproval = document.getElementById('auto_scheduler_require_approval').checked;
 
         // Validation
         if (!username || !mfaCredentialId) {
@@ -830,24 +729,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     showStatus('EDR settings saved, but AI settings failed: ' + (aiData.message || 'Failed'), 'error');
                     return;
                 }
-            }
-
-            // Save Auto-Scheduler settings
-            const autoSchedulerResponse = await fetch('/api/settings/auto-scheduler', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    enabled: autoSchedulerEnabled,
-                    require_approval: autoSchedulerRequireApproval
-                })
-            });
-            const autoSchedulerData = await autoSchedulerResponse.json();
-
-            if (!autoSchedulerData.success) {
-                showStatus('Settings partially saved. Auto-scheduler settings failed: ' + (autoSchedulerData.message || 'Failed'), 'error');
-                return;
             }
 
             // Save Event Time settings
@@ -914,106 +795,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
-    // Sync button handlers
-    const syncMVRetailBtn = document.getElementById('sync-mvretail-btn');
-    const syncRetailLinkBtn = document.getElementById('sync-retaillink-btn');
-    const mvretailStatus = document.getElementById('mvretail-sync-status');
-    const retaillinkStatus = document.getElementById('retaillink-sync-status');
-
-    function showSyncStatus(statusElement, message, type) {
-        statusElement.textContent = message;
-        statusElement.className = 'sync-status ' + type;
-        statusElement.style.display = 'block';
-    }
-
-    // MVRetail Sync Handler
-    syncMVRetailBtn.addEventListener('click', function() {
-        syncMVRetailBtn.disabled = true;
-        syncMVRetailBtn.classList.add('syncing');
-        syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
-
-        showSyncStatus(mvretailStatus, 'Synchronizing with MVRetail...', 'info');
-
-        fetch('/api/sync/mvretail', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const message = data.message || 'Successfully synchronized with MVRetail';
-                const details = data.details ? ` (${data.details})` : '';
-                showSyncStatus(mvretailStatus, message + details, 'success');
-            } else {
-                showSyncStatus(mvretailStatus, 'Error: ' + (data.message || 'Sync failed'), 'error');
-            }
-        })
-        .catch(error => {
-            showSyncStatus(mvretailStatus, 'Error: ' + error.message, 'error');
-        })
-        .finally(() => {
-            syncMVRetailBtn.disabled = false;
-            syncMVRetailBtn.classList.remove('syncing');
-            syncMVRetailBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with MVRetail';
-        });
-    });
-
-    // Retail Link Sync Handler
-    syncRetailLinkBtn.addEventListener('click', function() {
-        // Prompt for MFA code
-        const mfaCode = prompt('Enter your MFA code to authenticate with Retail Link:');
-
-        if (!mfaCode || mfaCode.trim() === '') {
-            showSyncStatus(retaillinkStatus, 'Sync cancelled - MFA code required', 'error');
-            return;
-        }
-
-        syncRetailLinkBtn.disabled = true;
-        syncRetailLinkBtn.classList.add('syncing');
-        syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Syncing...';
-
-        showSyncStatus(retaillinkStatus, 'Authenticating with Retail Link...', 'info');
-
-        fetch('/api/sync/retaillink', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                mfa_code: mfaCode.trim()
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const message = data.message || 'Successfully synchronized with Retail Link';
-                const details = data.details ? `<br><small>${data.details}</small>` : '';
-                retaillinkStatus.innerHTML = message + details;
-                retaillinkStatus.className = 'sync-status success';
-                retaillinkStatus.style.display = 'block';
-            } else {
-                const errorDetails = data.details ? `<br><small>${data.details}</small>` : '';
-                retaillinkStatus.innerHTML = 'Error: ' + (data.message || 'Sync failed') + errorDetails;
-                retaillinkStatus.className = 'sync-status error';
-                retaillinkStatus.style.display = 'block';
-            }
-        })
-        .catch(error => {
-            showSyncStatus(retaillinkStatus, 'Error: ' + error.message, 'error');
-        })
-        .finally(() => {
-            syncRetailLinkBtn.disabled = false;
-            syncRetailLinkBtn.classList.remove('syncing');
-            syncRetailLinkBtn.innerHTML = '<span class="sync-icon">🔄</span> Sync with Retail Link';
-        });
-    });
-
     // ===== PAPERWORK TEMPLATES MANAGEMENT =====
-    const templatesList = document.getElementById('templates-list');
-    const addTemplateBtn = document.getElementById('add-template-btn');
-    let templates = [];
+    const eventTemplatesList = document.getElementById('event-templates-list');
+    const dailyTemplatesList = document.getElementById('daily-templates-list');
+    const addEventTemplateBtn = document.getElementById('add-event-template-btn');
+    const addDailyTemplateBtn = document.getElementById('add-daily-template-btn');
+    let eventTemplates = [];
+    let dailyTemplates = [];
     let draggedElement = null;
 
     // Load templates on page load
@@ -1024,32 +812,42 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    templates = data.templates;
-                    renderTemplates();
+                    // Separate templates by category
+                    eventTemplates = data.templates.filter(t => t.category === 'event' || !t.category);
+                    dailyTemplates = data.templates.filter(t => t.category === 'daily');
+                    renderTemplates('event');
+                    renderTemplates('daily');
                 } else {
-                    templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                    eventTemplatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                    dailyTemplatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
                 }
             })
             .catch(error => {
                 console.error('Error loading templates:', error);
-                templatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                eventTemplatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
+                dailyTemplatesList.innerHTML = '<div class="empty-templates">Error loading templates</div>';
             });
     }
 
-    function renderTemplates() {
+    function renderTemplates(category) {
+        const templates = category === 'event' ? eventTemplates : dailyTemplates;
+        const listElement = category === 'event' ? eventTemplatesList : dailyTemplatesList;
+        const emptyMessage = category === 'event'
+            ? 'No event templates. Add templates to include with each event report.'
+            : 'No daily templates. Add templates to print after all events.';
+
         if (templates.length === 0) {
-            templatesList.innerHTML = '<div class="empty-templates">No templates added yet. Click "Add Template" to upload a PDF.</div>';
+            listElement.innerHTML = `<div class="empty-templates">${emptyMessage}</div>`;
             return;
         }
 
-        templatesList.innerHTML = templates.map(template => `
-            <div class="template-item" draggable="true" data-template-id="${template.id}">
+        listElement.innerHTML = templates.map(template => `
+            <div class="template-item" draggable="true" data-template-id="${template.id}" data-category="${category}">
                 <span class="template-drag-handle">☰</span>
                 <div class="template-info">
                     <div class="template-name">${escapeHtml(template.name)}</div>
                     <div class="template-details">
-                        ${escapeHtml(template.file_path)}
-                        ${template.description ? ' - ' + escapeHtml(template.description) : ''}
+                        ${template.description ? escapeHtml(template.description) : 'No description'}
                     </div>
                 </div>
                 <div class="template-actions-group">
@@ -1066,12 +864,12 @@ document.addEventListener('DOMContentLoaded', function() {
         `).join('');
 
         // Add drag and drop event listeners
-        const items = templatesList.querySelectorAll('.template-item');
+        const items = listElement.querySelectorAll('.template-item');
         items.forEach(item => {
             item.addEventListener('dragstart', handleDragStart);
             item.addEventListener('dragover', handleDragOver);
             item.addEventListener('drop', handleDrop);
-            item.addEventListener('dragend', handleDragEnd);
+            item.addEventListener('dragend', (e) => handleDragEnd(e, category));
         });
     }
 
@@ -1108,25 +906,26 @@ document.addEventListener('DOMContentLoaded', function() {
         e.stopPropagation();
     }
 
-    function handleDragEnd(e) {
+    function handleDragEnd(e, category) {
         this.classList.remove('dragging');
 
-        // Get new order
-        const items = templatesList.querySelectorAll('.template-item');
+        // Get new order from the correct list
+        const listElement = category === 'event' ? eventTemplatesList : dailyTemplatesList;
+        const items = listElement.querySelectorAll('.template-item');
         const newOrder = Array.from(items).map(item => parseInt(item.dataset.templateId));
 
         // Save new order
-        saveOrder(newOrder);
+        saveOrder(newOrder, category);
     }
 
-    function saveOrder(templateIds) {
+    function saveOrder(templateIds, category) {
         fetch('/api/paperwork-templates/reorder', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken()
             },
-            body: JSON.stringify({ template_ids: templateIds })
+            body: JSON.stringify({ template_ids: templateIds, category: category })
         })
         .then(response => response.json())
         .then(data => {
@@ -1171,8 +970,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Delete Template
     window.deleteTemplate = function(templateId) {
-        const template = templates.find(t => t.id === templateId);
-        if (!confirm(`Are you sure you want to delete "${template.name}"?`)) {
+        // Search in both template arrays
+        const template = eventTemplates.find(t => t.id === templateId) ||
+                        dailyTemplates.find(t => t.id === templateId);
+        if (!template || !confirm(`Are you sure you want to delete "${template.name}"?`)) {
             return;
         }
 
@@ -1196,8 +997,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // Add Template
-    addTemplateBtn.addEventListener('click', function() {
+    // Add Template - shared handler for both event and daily categories
+    function handleAddTemplate(category) {
+        const btn = category === 'event' ? addEventTemplateBtn : addDailyTemplateBtn;
+        const categoryLabel = category === 'event' ? 'Event' : 'Daily';
+
         // Create file input
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -1216,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Ask for template name (default to filename without extension)
             const defaultName = file.name.replace(/\.pdf$/i, '');
-            const templateName = prompt('Enter template name:', defaultName);
+            const templateName = prompt(`Enter ${categoryLabel.toLowerCase()} template name:`, defaultName);
 
             if (!templateName) {
                 return; // User cancelled
@@ -1230,10 +1034,11 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('file', file);
             formData.append('name', templateName);
             formData.append('description', description);
+            formData.append('category', category);
 
             // Show uploading state
-            addTemplateBtn.disabled = true;
-            addTemplateBtn.textContent = 'Uploading...';
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
 
             fetch('/api/paperwork-templates/upload', {
                 method: 'POST',
@@ -1245,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Template uploaded successfully!');
+                    alert(`${categoryLabel} template uploaded successfully!`);
                     loadTemplates();
                 } else {
                     alert('Error uploading template: ' + data.error);
@@ -1256,8 +1061,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Error uploading template');
             })
             .finally(() => {
-                addTemplateBtn.disabled = false;
-                addTemplateBtn.innerHTML = '<span>+</span> Add Template';
+                btn.disabled = false;
+                btn.innerHTML = `<span>+</span> Add ${categoryLabel} Template`;
             });
         });
 
@@ -1265,7 +1070,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(fileInput);
         fileInput.click();
         document.body.removeChild(fileInput);
-    });
+    }
+
+    // Event handlers for both add buttons
+    addEventTemplateBtn.addEventListener('click', () => handleAddTemplate('event'));
+    addDailyTemplateBtn.addEventListener('click', () => handleAddTemplate('daily'));
 
     // Helper function to get CSRF token
     function getCsrfToken() {

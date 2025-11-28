@@ -44,6 +44,14 @@ except ImportError as e:
 # Import report generator and constants
 from .report_generator import EDRReportGenerator
 
+# Import event time settings service
+try:
+    from app.services.event_time_settings import EventTimeSettings
+    EVENT_TIME_SETTINGS_AVAILABLE = True
+except ImportError:
+    EVENT_TIME_SETTINGS_AVAILABLE = False
+    logging.warning("EventTimeSettings not available - shift times will not be displayed on PDFs")
+
 # Import mapping data from constants module
 try:
     from app.constants import DEMO_CLASS_CODES, EVENT_STATUS_CODES, DEPARTMENT_CODES
@@ -159,6 +167,102 @@ class EDRPDFGenerator:
         except:
             pass
         return date_str
+
+    def get_shift_times_for_schedule(self, schedule_info: Optional[Dict]) -> Optional[Dict]:
+        """
+        Get the shift times (start, lunch, end) based on the scheduled time and event type.
+
+        Args:
+            schedule_info: Dict with 'scheduled_time' (time object) and 'event_type' (str)
+
+        Returns:
+            Dict with 'start', 'lunch_begin', 'lunch_end', 'end' times as formatted strings,
+            or None if shift times cannot be determined
+        """
+        if not EVENT_TIME_SETTINGS_AVAILABLE or not schedule_info:
+            return None
+
+        scheduled_time = schedule_info.get('scheduled_time')
+        event_type = schedule_info.get('event_type', '')
+
+        if not scheduled_time or not event_type:
+            return None
+
+        try:
+            # Only Core events have full shift times with lunch
+            if 'core' in event_type.lower():
+                core_slots = EventTimeSettings.get_core_slots()
+
+                # Find the matching slot based on scheduled time
+                for slot in core_slots:
+                    slot_start = slot['start']
+                    # Match if scheduled time equals slot start time
+                    if scheduled_time.hour == slot_start.hour and scheduled_time.minute == slot_start.minute:
+                        return {
+                            'slot': slot['slot'],
+                            'start': f"{slot['start'].hour:02d}:{slot['start'].minute:02d}",
+                            'lunch_begin': f"{slot['lunch_begin'].hour:02d}:{slot['lunch_begin'].minute:02d}",
+                            'lunch_end': f"{slot['lunch_end'].hour:02d}:{slot['lunch_end'].minute:02d}",
+                            'end': f"{slot['end'].hour:02d}:{slot['end'].minute:02d}"
+                        }
+
+            # For non-Core events, just return start and end times (no lunch)
+            elif 'digital setup' in event_type.lower() or 'digital refresh' in event_type.lower():
+                slots = EventTimeSettings.get_digital_setup_slots()
+                for slot in slots:
+                    if scheduled_time.hour == slot['start'].hour and scheduled_time.minute == slot['start'].minute:
+                        return {
+                            'slot': slot['slot'],
+                            'start': f"{slot['start'].hour:02d}:{slot['start'].minute:02d}",
+                            'end': f"{slot['end'].hour:02d}:{slot['end'].minute:02d}"
+                        }
+
+            elif 'digital teardown' in event_type.lower():
+                slots = EventTimeSettings.get_digital_teardown_slots()
+                for slot in slots:
+                    if scheduled_time.hour == slot['start'].hour and scheduled_time.minute == slot['start'].minute:
+                        return {
+                            'slot': slot['slot'],
+                            'start': f"{slot['start'].hour:02d}:{slot['start'].minute:02d}",
+                            'end': f"{slot['end'].hour:02d}:{slot['end'].minute:02d}"
+                        }
+
+            elif 'freeosk' in event_type.lower():
+                times = EventTimeSettings.get_freeosk_times()
+                return {
+                    'start': f"{times['start'].hour:02d}:{times['start'].minute:02d}",
+                    'end': f"{times['end'].hour:02d}:{times['end'].minute:02d}"
+                }
+
+            elif 'supervisor' in event_type.lower():
+                times = EventTimeSettings.get_supervisor_times()
+                return {
+                    'start': f"{times['start'].hour:02d}:{times['start'].minute:02d}",
+                    'end': f"{times['end'].hour:02d}:{times['end'].minute:02d}"
+                }
+
+        except Exception as e:
+            self.logger.warning(f"Error getting shift times: {e}")
+
+        return None
+
+    def format_time_12h(self, time_str: str) -> str:
+        """Convert 24h time string (HH:MM) to 12h format (H:MM AM/PM)"""
+        try:
+            parts = time_str.split(':')
+            hour = int(parts[0])
+            minute = int(parts[1])
+
+            if hour == 0:
+                return f"12:{minute:02d} AM"
+            elif hour < 12:
+                return f"{hour}:{minute:02d} AM"
+            elif hour == 12:
+                return f"12:{minute:02d} PM"
+            else:
+                return f"{hour - 12}:{minute:02d} PM"
+        except:
+            return time_str
 
     # REMOVED: draw_horizontal_line method - no longer used
     # The horizontal line and "Staple Price Signs Here" text have been removed per user request
@@ -359,6 +463,34 @@ class EDRPDFGenerator:
                 ]))
                 story.append(items_table)
                 story.append(Spacer(1, 20))
+
+            # Shift Times Section (before signature)
+            shift_times = self.get_shift_times_for_schedule(schedule_info)
+            if shift_times:
+                # Create style for shift times section
+                shift_times_style = ParagraphStyle(
+                    'ShiftTimes',
+                    parent=styles['Normal'],
+                    fontSize=11,
+                    spaceAfter=6,
+                    alignment=TA_CENTER,
+                    fontName='Helvetica-Bold',
+                    textColor=self.pc_blue
+                )
+
+                # Build shift times display
+                shift_times_parts = []
+                shift_times_parts.append(f"START: {self.format_time_12h(shift_times['start'])}")
+
+                # Only Core events have lunch times
+                if 'lunch_begin' in shift_times and 'lunch_end' in shift_times:
+                    shift_times_parts.append(f"LUNCH: {self.format_time_12h(shift_times['lunch_begin'])} - {self.format_time_12h(shift_times['lunch_end'])}")
+
+                shift_times_parts.append(f"LEAVE: {self.format_time_12h(shift_times['end'])}")
+
+                shift_times_text = "   |   ".join(shift_times_parts)
+                story.append(Paragraph(shift_times_text, shift_times_style))
+                story.append(Spacer(1, 15))
 
             # Signature section
             story.append(Paragraph("<b>MUST BE SIGNED AND DATED</b>", header_style))

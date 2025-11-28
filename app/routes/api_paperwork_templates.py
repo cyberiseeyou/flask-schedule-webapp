@@ -107,6 +107,7 @@ def create_template():
             name=data['name'],
             description=data.get('description', ''),
             file_path=data['file_path'],
+            category=data.get('category', 'event'),
             display_order=display_order,
             is_active=data.get('is_active', True)
         )
@@ -346,6 +347,7 @@ def upload_template_file():
         # Get template name from form or use filename
         template_name = request.form.get('name', filename.rsplit('.', 1)[0])
         template_description = request.form.get('description', '')
+        template_category = request.form.get('category', 'event')  # Default to 'event'
 
         # Check if template with this file_path already exists (when overwriting)
         existing_by_file = PaperworkTemplate.query.filter_by(file_path=filename).first()
@@ -387,6 +389,7 @@ def upload_template_file():
             name=template_name,
             description=template_description,
             file_path=filename,  # Store relative path
+            category=template_category,
             display_order=display_order,
             is_active=True
         )

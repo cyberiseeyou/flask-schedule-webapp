@@ -64,6 +64,7 @@ def get_daily_summary(date):
     from sqlalchemy import func, and_
     from app.utils.validators import validate_date_param
     from app.utils.db_helpers import get_models, get_date_range
+    from app.services.event_time_settings import EventTimeSettings
 
     # Validate and parse date using utility
     selected_date = validate_date_param(date)
@@ -98,9 +99,24 @@ def get_daily_summary(date):
     # Calculate total events
     total_events = sum(type_counts.values())
 
-    # Core timeslot coverage
+    # Core timeslot coverage - get times from settings
     # Count DISTINCT employees with events starting at exact timeslot times
-    core_timeslots = ['09:45:00', '10:30:00', '11:00:00', '11:30:00']
+    core_slots = EventTimeSettings.get_core_slots()
+    core_timeslots = []
+    timeslot_metadata = {}  # For returning to frontend
+    for slot in core_slots:
+        start_time = slot['start']
+        time_str = f"{start_time.hour:02d}:{start_time.minute:02d}:00"
+        core_timeslots.append(time_str)
+        # Include full slot info for frontend display
+        timeslot_metadata[time_str] = {
+            'slot': slot['slot'],
+            'start': f"{start_time.hour:02d}:{start_time.minute:02d}",
+            'label': f"{start_time.hour}:{start_time.minute:02d} {'AM' if start_time.hour < 12 else 'PM'}" if start_time.hour <= 12 else f"{start_time.hour - 12}:{start_time.minute:02d} PM",
+            'lunch_begin': f"{slot['lunch_begin'].hour:02d}:{slot['lunch_begin'].minute:02d}",
+            'lunch_end': f"{slot['lunch_end'].hour:02d}:{slot['lunch_end'].minute:02d}",
+            'end': f"{slot['end'].hour:02d}:{slot['end'].minute:02d}"
+        }
     timeslot_coverage = {}
 
     for timeslot in core_timeslots:
@@ -121,7 +137,8 @@ def get_daily_summary(date):
     return jsonify({
         'event_types': type_counts,
         'total_events': total_events,
-        'timeslot_coverage': timeslot_coverage
+        'timeslot_coverage': timeslot_coverage,
+        'timeslot_metadata': timeslot_metadata  # Full slot info from settings
     }), 200
 
 
