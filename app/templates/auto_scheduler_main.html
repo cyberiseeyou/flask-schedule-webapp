@@ -171,10 +171,133 @@
         0%, 100% { transform: scale(1); box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); }
         50% { transform: scale(1.01); box-shadow: 0 6px 16px rgba(243, 156, 18, 0.4); }
     }
+
+    /* Progress Modal Styles */
+    .progress-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .progress-modal-overlay.active {
+        display: flex;
+    }
+
+    .progress-modal {
+        background: white;
+        border-radius: 8px;
+        padding: 40px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .progress-modal h2 {
+        margin: 0 0 20px 0;
+        color: #2c3e50;
+        text-align: center;
+    }
+
+    .progress-info {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    .progress-label {
+        font-size: 16px;
+        color: #7f8c8d;
+        margin-bottom: 5px;
+    }
+
+    .progress-current-event {
+        font-size: 14px;
+        color: #2c3e50;
+        margin-top: 15px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        min-height: 40px;
+        text-align: center;
+    }
+
+    .progress-bar-container {
+        width: 100%;
+        height: 30px;
+        background: #ecf0f1;
+        border-radius: 15px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    /* Indeterminate progress animation */
+    @keyframes indeterminate {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+    }
+
+    .progress-bar.indeterminate {
+        width: 25%;
+        animation: indeterminate 1.5s ease-in-out infinite;
+    }
+
+    .progress-status {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .progress-status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .progress-status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+    <!-- Progress Modal -->
+    <div class="progress-modal-overlay" id="progress-modal">
+        <div class="progress-modal">
+            <h2>Creating Schedule...</h2>
+            <div class="progress-info">
+                <div class="progress-label" id="progress-label">Analyzing events and availability</div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar indeterminate" id="progress-bar"></div>
+            </div>
+            <div class="progress-current-event" id="current-event">
+                Initializing auto-scheduler...
+            </div>
+            <div id="progress-status"></div>
+        </div>
+    </div>
+
     <!-- Page Header -->
     <div class="page-header">
         <h1 class="page-title">Auto-Scheduler</h1>
@@ -299,10 +422,47 @@ function checkPendingProposal() {
 function runAutoScheduler() {
     const btn = document.getElementById('auto-schedule-btn');
     const statusSpan = document.getElementById('auto-schedule-status');
+    const progressModal = document.getElementById('progress-modal');
+    const progressLabel = document.getElementById('progress-label');
+    const progressBar = document.getElementById('progress-bar');
+    const currentEvent = document.getElementById('current-event');
+    const progressStatus = document.getElementById('progress-status');
+
+    // Scheduling wave messages to simulate progress
+    const progressMessages = [
+        { label: 'Analyzing events and availability', detail: 'Loading unscheduled events...' },
+        { label: 'Wave 1: Juicer Events', detail: 'Scheduling Juicer events to Juicer Baristas...' },
+        { label: 'Wave 2: Core Events', detail: 'Scheduling Core and Supervisor events...' },
+        { label: 'Wave 3: Freeosk Events', detail: 'Scheduling Freeosk events to Leads...' },
+        { label: 'Wave 4: Digital Events', detail: 'Scheduling Digital events...' },
+        { label: 'Wave 5: Other Events', detail: 'Scheduling remaining events...' },
+        { label: 'Finalizing', detail: 'Running rescue pass for urgent events...' }
+    ];
+
+    let messageIndex = 0;
+    let progressInterval;
+
+    // Show progress modal
+    progressModal.classList.add('active');
+    progressBar.classList.add('indeterminate');
+    progressStatus.innerHTML = '';
+
+    // Rotate through progress messages
+    function updateProgressMessage() {
+        if (messageIndex < progressMessages.length) {
+            progressLabel.textContent = progressMessages[messageIndex].label;
+            currentEvent.textContent = progressMessages[messageIndex].detail;
+            messageIndex++;
+        }
+    }
+
+    // Start message rotation
+    updateProgressMessage();
+    progressInterval = setInterval(updateProgressMessage, 2000);
 
     btn.disabled = true;
     btn.textContent = 'Running...';
-    statusSpan.textContent = 'Analyzing events...';
+    statusSpan.textContent = '';
 
     fetch('{{ url_for("auto_scheduler.run_scheduler") }}', {
         method: 'POST',
@@ -312,7 +472,16 @@ function runAutoScheduler() {
     })
     .then(response => response.json())
     .then(data => {
+        clearInterval(progressInterval);
+        progressBar.classList.remove('indeterminate');
+
         if (data.success) {
+            // Show success in modal
+            progressLabel.textContent = 'Schedule Created!';
+            progressBar.style.width = '100%';
+            currentEvent.textContent = `${data.stats.events_scheduled} events scheduled, ${data.stats.events_requiring_swaps} swaps proposed`;
+            progressStatus.innerHTML = '<div class="progress-status success">Schedule proposal created successfully!</div>';
+
             statusSpan.style.color = '#27ae60';
             statusSpan.textContent = `✓ Completed: ${data.stats.events_scheduled} scheduled, ${data.stats.events_requiring_swaps} swaps, ${data.stats.events_failed} failed`;
 
@@ -325,8 +494,9 @@ function runAutoScheduler() {
                 checkPendingProposal();
             }, 500);
 
-            // Show success message
+            // Hide modal and show confirmation after a brief delay
             setTimeout(() => {
+                progressModal.classList.remove('active');
                 if (data.stats.events_scheduled > 0 || data.stats.events_requiring_swaps > 0) {
                     if (confirm('Auto-scheduler completed successfully! Would you like to review the proposals now?')) {
                         window.location.href = '{{ url_for("auto_scheduler.review") }}';
@@ -334,17 +504,44 @@ function runAutoScheduler() {
                 } else {
                     alert('Auto-scheduler completed but found no events to schedule in the next 3 weeks.');
                 }
-            }, 1000);
+            }, 1500);
         } else {
+            // Show error in modal
+            progressLabel.textContent = 'Error';
+            progressBar.style.width = '100%';
+            progressBar.style.background = '#e74c3c';
+            currentEvent.textContent = data.error;
+            progressStatus.innerHTML = '<div class="progress-status error">Failed to create schedule</div>';
+
             statusSpan.style.color = '#e74c3c';
             statusSpan.textContent = `Error: ${data.error}`;
-            alert('Auto-scheduler failed: ' + data.error);
+
+            // Hide modal after delay
+            setTimeout(() => {
+                progressModal.classList.remove('active');
+                progressBar.style.background = '';
+            }, 3000);
         }
     })
     .catch(error => {
+        clearInterval(progressInterval);
+        progressBar.classList.remove('indeterminate');
+
+        // Show error in modal
+        progressLabel.textContent = 'Error';
+        progressBar.style.width = '100%';
+        progressBar.style.background = '#e74c3c';
+        currentEvent.textContent = error.message;
+        progressStatus.innerHTML = '<div class="progress-status error">Failed to run auto-scheduler</div>';
+
         statusSpan.style.color = '#e74c3c';
         statusSpan.textContent = `Failed: ${error.message}`;
-        alert('Failed to run auto-scheduler: ' + error.message);
+
+        // Hide modal after delay
+        setTimeout(() => {
+            progressModal.classList.remove('active');
+            progressBar.style.background = '';
+        }, 3000);
     })
     .finally(() => {
         btn.disabled = false;
