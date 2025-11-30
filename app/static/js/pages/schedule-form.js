@@ -61,8 +61,51 @@ class ScheduleFormController {
     // Attach event listeners
     this._attachEventListeners();
 
+    // Load default time from settings based on event type
+    this._loadDefaultTime();
+
     // Initial validation if all required fields are filled
     this._checkInitialValidation();
+  }
+
+  /**
+   * Load default start time from settings based on event type
+   * @private
+   */
+  async _loadDefaultTime() {
+    // Get event type from window.eventData (set in template)
+    const eventType = window.eventData?.eventType;
+
+    if (!eventType) {
+      console.warn('[ScheduleForm] No event type found, using fallback time');
+      this.fields.startTime.value = '09:00';
+      return;
+    }
+
+    try {
+      console.log('[ScheduleForm] Loading default time for event type:', eventType);
+
+      const response = await fetch(`/api/event-default-time/${encodeURIComponent(eventType)}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.default_time) {
+        this.fields.startTime.value = data.default_time;
+        console.log('[ScheduleForm] Default time set to:', data.default_time);
+      } else {
+        // Fallback to 09:00
+        this.fields.startTime.value = '09:00';
+        console.log('[ScheduleForm] Using fallback time: 09:00');
+      }
+    } catch (error) {
+      console.error('[ScheduleForm] Error loading default time:', error);
+      // Fallback to 09:00
+      this.fields.startTime.value = '09:00';
+    }
   }
 
   /**

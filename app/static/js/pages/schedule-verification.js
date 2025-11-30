@@ -12,16 +12,32 @@ class ScheduleVerification {
         this.dateInput = document.getElementById('verify-date');
         this.verifyBtn = document.getElementById('btn-verify');
 
+        // Check if elements were found
+        if (!this.verifyBtn) {
+            console.error('ScheduleVerification: btn-verify element not found');
+            return;
+        }
+        if (!this.dateInput) {
+            console.error('ScheduleVerification: verify-date element not found');
+            return;
+        }
+
         this.init();
+        console.log('ScheduleVerification initialized successfully');
     }
 
     init() {
         // Attach event listeners
-        this.verifyBtn.addEventListener('click', () => this.handleVerify());
+        this.verifyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('Verify button clicked');
+            this.handleVerify();
+        });
 
         // Allow Enter key to trigger verification
         this.dateInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
+                e.preventDefault();
                 this.handleVerify();
             }
         });
@@ -50,8 +66,21 @@ class ScheduleVerification {
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({ date })
             });
+
+            // Check if redirected to login
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+
+            // Check content type before parsing
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Session expired. Please refresh the page and try again.');
+            }
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -59,6 +88,7 @@ class ScheduleVerification {
             }
 
             const result = await response.json();
+            console.log('[Schedule Verification] API Response:', result);
 
             // Display results
             this.displayResults(result);
@@ -87,7 +117,16 @@ class ScheduleVerification {
      * @param {Object} result - Verification result from API
      */
     displayResults(result) {
+        console.log('[Schedule Verification] displayResults called with:', result);
+
+        if (!result) {
+            console.error('[Schedule Verification] Result is null/undefined');
+            this.showError('No data received from server');
+            return;
+        }
+
         const { status, issues, summary } = result;
+        console.log('[Schedule Verification] Status:', status, 'Issues:', issues?.length, 'Summary:', summary);
 
         // Build HTML
         let html = '';
@@ -105,7 +144,29 @@ class ScheduleVerification {
             html += this.buildNoIssuesMessage();
         }
 
+        console.log('[Schedule Verification] HTML built, length:', html.length);
+        console.log('[Schedule Verification] resultsContainer:', this.resultsContainer);
+
+        if (!this.resultsContainer) {
+            console.error('[Schedule Verification] resultsContainer is null!');
+            return;
+        }
+
         this.resultsContainer.innerHTML = html;
+        console.log('[Schedule Verification] HTML injected into container');
+
+        // Ensure visibility - remove hidden class and show container
+        this.resultsContainer.classList.remove('results-hidden');
+        this.resultsContainer.style.display = 'block';
+
+        // Hide empty state
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
+        console.log('[Schedule Verification] Container visible:',
+            !this.resultsContainer.classList.contains('results-hidden'),
+            'Display:', getComputedStyle(this.resultsContainer).display);
 
         // Attach event listeners for toggle buttons
         this.attachToggleListeners();

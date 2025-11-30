@@ -224,7 +224,8 @@ def available_employees(date, event_id=None):
         # Track why each employee is excluded
         exclusion_reason = None
 
-        if emp.id in core_scheduled_employee_ids:
+        # Only apply Core event one-per-day restriction when scheduling a Core event
+        if event_type == 'Core' and emp.id in core_scheduled_employee_ids:
             exclusion_reason = "already scheduled for Core event"
         elif emp.id in unavailable_employee_ids:
             exclusion_reason = "marked unavailable on this date"

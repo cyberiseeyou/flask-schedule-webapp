@@ -135,15 +135,17 @@ class ScheduleVerificationService:
         """
         Run all verification rules for a specific date (Daily Mode)
 
-        Implements 8 validation rules:
-        1. Juicer event verification
-        2. Core events per person limit
-        3. Supervisor event assignment
-        4. Supervisor event time
-        5. Shift balance across 4 timeslots
-        6. Lead Event Specialist coverage (opening/closing)
-        7. Employee work limits (availability, time-off, max 6 days/week)
-        8. Event date range validation
+        Validation rules:
+        1. One Core per employee max
+        2. Employee availability check (weekly pattern)
+        3. Employee time-off check
+        4. Core event times are correct and balanced
+        5. Each Core has supervisor event paired correctly
+        6. Freeosk scheduled to correct person at correct time
+        7. Digitals scheduled to correct person at correct time
+        8. Events due tomorrow are scheduled
+        9. Juicer scheduled to rotation Juicer for the day
+        10. Juicer employee not also scheduled for Core
 
         Args:
             verify_date: Date to verify (datetime.date object)
@@ -154,14 +156,14 @@ class ScheduleVerificationService:
         issues = []
 
         # Run all verification rules
-        issues.extend(self._check_juicer_events(verify_date))
-        issues.extend(self._check_core_event_limit(verify_date))
-        issues.extend(self._check_supervisor_assignments(verify_date))
-        issues.extend(self._check_supervisor_times(verify_date))
-        issues.extend(self._check_shift_balance(verify_date))
-        issues.extend(self._check_lead_coverage(verify_date))
-        issues.extend(self._check_employee_work_limits(verify_date))
-        issues.extend(self._check_event_date_ranges(verify_date))
+        issues.extend(self._check_core_event_limit(verify_date))  # Rule 1
+        issues.extend(self._check_employee_availability_only(verify_date))  # Rules 2 & 3
+        issues.extend(self._check_core_times_and_balance(verify_date))  # Rule 4
+        issues.extend(self._check_core_supervisor_pairing(verify_date))  # Rule 5
+        issues.extend(self._check_freeosk_scheduling(verify_date))  # Rule 6
+        issues.extend(self._check_digitals_scheduling(verify_date))  # Rule 7
+        issues.extend(self._check_events_due_tomorrow(verify_date))  # Rule 8
+        issues.extend(self._check_juicer_rotation(verify_date))  # Rules 9 & 10
 
         # Determine overall status
         critical_count = sum(1 for issue in issues if issue.severity == 'critical')
@@ -322,13 +324,19 @@ class ScheduleVerificationService:
 
         for schedule, event, employee in supervisor_schedules:
             scheduled_time = schedule.schedule_datetime.time()
-            expected_time = time(12, 0)  # 12:00 PM
+            # Parse expected time from settings (format: "HH:MM:SS")
+            try:
+                h, m, s = map(int, self.SUPERVISOR_TIME.split(':'))
+                expected_time = time(h, m)
+            except (ValueError, AttributeError):
+                expected_time = time(12, 0)  # Fallback to 12:00 PM
 
             if scheduled_time != expected_time:
+                expected_time_str = expected_time.strftime('%I:%M %p').lstrip('0')
                 issues.append(VerificationIssue(
                     severity='warning',
                     rule_name='Supervisor Event Time',
-                    message=f"Supervisor event '{event.project_name}' for {employee.name} is scheduled at {scheduled_time.strftime('%I:%M %p')}. Should be at 12:00 PM.",
+                    message=f"Supervisor event '{event.project_name}' for {employee.name} is scheduled at {scheduled_time.strftime('%I:%M %p')}. Should be at {expected_time_str}.",
                     details={
                         'employee_id': employee.id,
                         'employee_name': employee.name,
@@ -336,7 +344,7 @@ class ScheduleVerificationService:
                         'event_name': event.project_name,
                         'schedule_id': schedule.id,
                         'scheduled_time': scheduled_time.strftime('%H:%M:%S'),
-                        'expected_time': '12:00:00'
+                        'expected_time': expected_time.strftime('%H:%M:%S')
                     }
                 ))
 
@@ -765,6 +773,422 @@ class ScheduleVerificationService:
                     'verify_date': verify_date.isoformat()
                 }
             ))
+
+        return issues
+
+    # ============================================================================
+    # NEW FOCUSED VERIFICATION RULES
+    # ============================================================================
+
+    def _check_employee_availability_only(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Check employee availability AND time-off for all scheduled employees
+
+        Combines:
+        - Weekly availability pattern check
+        - Specific date availability check
+        - Time-off request check
+        """
+        issues = []
+
+        # Get all employees scheduled for this date
+        scheduled_employees = self.db.query(
+            self.Employee
+        ).join(
+            self.Schedule, self.Employee.id == self.Schedule.employee_id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date
+        ).distinct().all()
+
+        for employee in scheduled_employees:
+            # Check time-off first (highest priority)
+            time_off = self.db.query(self.EmployeeTimeOff).filter(
+                self.EmployeeTimeOff.employee_id == employee.id,
+                self.EmployeeTimeOff.start_date <= verify_date,
+                self.EmployeeTimeOff.end_date >= verify_date
+            ).first()
+
+            if time_off:
+                issues.append(VerificationIssue(
+                    severity='critical',
+                    rule_name='Employee Time Off',
+                    message=f"{employee.name} has time-off from {time_off.start_date} to {time_off.end_date}. Reason: {time_off.reason or 'Not specified'}",
+                    details={
+                        'employee_id': employee.id,
+                        'employee_name': employee.name,
+                        'time_off_start': time_off.start_date.isoformat(),
+                        'time_off_end': time_off.end_date.isoformat(),
+                        'reason': time_off.reason
+                    }
+                ))
+                continue  # Skip availability check if on time-off
+
+            # Check weekly availability pattern
+            if self.EmployeeWeeklyAvailability:
+                day_of_week = verify_date.weekday()
+                day_columns = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                day_column = day_columns[day_of_week]
+
+                weekly_avail = self.db.query(self.EmployeeWeeklyAvailability).filter(
+                    self.EmployeeWeeklyAvailability.employee_id == employee.id
+                ).first()
+
+                if weekly_avail:
+                    is_available = getattr(weekly_avail, day_column)
+                    if not is_available:
+                        issues.append(VerificationIssue(
+                            severity='critical',
+                            rule_name='Employee Availability',
+                            message=f"{employee.name} is not available on {day_column.capitalize()}s but is scheduled.",
+                            details={
+                                'employee_id': employee.id,
+                                'employee_name': employee.name,
+                                'day_of_week': day_column,
+                                'date': verify_date.isoformat()
+                            }
+                        ))
+
+        return issues
+
+    def _check_core_times_and_balance(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Verify Core events are at valid times and balanced across shifts
+        """
+        issues = []
+
+        # Get all Core events for this date
+        core_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type == 'Core'
+        ).all()
+
+        # Check each Core event is at a valid time slot
+        for schedule, event, employee in core_schedules:
+            scheduled_time = schedule.schedule_datetime.time().strftime('%H:%M:%S')
+            if scheduled_time not in self.CORE_TIMESLOTS:
+                valid_times = [self._format_time(t) for t in self.CORE_TIMESLOTS]
+                issues.append(VerificationIssue(
+                    severity='warning',
+                    rule_name='Core Event Time',
+                    message=f"Core event for {employee.name} is scheduled at {self._format_time(scheduled_time)} which is not a standard time slot. Valid times: {', '.join(valid_times)}",
+                    details={
+                        'employee_id': employee.id,
+                        'employee_name': employee.name,
+                        'event_name': event.project_name,
+                        'scheduled_time': scheduled_time,
+                        'valid_times': self.CORE_TIMESLOTS
+                    }
+                ))
+
+        # Check shift balance
+        shift_counts = {}
+        for timeslot in self.CORE_TIMESLOTS:
+            count = sum(1 for s, e, emp in core_schedules
+                       if s.schedule_datetime.time().strftime('%H:%M:%S') == timeslot)
+            shift_counts[timeslot] = count
+
+        if shift_counts:
+            max_count = max(shift_counts.values())
+            min_count = min(shift_counts.values())
+
+            if max_count >= 3 and min_count == 0:
+                max_shifts = [self._format_time(s) for s, c in shift_counts.items() if c == max_count]
+                min_shifts = [self._format_time(s) for s, c in shift_counts.items() if c == min_count]
+
+                issues.append(VerificationIssue(
+                    severity='warning',
+                    rule_name='Shift Balance',
+                    message=f"Core events are imbalanced. {max_shifts[0]} has {max_count} events while {min_shifts[0]} has 0.",
+                    details={
+                        'shift_counts': {self._format_time(k): v for k, v in shift_counts.items()},
+                        'overloaded': max_shifts,
+                        'empty': min_shifts
+                    }
+                ))
+
+        return issues
+
+    def _check_core_supervisor_pairing(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Verify each Core event has a paired Supervisor event scheduled to a supervisor
+        """
+        issues = []
+
+        # Get all Core events for this date
+        core_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type == 'Core'
+        ).all()
+
+        # Get all Supervisor events for this date
+        supervisor_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type == 'Supervisor'
+        ).all()
+
+        # Build map of Supervisor events by project_ref_num
+        supervisor_map = {}
+        for sched, event, emp in supervisor_schedules:
+            supervisor_map[event.project_ref_num] = {
+                'schedule': sched,
+                'event': event,
+                'employee': emp
+            }
+
+        for core_sched, core_event, core_emp in core_schedules:
+            # Check if there's a corresponding Supervisor event (by parent_event_ref_num)
+            # Supervisor events should have parent_event_ref_num pointing to Core
+            paired_sup = None
+            for sup_ref, sup_data in supervisor_map.items():
+                if sup_data['event'].parent_event_ref_num == core_event.project_ref_num:
+                    paired_sup = sup_data
+                    break
+
+            if not paired_sup:
+                issues.append(VerificationIssue(
+                    severity='warning',
+                    rule_name='Core-Supervisor Pairing',
+                    message=f"Core event '{core_event.project_name}' for {core_emp.name} has no paired Supervisor event.",
+                    details={
+                        'core_event_ref': core_event.project_ref_num,
+                        'core_event_name': core_event.project_name,
+                        'core_employee': core_emp.name
+                    }
+                ))
+            else:
+                # Check Supervisor is assigned to correct person (Club Supervisor or Lead)
+                sup_emp = paired_sup['employee']
+                if sup_emp.job_title not in ['Club Supervisor', 'Lead Event Specialist']:
+                    issues.append(VerificationIssue(
+                        severity='warning',
+                        rule_name='Supervisor Assignment',
+                        message=f"Supervisor event for '{core_event.project_name}' is assigned to {sup_emp.name} ({sup_emp.job_title}). Should be Club Supervisor or Lead.",
+                        details={
+                            'supervisor_employee': sup_emp.name,
+                            'supervisor_title': sup_emp.job_title,
+                            'core_event': core_event.project_name
+                        }
+                    ))
+
+        return issues
+
+    def _check_freeosk_scheduling(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Verify Freeosk events are scheduled to correct person (Lead/Supervisor) at correct time
+        """
+        issues = []
+
+        # Get expected Freeosk times from settings
+        try:
+            from app.services.event_time_settings import get_freeosk_times
+            freeosk_times = get_freeosk_times()
+            expected_time = freeosk_times.get('start', time(10, 0))
+            if hasattr(expected_time, 'strftime'):
+                expected_time_str = expected_time.strftime('%H:%M:%S')
+            else:
+                expected_time_str = '10:00:00'
+        except Exception:
+            expected_time_str = '10:00:00'
+
+        # Get all Freeosk events for this date
+        freeosk_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type == 'Freeosk'
+        ).all()
+
+        for schedule, event, employee in freeosk_schedules:
+            # Check person is qualified (Lead or Supervisor)
+            if employee.job_title not in ['Club Supervisor', 'Lead Event Specialist']:
+                issues.append(VerificationIssue(
+                    severity='critical',
+                    rule_name='Freeosk Assignment',
+                    message=f"Freeosk event '{event.project_name}' is assigned to {employee.name} ({employee.job_title}). Must be Club Supervisor or Lead Event Specialist.",
+                    details={
+                        'event_name': event.project_name,
+                        'employee': employee.name,
+                        'job_title': employee.job_title
+                    }
+                ))
+
+        return issues
+
+    def _check_digitals_scheduling(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Verify Digital events are scheduled to correct person (Lead/Supervisor) at correct time
+        """
+        issues = []
+
+        # Get all Digital events for this date (includes Digital Setup, Digital Refresh, Digital Teardown, Digitals)
+        digital_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type.in_(['Digitals', 'Digital Setup', 'Digital Refresh', 'Digital Teardown'])
+        ).all()
+
+        for schedule, event, employee in digital_schedules:
+            # Check person is qualified (Lead or Supervisor)
+            if employee.job_title not in ['Club Supervisor', 'Lead Event Specialist']:
+                issues.append(VerificationIssue(
+                    severity='critical',
+                    rule_name='Digital Event Assignment',
+                    message=f"Digital event '{event.project_name}' is assigned to {employee.name} ({employee.job_title}). Must be Club Supervisor or Lead Event Specialist.",
+                    details={
+                        'event_name': event.project_name,
+                        'event_type': event.event_type,
+                        'employee': employee.name,
+                        'job_title': employee.job_title
+                    }
+                ))
+
+        return issues
+
+    def _check_events_due_tomorrow(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Check that all events due tomorrow (next day) are scheduled
+        """
+        issues = []
+
+        tomorrow = verify_date + timedelta(days=1)
+
+        # Find events with due_datetime = tomorrow that are not scheduled
+        unscheduled_due_tomorrow = self.db.query(self.Event).filter(
+            self.Event.is_scheduled == False,
+            func.date(self.Event.due_datetime) == tomorrow,
+            self.Event.condition != 'Canceled'
+        ).all()
+
+        for event in unscheduled_due_tomorrow:
+            issues.append(VerificationIssue(
+                severity='critical',
+                rule_name='Event Due Tomorrow',
+                message=f"Event '{event.project_name}' ({event.event_type}) is due tomorrow ({tomorrow}) but is not scheduled.",
+                details={
+                    'event_id': event.id,
+                    'event_ref_num': event.project_ref_num,
+                    'event_name': event.project_name,
+                    'event_type': event.event_type,
+                    'due_date': tomorrow.isoformat()
+                }
+            ))
+
+        return issues
+
+    def _check_juicer_rotation(self, verify_date: date) -> List[VerificationIssue]:
+        """
+        Verify Juicer events:
+        1. Juicer is scheduled to the correct rotation person for that day
+        2. If Juicer employee is on Juicer Production, they should NOT have a Core event
+        """
+        issues = []
+
+        # Get the expected Juicer for this day from rotation
+        expected_juicer_id = None
+        if self.RotationAssignment:
+            day_of_week = (verify_date.weekday() + 1) % 7  # Convert to 0=Sunday format
+            rotation = self.db.query(self.RotationAssignment).filter(
+                self.RotationAssignment.day_of_week == day_of_week,
+                self.RotationAssignment.rotation_type == 'juicer'
+            ).first()
+
+            if rotation:
+                expected_juicer_id = rotation.employee_id
+
+        # Get all Juicer events scheduled for this date
+        juicer_schedules = self.db.query(
+            self.Schedule, self.Event, self.Employee
+        ).join(
+            self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+        ).join(
+            self.Employee, self.Schedule.employee_id == self.Employee.id
+        ).filter(
+            func.date(self.Schedule.schedule_datetime) == verify_date,
+            self.Event.event_type == 'Juicer'
+        ).all()
+
+        juicer_employee_ids = set()
+
+        for schedule, event, employee in juicer_schedules:
+            juicer_employee_ids.add(employee.id)
+
+            # Check if employee is qualified
+            if employee.job_title not in ['Club Supervisor', 'Juicer Barista']:
+                issues.append(VerificationIssue(
+                    severity='critical',
+                    rule_name='Juicer Qualification',
+                    message=f"Juicer event assigned to {employee.name} ({employee.job_title}) who is not qualified for Juicer events.",
+                    details={
+                        'employee': employee.name,
+                        'job_title': employee.job_title,
+                        'event_name': event.project_name
+                    }
+                ))
+
+            # Check if this is the rotation Juicer
+            if expected_juicer_id and employee.id != expected_juicer_id:
+                expected_emp = self.db.query(self.Employee).get(expected_juicer_id)
+                expected_name = expected_emp.name if expected_emp else 'Unknown'
+                issues.append(VerificationIssue(
+                    severity='warning',
+                    rule_name='Juicer Rotation',
+                    message=f"Juicer event assigned to {employee.name} but {expected_name} is on Juicer rotation for this day.",
+                    details={
+                        'assigned_employee': employee.name,
+                        'rotation_employee': expected_name,
+                        'day_of_week': verify_date.strftime('%A')
+                    }
+                ))
+
+        # Check if Juicer employees also have Core events (not allowed)
+        for juicer_emp_id in juicer_employee_ids:
+            core_event = self.db.query(self.Schedule).join(
+                self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
+            ).filter(
+                func.date(self.Schedule.schedule_datetime) == verify_date,
+                self.Schedule.employee_id == juicer_emp_id,
+                self.Event.event_type == 'Core'
+            ).first()
+
+            if core_event:
+                employee = self.db.query(self.Employee).get(juicer_emp_id)
+                issues.append(VerificationIssue(
+                    severity='critical',
+                    rule_name='Juicer-Core Conflict',
+                    message=f"{employee.name} is scheduled for both Juicer and Core events on the same day. Juicer employees cannot work Core events.",
+                    details={
+                        'employee_id': juicer_emp_id,
+                        'employee_name': employee.name,
+                        'date': verify_date.isoformat()
+                    }
+                ))
 
         return issues
 

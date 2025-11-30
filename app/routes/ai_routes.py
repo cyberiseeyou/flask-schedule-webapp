@@ -190,40 +190,90 @@ def get_suggestions():
     tomorrow = date.today() + timedelta(days=1)
     tomorrow_str = tomorrow.strftime('%A')
 
-    suggestions = [
+    # Core suggestions - always shown
+    core_suggestions = [
+        {
+            'label': f'Daily roster for {tomorrow_str}',
+            'query': f'show daily roster for tomorrow',
+            'icon': '📋',
+            'category': 'daily'
+        },
         {
             'label': f'Verify {tomorrow_str}\'s schedule',
             'query': 'verify schedule for tomorrow',
-            'icon': '🔍'
+            'icon': '🔍',
+            'category': 'daily'
         },
         {
-            'label': f'How many employees on {tomorrow_str}?',
-            'query': 'how many employees tomorrow',
-            'icon': '👥'
+            'label': 'Check overtime risk',
+            'query': 'who is at risk for overtime this week',
+            'icon': '⚠️',
+            'category': 'analytics'
         },
         {
-            'label': 'Show unscheduled events',
-            'query': 'list unscheduled events',
-            'icon': '📌'
+            'label': 'Urgent unscheduled events',
+            'query': 'what events are due soon but not scheduled',
+            'icon': '🚨',
+            'category': 'events'
         },
         {
-            'label': f'Print {tomorrow_str}\'s paperwork',
-            'query': 'print paperwork for tomorrow',
-            'icon': '🖨️'
+            'label': 'Check Lead coverage',
+            'query': f'check lead coverage for tomorrow',
+            'icon': '👥',
+            'category': 'coverage'
         },
         {
-            'label': 'Check time-off requests',
-            'query': 'check time off requests',
-            'icon': '📋'
-        },
-        {
-            'label': 'View this week\'s schedule',
-            'query': 'show schedule summary for this week',
-            'icon': '📅'
+            'label': 'Workload summary',
+            'query': 'show workload summary for this week',
+            'icon': '📊',
+            'category': 'analytics'
         }
     ]
 
-    return jsonify({'suggestions': suggestions}), 200
+    # Additional suggestions based on context
+    additional_suggestions = [
+        {
+            'label': f'Print {tomorrow_str}\'s paperwork',
+            'query': 'print paperwork for tomorrow',
+            'icon': '🖨️',
+            'category': 'daily'
+        },
+        {
+            'label': 'View rotation schedule',
+            'query': 'show rotation schedule for this week',
+            'icon': '🔄',
+            'category': 'coverage'
+        },
+        {
+            'label': 'Time-off requests',
+            'query': 'show upcoming time off requests',
+            'icon': '📅',
+            'category': 'availability'
+        },
+        {
+            'label': 'Scheduling rules',
+            'query': 'what are the scheduling rules',
+            'icon': '📚',
+            'category': 'help'
+        },
+        {
+            'label': 'Upcoming holidays',
+            'query': 'what company holidays are coming up',
+            'icon': '🎉',
+            'category': 'company'
+        },
+        {
+            'label': 'Unscheduled events',
+            'query': 'list unscheduled events',
+            'icon': '📌',
+            'category': 'events'
+        }
+    ]
+
+    # Combine and return top suggestions
+    all_suggestions = core_suggestions + additional_suggestions
+
+    return jsonify({'suggestions': all_suggestions}), 200
 
 
 @ai_bp.route('/health', methods=['GET'])

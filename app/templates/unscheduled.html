@@ -841,26 +841,37 @@
 <script src="{{ url_for('static', filename='js/search.js') }}"></script>
 <script>
 function autoScheduleEvent(eventId, eventName) {
-    if (confirm(`Auto-schedule event "${eventName}"?\n\nThe system will automatically assign an available employee.`)) {
-        fetch(`/api/auto_schedule_event/${eventId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                window.location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            alert('Error auto-scheduling event: ' + error);
-        });
-    }
+    // Show loading indicator on the button
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Scheduling...';
+
+    fetch(`/api/auto_schedule_event/${eventId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show brief success message then reload
+            btn.textContent = '✓ Scheduled';
+            btn.classList.remove('btn-info');
+            btn.classList.add('btn-success');
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    })
+    .catch(error => {
+        alert('Error auto-scheduling event: ' + error);
+        btn.disabled = false;
+        btn.textContent = originalText;
+    });
 }
 
 function confirmUnscheduleEvent(eventId, eventName) {

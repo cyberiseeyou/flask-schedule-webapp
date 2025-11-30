@@ -153,10 +153,11 @@ export class ScheduleModal {
           <input type="time"
                  id="start-time"
                  name="start_time"
-                 value="09:00"
+                 value=""
                  class="form-control"
                  aria-required="true"
-                 required>
+                 required
+                 placeholder="Loading...">
           <div role="alert" aria-live="polite" class="validation-message" id="time-validation"></div>
         </div>
 
@@ -211,9 +212,45 @@ export class ScheduleModal {
     // Attach event listeners
     this._attachEventListeners();
 
+    // Load default time from settings based on event type
+    this._loadDefaultTime();
+
     // Load available employees for default date
     const dateInput = this.formElement.querySelector('#scheduled-date');
     this._loadAvailableEmployees(dateInput.value);
+  }
+
+  /**
+   * Load default start time from settings based on event type
+   * @private
+   */
+  async _loadDefaultTime() {
+    const timeInput = this.formElement.querySelector('#start-time');
+
+    try {
+      console.log('[ScheduleModal] Loading default time for event type:', this.eventData.event_type);
+
+      const response = await fetch(`/api/event-default-time/${encodeURIComponent(this.eventData.event_type)}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.default_time) {
+        timeInput.value = data.default_time;
+        console.log('[ScheduleModal] Default time set to:', data.default_time);
+      } else {
+        // Fallback to 09:00
+        timeInput.value = '09:00';
+        console.log('[ScheduleModal] Using fallback time: 09:00');
+      }
+    } catch (error) {
+      console.error('[ScheduleModal] Error loading default time:', error);
+      // Fallback to 09:00
+      timeInput.value = '09:00';
+    }
   }
 
   /**

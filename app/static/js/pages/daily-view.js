@@ -530,6 +530,8 @@ class DailyView {
                      data-schedule-id="${event.schedule_id}"
                      data-event-id="${event.event_id}"
                      data-event-type="${event.event_type}"
+                     data-employee-id="${event.employee_id}"
+                     data-event-name="${this.escapeHtml(event.event_name)}"
                      aria-label="${event.employee_name} - ${event.start_time} ${event.event_name}">
                 <div class="event-card__header">
                     <div class="employee-name">👤 ${event.employee_name.toUpperCase()}</div>
@@ -713,8 +715,11 @@ class DailyView {
         }
 
         const eventId = eventCard.getAttribute('data-event-id');
-        const eventName = eventCard.querySelector('.event-title')?.textContent?.trim() || 'Unknown Event';
-        const eventType = eventCard.querySelector('.event-type-badge')?.textContent?.trim() || 'Unknown';
+        // Use data attributes for reliable data extraction
+        const eventName = eventCard.getAttribute('data-event-name') ||
+                          eventCard.querySelector('.event-info')?.textContent?.trim()?.replace(/^[^\s]+\s/, '') ||
+                          'Unknown Event';
+        const eventType = eventCard.getAttribute('data-event-type') || 'Unknown';
         const currentEmployeeName = eventCard.querySelector('.employee-name')?.textContent?.replace('👤 ', '') || 'Unknown';
         const currentEmployeeId = eventCard.getAttribute('data-employee-id');
 
@@ -722,37 +727,66 @@ class DailyView {
         const timeText = eventCard.querySelector('.event-time')?.textContent?.replace('⏰ ', '') || '';
         const [startTime] = timeText.split(' - ');
 
+        console.log('Reschedule data:', { eventId, eventName, eventType, currentEmployeeName, currentEmployeeId, startTime });
+
         // Open reschedule modal
-        await this.openRescheduleModal(scheduleId, eventName, eventType, startTime, currentEmployeeName, currentEmployeeId, this.date);
+        await this.openRescheduleModal(scheduleId, eventId, eventName, eventType, startTime, currentEmployeeName, currentEmployeeId, this.date);
     }
 
     /**
      * Open reschedule modal
      *
      * @param {number} scheduleId - Schedule ID
+     * @param {number} eventId - Event ID
      * @param {string} eventName - Event name
      * @param {string} eventType - Event type
-     * @param {string} currentTime - Current scheduled time
+     * @param {string} currentTime - Current scheduled time (12-hour format)
      * @param {string} employeeName - Current employee name
-     * @param {number} employeeId - Current employee ID
+     * @param {string} employeeId - Current employee ID
      * @param {string} currentDate - Current date (YYYY-MM-DD)
      */
-    async openRescheduleModal(scheduleId, eventName, eventType, currentTime, employeeName, employeeId, currentDate) {
+    async openRescheduleModal(scheduleId, eventId, eventName, eventType, currentTime, employeeName, employeeId, currentDate) {
         try {
+            // Store current reschedule context
+            this.rescheduleContext = {
+                scheduleId,
+                eventId,
+                eventType,
+                currentEmployeeId: employeeId
+            };
+
             document.getElementById('reschedule-schedule-id').value = scheduleId;
             document.getElementById('reschedule-event-info').innerHTML = `
-                <strong>${eventName}</strong> (${eventType})<br>
-                Current: ${currentDate} at ${currentTime} with ${employeeName}
+                <strong>${this.escapeHtml(eventName)}</strong> (${this.escapeHtml(eventType)})<br>
+                <small>Current: ${currentDate} at ${currentTime} with ${employeeName}</small>
             `;
 
-            // Convert displayed time to 24-hour format for comparison
+            // Pre-populate date field with current date
+            const dateInput = document.getElementById('reschedule-date');
+            if (dateInput) {
+                dateInput.value = currentDate;
+            }
+
+            // Convert displayed time to 24-hour format
             const time24 = this.convertTo24Hour(currentTime);
 
-            // Set up time restrictions for event type
-            this.setupTimeRestrictions('reschedule', eventType, time24);
+            // Pre-populate time field with current time
+            const timeInput = document.getElementById('reschedule-time');
+            if (timeInput && time24) {
+                timeInput.value = time24;
+            }
 
-            // Load available employees
+            // Set up time restrictions for event type (async - fetches from API)
+            await this.setupTimeRestrictions('reschedule', eventType, time24);
+
+            // Load available employees and pre-select current employee
             await this.loadAvailableEmployeesForReschedule('reschedule-employee', currentDate, eventType, employeeId);
+
+            // Reset override checkbox if it exists
+            const overrideCheckbox = document.getElementById('reschedule-override-constraints');
+            if (overrideCheckbox) {
+                overrideCheckbox.checked = false;
+            }
 
             document.getElementById('reschedule-modal').style.display = 'flex';
         } catch (error) {
@@ -885,51 +919,69 @@ class DailyView {
     }
 
     /**
-     * Setup time restrictions based on event type
+     * Setup time restrictions based on event type (fetches from settings API)
      *
      * @param {string} prefix - Form field prefix
      * @param {string} eventType - Event type
      * @param {string} currentTime - Current time in 24-hour format
      */
-    setupTimeRestrictions(prefix, eventType, currentTime) {
+    async setupTimeRestrictions(prefix, eventType, currentTime) {
         const timeInput = document.getElementById(`${prefix}-time`);
         const timeDropdown = document.getElementById(`${prefix}-time-dropdown`);
 
-        const timeRestrictions = {
-            'Core': ['09:45', '10:30', '11:00', '11:30'],
-            'Supervisor': ['12:00'],
-            'Freeosk': ['09:00', '12:00'],
-            'Digitals': ['09:15', '09:30', '09:45', '10:00']
-        };
+        try {
+            // Fetch allowed times from settings API
+            const response = await fetch(`/api/event-allowed-times/${encodeURIComponent(eventType)}`);
+            const data = await response.json();
 
-        if (timeRestrictions[eventType]) {
-            timeInput.style.display = 'none';
-            timeInput.required = false;
-            timeDropdown.style.display = 'block';
-            timeDropdown.required = true;
-            timeDropdown.classList.remove('hidden');
+            if (data.success && data.has_restrictions && data.allowed_times.length > 0) {
+                // Show dropdown with restricted times
+                timeInput.style.display = 'none';
+                timeInput.required = false;
+                timeDropdown.style.display = 'block';
+                timeDropdown.required = true;
+                timeDropdown.classList.remove('hidden');
 
-            timeDropdown.innerHTML = '<option value="">Select a time</option>';
-            timeRestrictions[eventType].forEach(time => {
-                const option = document.createElement('option');
-                option.value = time;
-                option.textContent = this.formatTime(time);
-                if (currentTime && time === currentTime) {
-                    option.selected = true;
+                timeDropdown.innerHTML = '<option value="">Select a time</option>';
+                data.allowed_times.forEach(time => {
+                    const option = document.createElement('option');
+                    option.value = time;
+                    option.textContent = this.formatTime(time);
+                    if (currentTime && time === currentTime) {
+                        option.selected = true;
+                    }
+                    timeDropdown.appendChild(option);
+                });
+
+                // If current time not in allowed times, select the first allowed time
+                if (currentTime && !data.allowed_times.includes(currentTime) && data.allowed_times.length > 0) {
+                    timeDropdown.value = data.allowed_times[0];
                 }
-                timeDropdown.appendChild(option);
-            });
+            } else {
+                // No restrictions - show free-form time input
+                timeInput.style.display = 'block';
+                timeInput.required = true;
+                timeDropdown.style.display = 'none';
+                timeDropdown.required = false;
+                timeDropdown.classList.add('hidden');
 
-            // Set default value for Freeosk events if no current time matches
-            if (eventType === 'Freeosk' && currentTime && !timeRestrictions[eventType].includes(currentTime)) {
-                timeDropdown.value = '09:00';
+                // Set current time if available
+                if (currentTime) {
+                    timeInput.value = currentTime;
+                }
             }
-        } else {
+        } catch (error) {
+            console.error('Error fetching time restrictions:', error);
+            // Fallback: show free-form time input
             timeInput.style.display = 'block';
             timeInput.required = true;
             timeDropdown.style.display = 'none';
             timeDropdown.required = false;
             timeDropdown.classList.add('hidden');
+
+            if (currentTime) {
+                timeInput.value = currentTime;
+            }
         }
     }
 
@@ -1001,8 +1053,17 @@ class DailyView {
                 const option = document.createElement('option');
                 option.value = employee.id;
                 option.textContent = `${employee.name} (${employee.job_title})`;
+                // Pre-select current employee
+                if (currentEmployeeId && employee.id === currentEmployeeId) {
+                    option.selected = true;
+                }
                 select.appendChild(option);
             });
+
+            // If current employee wasn't in the list, ensure we still have them selected
+            if (currentEmployeeId && !select.value) {
+                console.log('Current employee not in available list, adding to dropdown');
+            }
         } catch (error) {
             console.error('Error loading employees:', error);
             select.innerHTML = '<option value="">Error loading employees</option>';

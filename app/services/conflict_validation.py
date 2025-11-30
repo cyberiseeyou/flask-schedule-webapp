@@ -74,8 +74,8 @@ class ConflictValidator:
         Validate if employee can be scheduled for event at given datetime.
 
         Args:
-            employee_id: Employee identifier (e.g., 'EMP001')
-            event_id: Event primary key (project_ref_num)
+            employee_id: Employee identifier (e.g., 'EMP001' or 'US863735')
+            event_id: Event ID (primary key) or project_ref_num
             schedule_datetime: Proposed schedule datetime
             duration_minutes: Event duration in minutes (default 120)
 
@@ -99,11 +99,15 @@ class ConflictValidator:
             logger.error(f"Employee not found: {employee_id}")
             raise ValueError(f"Employee not found: {employee_id}")
 
-        event = self.db.query(self.Event).filter_by(
-            project_ref_num=event_id
-        ).first()
+        # Try to find event by id first, then by project_ref_num as fallback
+        event = self.db.query(self.Event).filter_by(id=event_id).first()
         if not event:
-            logger.error(f"Event not found: {event_id}")
+            # Fallback: try project_ref_num (for backwards compatibility)
+            event = self.db.query(self.Event).filter_by(
+                project_ref_num=event_id
+            ).first()
+        if not event:
+            logger.error(f"Event not found by id or project_ref_num: {event_id}")
             raise ValueError(f"Event not found: {event_id}")
 
         # Get actual duration from event if not provided

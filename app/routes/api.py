@@ -217,8 +217,8 @@ def get_daily_events(date):
     for schedule in schedules:
         event = schedule.event
         employee = schedule.employee
-        # Calculate end time based on event duration (default 120 minutes)
-        duration_minutes = event.estimated_time if event.estimated_time else 120
+        # Calculate end time based on event duration (use event type default if not set)
+        duration_minutes = event.estimated_time or event.get_default_duration(event.event_type)
         end_time = schedule.schedule_datetime + timedelta(minutes=duration_minutes)
 
         # Convert event condition to reporting_status for the UI
@@ -644,6 +644,167 @@ def available_employees_for_change(date, event_type):
         })
 
     return jsonify(available_employees_list)
+
+
+@api_bp.route('/event-default-time/<event_type>')
+def get_event_default_time(event_type):
+    """
+    Get the default start time for an event type based on settings.
+
+    Used by the schedule modal to set a sensible default time.
+
+    Args:
+        event_type: Event type (Core, Juicer, Freeosk, Digitals, Supervisor, Other)
+
+    Returns:
+        JSON with default_time in HH:MM format
+    """
+    from app.services.event_time_settings import EventTimeSettings
+
+    try:
+        event_type_lower = event_type.lower()
+
+        if event_type_lower == 'core':
+            # Get first Core slot start time
+            slots = EventTimeSettings.get_core_slots()
+            if slots:
+                default_time = slots[0]['start']
+                return jsonify({
+                    'success': True,
+                    'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+                })
+        elif event_type_lower == 'freeosk':
+            times = EventTimeSettings.get_freeosk_times()
+            default_time = times['start']
+            return jsonify({
+                'success': True,
+                'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+            })
+        elif event_type_lower == 'supervisor':
+            times = EventTimeSettings.get_supervisor_times()
+            default_time = times['start']
+            return jsonify({
+                'success': True,
+                'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+            })
+        elif event_type_lower in ['digitals', 'digital setup', 'digital refresh']:
+            # Get first Digital Setup slot
+            slots = EventTimeSettings.get_digital_setup_slots()
+            if slots:
+                default_time = slots[0]['start']
+                return jsonify({
+                    'success': True,
+                    'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+                })
+        elif event_type_lower == 'digital teardown':
+            slots = EventTimeSettings.get_digital_teardown_slots()
+            if slots:
+                default_time = slots[0]['start']
+                return jsonify({
+                    'success': True,
+                    'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+                })
+        elif event_type_lower == 'other':
+            times = EventTimeSettings.get_other_times()
+            default_time = times['start']
+            return jsonify({
+                'success': True,
+                'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+            })
+        elif event_type_lower == 'juicer':
+            # Juicer typically uses Core times
+            slots = EventTimeSettings.get_core_slots()
+            if slots:
+                default_time = slots[0]['start']
+                return jsonify({
+                    'success': True,
+                    'default_time': f"{default_time.hour:02d}:{default_time.minute:02d}"
+                })
+
+        # Fallback to 09:00
+        return jsonify({
+            'success': True,
+            'default_time': '09:00'
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting default time for {event_type}: {e}")
+        return jsonify({
+            'success': False,
+            'default_time': '09:00',
+            'error': str(e)
+        })
+
+
+@api_bp.route('/event-allowed-times/<event_type>')
+def get_event_allowed_times(event_type):
+    """
+    Get the allowed scheduling times for an event type based on settings.
+
+    Used by reschedule modal to populate time dropdown with valid options.
+
+    Args:
+        event_type: Event type (Core, Juicer, Freeosk, Digitals, Supervisor, Other)
+
+    Returns:
+        JSON with allowed_times array in HH:MM format
+    """
+    from app.services.event_time_settings import EventTimeSettings
+
+    try:
+        event_type_lower = event_type.lower()
+        allowed_times = []
+
+        if event_type_lower == 'core':
+            # Get all Core slot start times
+            slots = EventTimeSettings.get_core_slots()
+            for slot in slots:
+                start = slot['start']
+                allowed_times.append(f"{start.hour:02d}:{start.minute:02d}")
+        elif event_type_lower == 'freeosk':
+            times = EventTimeSettings.get_freeosk_times()
+            allowed_times.append(f"{times['start'].hour:02d}:{times['start'].minute:02d}")
+        elif event_type_lower == 'supervisor':
+            times = EventTimeSettings.get_supervisor_times()
+            allowed_times.append(f"{times['start'].hour:02d}:{times['start'].minute:02d}")
+        elif event_type_lower in ['digitals', 'digital setup', 'digital refresh']:
+            # Get all Digital Setup slot start times
+            slots = EventTimeSettings.get_digital_setup_slots()
+            for slot in slots:
+                start = slot['start']
+                allowed_times.append(f"{start.hour:02d}:{start.minute:02d}")
+        elif event_type_lower == 'digital teardown':
+            slots = EventTimeSettings.get_digital_teardown_slots()
+            for slot in slots:
+                start = slot['start']
+                allowed_times.append(f"{start.hour:02d}:{start.minute:02d}")
+        elif event_type_lower == 'other':
+            times = EventTimeSettings.get_other_times()
+            allowed_times.append(f"{times['start'].hour:02d}:{times['start'].minute:02d}")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_times = []
+        for t in allowed_times:
+            if t not in seen:
+                seen.add(t)
+                unique_times.append(t)
+
+        return jsonify({
+            'success': True,
+            'event_type': event_type,
+            'allowed_times': unique_times,
+            'has_restrictions': len(unique_times) > 0
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting allowed times for {event_type}: {e}")
+        return jsonify({
+            'success': False,
+            'allowed_times': [],
+            'has_restrictions': False,
+            'error': str(e)
+        })
 
 
 @api_bp.route('/validate_schedule_for_export')
@@ -2752,7 +2913,7 @@ def schedule_event():
         employee_id = data.get('employee_id')
         event_id = data.get('event_id')
         schedule_datetime_str = data.get('schedule_datetime')
-        duration_minutes = data.get('duration_minutes', 120)
+        duration_minutes_param = data.get('duration_minutes')  # May be None
 
         # Validate required fields
         if not employee_id or not event_id or not schedule_datetime_str:
@@ -2762,6 +2923,12 @@ def schedule_event():
         event = Event.query.filter_by(project_ref_num=event_id).first()
         if not event:
             return jsonify({'success': False, 'error': 'Event not found'}), 404
+
+        # Calculate duration: use param if provided, else event's estimated_time, else type default
+        if duration_minutes_param:
+            duration_minutes = duration_minutes_param
+        else:
+            duration_minutes = event.estimated_time or event.get_default_duration(event.event_type)
 
         # Get the employee
         employee = db.session.get(Employee, employee_id)
@@ -3266,8 +3433,13 @@ def change_event_employee(schedule_id):
 
         validator = ConflictValidator(db.session, models)
 
-        # Calculate duration from event estimated_time or default 120 minutes
-        duration_minutes = schedule.event.estimated_time if schedule.event and schedule.event.estimated_time else 120
+        # Calculate duration from event estimated_time or use event type default
+        if schedule.event and schedule.event.estimated_time:
+            duration_minutes = schedule.event.estimated_time
+        elif schedule.event:
+            duration_minutes = schedule.event.get_default_duration(schedule.event.event_type)
+        else:
+            duration_minutes = 60  # Fallback if no event
 
         # Validate new employee assignment
         validation_result = validator.validate_schedule(
@@ -3535,8 +3707,12 @@ def reissue_event():
             return jsonify({'error': 'Event not found'}), 404
 
         # Get employee (use provided or default to scheduled employee)
-        if not employee_id:
+        # Use 'is None' check since employee_id=0 is falsy but could be valid
+        if employee_id is None:
             employee_id = schedule.employee_id
+
+        # Log the employee ID being used
+        logger.info(f"Reissue: using employee_id={employee_id} (original schedule employee_id={schedule.employee_id})")
 
         employee = db.session.query(Employee).filter_by(id=employee_id).first()
         if not employee:
@@ -3654,6 +3830,7 @@ def reissue_event():
 
 
 @api_bp.route('/verify-schedule', methods=['POST'])
+@require_authentication()
 def verify_schedule():
     """
     Verify schedule for a specific date

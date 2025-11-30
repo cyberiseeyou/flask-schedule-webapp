@@ -1780,9 +1780,7 @@ def auto_schedule_event(event_id):
     try:
         db = current_app.extensions['sqlalchemy']
         Event = current_app.config['Event']
-        SystemSetting = current_app.config.get('SystemSetting')
         SchedulerRunHistory = current_app.config['SchedulerRunHistory']
-        PendingSchedule = current_app.config['PendingSchedule']
 
         # Get event
         event = Event.query.get(event_id)
@@ -1821,57 +1819,30 @@ def auto_schedule_event(event_id):
             db.session.commit()
             return jsonify({'error': 'Failed to find available employee for this event'}), 500
 
-        # Check approval setting
-        require_approval = True
-        if SystemSetting:
-            require_approval = SystemSetting.get_setting('auto_scheduler_require_approval', True)
+        # Single-event auto-scheduling always creates the schedule immediately (no approval needed)
+        Schedule = current_app.config['Schedule']
 
-        if require_approval:
-            # Create pending schedule
-            pending = PendingSchedule(
-                event_ref_num=event.project_ref_num,
-                employee_id=result['employee_id'],
-                scheduler_run_id=run.id,
-                schedule_datetime=result['schedule_datetime'],
-                schedule_time=result['schedule_datetime'].time(),
-                status='proposed'
-            )
-            db.session.add(pending)
-            run.events_scheduled = 1
-            db.session.commit()
+        # Create the schedule
+        schedule = Schedule(
+            event_ref_num=event.project_ref_num,
+            employee_id=result['employee_id'],
+            schedule_datetime=result['schedule_datetime']
+        )
+        db.session.add(schedule)
 
-            return jsonify({
-                'success': True,
-                'message': f'Event scheduled for {result["employee_name"]} (pending approval)',
-                'employee_name': result['employee_name'],
-                'requires_approval': True
-            })
-        else:
-            # Auto-approve and submit - create actual Schedule record
-            Schedule = current_app.config['Schedule']
+        # Update event status
+        event.is_scheduled = True
+        event.condition = 'Scheduled'
 
-            # Create the schedule
-            schedule = Schedule(
-                event_ref_num=event.project_ref_num,
-                employee_id=result['employee_id'],
-                schedule_datetime=result['schedule_datetime']
-            )
-            db.session.add(schedule)
+        run.events_scheduled = 1
+        db.session.commit()
 
-            # Update event status
-            event.is_scheduled = True
-            event.condition = 'Scheduled'
-
-            run.events_scheduled = 1
-            db.session.commit()
-
-            return jsonify({
-                'success': True,
-                'message': f'Event auto-scheduled for {result["employee_name"]} on {result["schedule_datetime"].strftime("%m/%d/%Y at %I:%M %p")}',
-                'employee_name': result['employee_name'],
-                'schedule_datetime': result['schedule_datetime'].isoformat(),
-                'requires_approval': False
-            })
+        return jsonify({
+            'success': True,
+            'message': f'Scheduled for {result["employee_name"]} on {result["schedule_datetime"].strftime("%m/%d at %I:%M %p")}',
+            'employee_name': result['employee_name'],
+            'schedule_datetime': result['schedule_datetime'].isoformat()
+        })
 
     except Exception as e:
         current_app.logger.error(f"Error auto-scheduling event {event_id}: {str(e)}")

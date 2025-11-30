@@ -631,6 +631,11 @@ def daily_schedule_view(date: str) -> str:
     primary_lead = None
 
     if RotationAssignment:
+        # Create a simple object to match the template expectation
+        class AssignmentWrapper:
+            def __init__(self, employee):
+                self.employee = employee
+
         # Query for Juicer assignment
         juicer_assignment = RotationAssignment.query.filter_by(
             day_of_week=day_of_week,
@@ -638,10 +643,6 @@ def daily_schedule_view(date: str) -> str:
         ).first()
 
         if juicer_assignment and juicer_assignment.employee:
-            # Create a simple object to match the template expectation
-            class AssignmentWrapper:
-                def __init__(self, employee):
-                    self.employee = employee
             juicer = AssignmentWrapper(juicer_assignment.employee)
 
         # Query for Primary Lead assignment

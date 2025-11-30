@@ -493,7 +493,8 @@ async function loadEmployees(defaultEmployeeId) {
             const option = document.createElement('option');
             option.value = emp.id;
             option.textContent = emp.name;
-            if (emp.id === defaultEmployeeId) {
+            // Use == for type coercion (emp.id may be int, defaultEmployeeId is string)
+            if (String(emp.id) === String(defaultEmployeeId)) {
                 option.selected = true;
             }
             select.appendChild(option);
@@ -506,7 +507,9 @@ async function loadEmployees(defaultEmployeeId) {
 
 async function submitReissue() {
     const scheduleId = document.getElementById('scheduleId').value;
-    const employeeId = document.getElementById('employeeSelect').value;
+    const employeeSelect = document.getElementById('employeeSelect');
+    const employeeId = employeeSelect.value;
+    const employeeName = employeeSelect.options[employeeSelect.selectedIndex].text;
     const expirationDate = document.getElementById('expirationDate').value;
     const includeResponses = document.getElementById('includeResponses').checked;
 
@@ -515,23 +518,35 @@ async function submitReissue() {
         return;
     }
 
+    // Log what we're sending for debugging
+    console.log('Reissue request:', {
+        schedule_id: scheduleId,
+        employee_id: employeeId,
+        employee_name: employeeName,
+        expiration_date: expirationDate
+    });
+
     try {
         // Disable submit button to prevent double-submission
         const submitButton = event.target;
         submitButton.disabled = true;
         submitButton.textContent = 'Reissuing...';
 
+        const requestBody = {
+            schedule_id: parseInt(scheduleId),
+            employee_id: parseInt(employeeId),
+            include_responses: includeResponses,
+            expiration_date: expirationDate
+        };
+
+        console.log('Sending to API:', requestBody);
+
         const response = await fetch('/api/reissue-event', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                schedule_id: parseInt(scheduleId),
-                employee_id: parseInt(employeeId),
-                include_responses: includeResponses,
-                expiration_date: expirationDate
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const data = await response.json();

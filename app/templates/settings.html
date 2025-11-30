@@ -87,34 +87,34 @@
             <div id="ai-save-status" style="display: none; padding: 10px; margin-top: 15px; border-radius: 4px;"></div>
         </section>
 
-        <!-- Company Holidays Section -->
+        <!-- Store Closures Section -->
         <section class="settings-section" id="company-holidays">
-            <h3>Company Holidays</h3>
-            <p class="section-description">Define days when the company is closed and no one is working (e.g., Christmas, Thanksgiving)</p>
+            <h3>Store Closures</h3>
+            <p class="section-description">Define days when the store is closed and no one is working (e.g., Christmas, Thanksgiving)</p>
 
             <div class="holiday-actions" style="margin-bottom: 15px;">
                 <button type="button" id="add-holiday-btn" class="btn btn-primary btn-small">
-                    <span>+</span> Add Holiday
+                    <span>+</span> Add Store Closure
                 </button>
             </div>
 
             <div id="holidays-list" class="holidays-list">
-                <div class="loading-message">Loading holidays...</div>
+                <div class="loading-message">Loading store closures...</div>
             </div>
 
-            <!-- Add/Edit Holiday Modal -->
-            <div id="holiday-modal" class="modal-overlay" style="display: none;">
-                <div class="modal-content" style="max-width: 500px;">
+            <!-- Add/Edit Store Closure Modal -->
+            <div id="holiday-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+                <div class="modal-content" style="max-width: 500px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
                     <div class="modal-header">
-                        <h4 id="holiday-modal-title">Add Holiday</h4>
+                        <h4 id="holiday-modal-title">Add Store Closure</h4>
                         <button type="button" class="modal-close" onclick="closeHolidayModal()">&times;</button>
                     </div>
                     <div class="modal-body">
                         <input type="hidden" id="holiday-id">
 
                         <div class="form-group">
-                            <label for="holiday-name">Holiday Name:</label>
-                            <input type="text" id="holiday-name" class="form-control" placeholder="e.g., Christmas Day" required>
+                            <label for="holiday-name">Closure Name:</label>
+                            <input type="text" id="holiday-name" class="form-control" placeholder="e.g., Christmas Day, Store Renovation" required>
                         </div>
 
                         <div class="form-group">
@@ -136,7 +136,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeHolidayModal()">Cancel</button>
-                        <button type="button" class="btn btn-primary" onclick="saveHoliday()">Save Holiday</button>
+                        <button type="button" class="btn btn-primary" onclick="saveHoliday()">Save</button>
                     </div>
                 </div>
             </div>
@@ -872,18 +872,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     holidays = data.holidays;
                     renderHolidays();
                 } else {
-                    holidaysList.innerHTML = '<div class="empty-templates">Error loading holidays</div>';
+                    holidaysList.innerHTML = '<div class="empty-templates">Error loading store closures</div>';
                 }
             })
             .catch(error => {
-                console.error('Error loading holidays:', error);
-                holidaysList.innerHTML = '<div class="empty-templates">Error loading holidays</div>';
+                console.error('Error loading store closures:', error);
+                holidaysList.innerHTML = '<div class="empty-templates">Error loading store closures</div>';
             });
     }
 
     function renderHolidays() {
         if (holidays.length === 0) {
-            holidaysList.innerHTML = '<div class="empty-templates">No company holidays defined. Add holidays for days when no one should be scheduled.</div>';
+            holidaysList.innerHTML = '<div class="empty-templates">No store closures defined. Add closures for days when no one should be scheduled.</div>';
             return;
         }
 
@@ -936,14 +936,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const notesField = document.getElementById('holiday-notes');
 
         if (holiday) {
-            title.textContent = 'Edit Holiday';
+            title.textContent = 'Edit Store Closure';
             idField.value = holiday.id;
             nameField.value = holiday.name;
             dateField.value = holiday.holiday_date;
             recurringField.checked = holiday.is_recurring;
             notesField.value = holiday.notes || '';
         } else {
-            title.textContent = 'Add Holiday';
+            title.textContent = 'Add Store Closure';
             idField.value = '';
             nameField.value = '';
             dateField.value = '';

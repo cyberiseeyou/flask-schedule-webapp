@@ -237,7 +237,7 @@ class EventTimeSettings:
             times = cls.get_freeosk_times()
             return [cls._time_to_str(times['start'])]
 
-        elif 'digital setup' in event_type_lower or 'digital refresh' in event_type_lower:
+        elif event_type_lower == 'digitals' or 'digital setup' in event_type_lower or 'digital refresh' in event_type_lower:
             slots = cls.get_digital_setup_slots()
             return [cls._time_to_str(slot['start']) for slot in slots]
 

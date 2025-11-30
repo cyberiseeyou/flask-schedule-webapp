@@ -368,11 +368,21 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/pages/schedule-verification.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const verifier = new ScheduleVerification();
+        console.log('[Schedule Verification] DOM loaded, checking for class...');
+        if (typeof ScheduleVerification === 'undefined') {
+            console.error('[Schedule Verification] ScheduleVerification class not found! Script may not have loaded.');
+            return;
+        }
+        try {
+            const verifier = new ScheduleVerification();
+            console.log('[Schedule Verification] Instance created successfully');
+        } catch (error) {
+            console.error('[Schedule Verification] Error creating instance:', error);
+        }
     });
 </script>
 {% endblock %}

@@ -557,3 +557,216 @@ window.addEventListener('offline', () => {
         window.loginManager.showError('You appear to be offline. Please check your connection.');
     }
 });
+
+/**
+ * Forgot Password Modal Manager
+ * Handles the account recovery popup functionality
+ */
+class ForgotPasswordModal {
+    constructor() {
+        this.modal = document.getElementById('forgotPasswordModal');
+        this.form = document.getElementById('forgotPasswordForm');
+        this.emailInput = document.getElementById('recoveryEmail');
+        this.messageContainer = document.getElementById('recoveryMessage');
+        this.submitBtn = document.getElementById('recoverySubmit');
+        this.isSubmitting = false;
+
+        this.init();
+    }
+
+    init() {
+        // Open modal when forgot password link is clicked
+        document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.openModal();
+        });
+
+        // Close modal events
+        document.getElementById('modalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('modalCancel').addEventListener('click', () => this.closeModal());
+
+        // Close on overlay click
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.closeModal();
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.style.display !== 'none') {
+                this.closeModal();
+            }
+        });
+
+        // Form submission
+        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+    }
+
+    openModal() {
+        this.modal.style.display = 'flex';
+        this.emailInput.value = '';
+        this.hideMessage();
+        this.emailInput.focus();
+        document.body.style.overflow = 'hidden';
+    }
+
+    closeModal() {
+        this.modal.style.display = 'none';
+        document.body.style.overflow = '';
+        this.hideMessage();
+    }
+
+    async handleSubmit(e) {
+        e.preventDefault();
+
+        if (this.isSubmitting) return;
+
+        const email = this.emailInput.value.trim();
+        if (!email) {
+            this.showMessage('Please enter your email address.', 'error');
+            return;
+        }
+
+        this.setSubmitting(true);
+        this.hideMessage();
+
+        try {
+            const response = await fetch(`https://crossmark.mvretail.com/login/recover?Email=${encodeURIComponent(email)}`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"'
+                }
+            });
+
+            if (response.ok) {
+                this.showMessage('If an account exists with that email, recovery instructions have been sent. Please check your inbox.', 'success');
+                this.emailInput.value = '';
+                // Close modal after delay on success
+                setTimeout(() => this.closeModal(), 4000);
+            } else {
+                this.showMessage('Unable to process your request. Please try again later.', 'error');
+            }
+        } catch (error) {
+            console.error('Recovery request failed:', error);
+            this.showMessage('Network error. Please check your connection and try again.', 'error');
+        } finally {
+            this.setSubmitting(false);
+        }
+    }
+
+    setSubmitting(isSubmitting) {
+        this.isSubmitting = isSubmitting;
+        const btnText = this.submitBtn.querySelector('.btn-text');
+        const btnLoading = this.submitBtn.querySelector('.btn-loading');
+
+        if (isSubmitting) {
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'flex';
+            this.submitBtn.disabled = true;
+            this.emailInput.disabled = true;
+        } else {
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+            this.submitBtn.disabled = false;
+            this.emailInput.disabled = false;
+        }
+    }
+
+    showMessage(message, type) {
+        this.messageContainer.textContent = message;
+        this.messageContainer.className = `recovery-message recovery-message-${type}`;
+        this.messageContainer.style.display = 'block';
+    }
+
+    hideMessage() {
+        this.messageContainer.style.display = 'none';
+    }
+}
+
+// Initialize forgot password modal when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => new ForgotPasswordModal());
+} else {
+    new ForgotPasswordModal();
+}
+
+/**
+ * Simple Modal Manager for Help, Privacy, and Terms
+ * Handles opening/closing of informational modals
+ */
+class InfoModal {
+    constructor(linkId, modalId) {
+        this.link = document.getElementById(linkId);
+        this.modal = document.getElementById(modalId);
+
+        if (this.link && this.modal) {
+            this.init();
+        }
+    }
+
+    init() {
+        // Open modal on link click
+        this.link.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.openModal();
+        });
+
+        // Close on X button
+        const closeBtn = this.modal.querySelector('.modal-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeModal());
+        }
+
+        // Close on "Got It" / "Close" button
+        const closeActionBtn = this.modal.querySelector('.modal-btn-close');
+        if (closeActionBtn) {
+            closeActionBtn.addEventListener('click', () => this.closeModal());
+        }
+
+        // Close on overlay click
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.closeModal();
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.style.display !== 'none') {
+                this.closeModal();
+            }
+        });
+    }
+
+    openModal() {
+        this.modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        // Focus the close button for accessibility
+        const closeBtn = this.modal.querySelector('.modal-btn-close');
+        if (closeBtn) {
+            closeBtn.focus();
+        }
+    }
+
+    closeModal() {
+        this.modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+// Initialize info modals when DOM is ready
+function initInfoModals() {
+    new InfoModal('helpLink', 'helpModal');
+    new InfoModal('privacyLink', 'privacyModal');
+    new InfoModal('termsLink', 'termsModal');
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInfoModals);
+} else {
+    initInfoModals();
+}

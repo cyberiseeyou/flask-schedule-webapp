@@ -500,50 +500,72 @@ function isValidDate(selectedDate) {
     return selected >= startDate && selected <= endDate;
 }
 
-function initializeTimeRestrictions() {
+async function initializeTimeRestrictions() {
     const timeInput = document.getElementById('start_time');
     const timeDropdown = document.getElementById('start_time_dropdown');
-    
+
     if (!timeInput || !timeDropdown || !window.eventData.eventType) {
         return;
     }
-    
+
     const eventType = window.eventData.eventType;
-    
-    // Define time options for each event type
-    const timeRestrictions = {
-        'Core': ['09:45', '10:30', '11:00', '11:30'],
-        'Supervisor': ['12:00'],
-        'Freeosk': ['09:00', '12:00'],
-        'Digitals': ['09:15', '09:30', '09:45', '10:00']
-    };
-    
+
+    // Event types that have time restrictions (dropdown instead of free input)
+    const restrictedEventTypes = ['Core', 'Supervisor', 'Freeosk', 'Digitals', 'Digital Setup', 'Digital Refresh', 'Digital Teardown'];
+
     // Check if this event type has time restrictions
-    if (timeRestrictions[eventType]) {
-        // Hide time input, show dropdown
-        timeInput.style.display = 'none';
-        timeInput.required = false;
-        timeDropdown.style.display = 'block';
-        timeDropdown.required = true;
-        
-        // Populate dropdown with allowed times
-        timeDropdown.innerHTML = '<option value="">Select a time</option>';
-        timeRestrictions[eventType].forEach(time => {
-            const option = document.createElement('option');
-            option.value = time;
-            option.textContent = formatTime(time);
-            timeDropdown.appendChild(option);
-        });
-        
-        // Set default value for Freeosk events
-        if (eventType === 'Freeosk') {
-            timeDropdown.value = '09:00';
+    if (restrictedEventTypes.includes(eventType)) {
+        try {
+            // Fetch allowed times from the server based on event type settings
+            const response = await fetch(`/api/event-allowed-times/${encodeURIComponent(eventType)}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const allowedTimes = data.allowed_times || [];
+
+            if (allowedTimes.length > 0) {
+                // Hide time input, show dropdown
+                timeInput.style.display = 'none';
+                timeInput.required = false;
+                timeDropdown.style.display = 'block';
+                timeDropdown.required = true;
+
+                // Populate dropdown with allowed times from settings
+                timeDropdown.innerHTML = '<option value="">Select a time</option>';
+                allowedTimes.forEach(time => {
+                    const option = document.createElement('option');
+                    option.value = time;
+                    option.textContent = formatTime(time);
+                    timeDropdown.appendChild(option);
+                });
+
+                // Set default to first available time
+                if (allowedTimes.length > 0) {
+                    timeDropdown.value = allowedTimes[0];
+                }
+
+                // Add change event listener for validation
+                timeDropdown.addEventListener('change', function() {
+                    validateForm();
+                });
+            } else {
+                // No restrictions, show free time input
+                timeInput.style.display = 'block';
+                timeInput.required = true;
+                timeDropdown.style.display = 'none';
+                timeDropdown.required = false;
+            }
+        } catch (error) {
+            console.error('[main.js] Error fetching allowed times:', error);
+            // Fallback to free input on error
+            timeInput.style.display = 'block';
+            timeInput.required = true;
+            timeDropdown.style.display = 'none';
+            timeDropdown.required = false;
         }
-        
-        // Add change event listener for validation
-        timeDropdown.addEventListener('change', function() {
-            validateForm();
-        });
     } else {
         // Show time input, hide dropdown (for Other events)
         timeInput.style.display = 'block';
