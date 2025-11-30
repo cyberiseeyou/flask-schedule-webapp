@@ -1,6 +1,6 @@
 # Flask Schedule Webapp
 
-A comprehensive Flask-based web application for automating employee scheduling, availability management, and event coordination with Walmart Retail Link integration. Features intelligent auto-scheduling, EDR reporting, attendance tracking, and comprehensive workload analytics.
+A comprehensive Flask-based web application for automating employee scheduling, availability management, and event coordination with Walmart Retail Link integration. Features intelligent auto-scheduling, AI-powered assistance, EDR reporting, attendance tracking, and comprehensive workload analytics.
 
 ## Features
 
@@ -10,15 +10,22 @@ A comprehensive Flask-based web application for automating employee scheduling, 
 - **Rotation Management**: Automated daily rotation assignments for Juicers and Primary Leads
 - **Time Off Management**: Employee time-off requests and availability overrides
 - **Schedule Validation**: Real-time validation warnings and conflict resolution
+- **Company Holidays**: Company-wide closed days management
 
-### Integration & Reporting
+### AI-Powered Assistant
+- **Intelligent Chat Interface**: Natural language scheduling assistance
+- **Smart Suggestions**: AI-driven employee recommendations for events
+- **Schedule Verification**: Automated schedule analysis and optimization suggestions
+- **Conflict Resolution**: AI-assisted conflict detection and resolution
+
+### Integration and Reporting
 - **Walmart Retail Link Integration**: Automatic event synchronization from Crossmark API
 - **EDR Sync**: Sales data integration for event-specific paperwork generation
 - **Attendance Tracking**: QR code-based and manual attendance logging
 - **Comprehensive Reporting**: Daily, weekly, and employee-specific schedule generation
 - **PDF Paperwork**: Automated generation of event documentation with EDR data
 
-### Analytics & Monitoring
+### Analytics and Monitoring
 - **Daily Validation Dashboard**: Real-time schedule monitoring with validation warnings
 - **Workload Analytics**: Team performance metrics and capacity planning
 - **Attendance Reports**: Employee attendance tracking and unreported event management
@@ -26,35 +33,35 @@ A comprehensive Flask-based web application for automating employee scheduling, 
 
 ## Quick Start
 
-### Docker Deployment (Recommended) 🐳
+### Docker Deployment (Recommended)
 
 The easiest way to get started! Just clone and run the setup script.
 
 **Linux/Mac:**
-```bash
-git clone <repository-url>
+\`\`\`bash
+git clone https://github.com/cyberiseeyou/flask-schedule-webapp.git
 cd flask-schedule-webapp
 chmod +x setup.sh
 ./setup.sh
-```
+\`\`\`
 
 **Windows:**
-```cmd
-git clone <repository-url>
+\`\`\`cmd
+git clone https://github.com/cyberiseeyou/flask-schedule-webapp.git
 cd flask-schedule-webapp
 setup.bat
-```
+\`\`\`
 
 **Access:**
 - Production: http://localhost:8000
-- Development: http://localhost:5000 (use `./setup.sh dev` or `setup.bat dev`)
+- Development: http://localhost:5000 (use ./setup.sh dev or setup.bat dev)
 
 The setup script automatically:
-- ✅ Checks Docker installation
-- ✅ Generates secure secrets
-- ✅ Configures the database
-- ✅ Builds and starts all containers
-- ✅ Runs database migrations
+- Checks Docker installation
+- Generates secure secrets
+- Configures the database
+- Builds and starts all containers
+- Runs database migrations
 
 See [DOCKER.md](docs/deployment/DOCKER.md) for detailed Docker deployment guide.
 
@@ -65,7 +72,7 @@ See [DOCKER.md](docs/deployment/DOCKER.md) for detailed Docker deployment guide.
 - pip package manager
 
 **Setup:**
-```bash
+\`\`\`bash
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
@@ -79,306 +86,126 @@ pip install -r requirements.txt
 python wsgi.py
 # or use Gunicorn for production
 gunicorn --config gunicorn_config.py wsgi:app
-```
+\`\`\`
 
 **Access:** http://localhost:5000
-
-## Project Structure
-
-The application follows Flask best practices with the application factory pattern:
-
-```
-flask-schedule-webapp/
-├── app/                          # Main application package
-│   ├── __init__.py              # Application factory (create_app)
-│   ├── extensions.py            # Flask extensions (db, migrate, csrf, limiter)
-│   ├── config.py                # Configuration classes
-│   ├── constants.py             # Application constants
-│   │
-│   ├── models/                  # Database models
-│   ├── routes/                  # Flask blueprints (views)
-│   ├── services/                # Business logic layer
-│   ├── utils/                   # Utility functions
-│   ├── error_handlers/          # Error handling and logging
-│   │
-│   ├── integrations/            # External integrations
-│   │   ├── edr/                # EDR reporting
-│   │   ├── walmart_api/        # Walmart Retail Link
-│   │   └── external_api/       # Crossmark API sync
-│   │
-│   ├── static/                  # CSS, JS, images
-│   └── templates/               # Jinja2 templates
-│
-├── tests/                       # Test suite
-│   ├── integration/            # Integration tests
-│   └── unit/                   # Unit tests
-│
-├── scripts/                     # Utility scripts
-│   ├── update_db.py            # Database management
-│   └── list_routes.py          # Route debugging
-│
-├── docs/                        # Documentation
-│   ├── deployment/             # Deployment guides
-│   ├── architecture/           # Architecture docs
-│   ├── operations/             # Operations guides
-│   └── testing/                # Test reports
-│
-├── deployment/                  # Deployment configurations
-│   ├── docker/                 # Dockerfile and compose files
-│   ├── nginx/                  # Nginx configs
-│   └── systemd/                # System service files
-│
-├── data/                        # Application data (gitignored)
-│   ├── paperwork/              # Generated paperwork
-│   ├── barcodes/               # Generated barcodes
-│   └── uploads/                # User uploads
-│
-├── instance/                    # Instance-specific files (gitignored)
-│   └── scheduler.db            # SQLite database
-│
-├── migrations/                  # Alembic database migrations
-├── wsgi.py                      # WSGI entry point
-├── celery_worker.py            # Celery worker entry point
-└── requirements.txt             # Python dependencies
-```
-
-**Key Design Patterns:**
-- **Application Factory**: Enables testing with different configs
-- **Blueprints**: Modular route organization
-- **Service Layer**: Business logic separated from routes
-- **Model Registry**: Centralized model management
-
-## Usage
-
-### Basic Workflow
-
-1. **View Events**: Dashboard displays all unscheduled events
-2. **Schedule Event**: Click "Schedule" to open the scheduling form
-3. **Select Date**: Date picker enforces event date constraints
-4. **Choose Employee**: Dropdown shows only available employees for selected date
-5. **Set Time**: Enter start time and save the schedule
-6. **Export**: Download scheduled events as CSV when ready
-
-### CSV Operations
-
-**Import Events**:
-- Use "Import Events" button on dashboard
-- Upload WorkBankVisits.csv with required headers:
-  ```
-  Project Name, Project Reference Number, Location MVID,
-  Store Number, Store Name, Start Date/Time, Due Date/Time,
-  Estimated Time, Employee ID, Rep Name
-  ```
-
-**Export Schedule**:
-- Click "Export Schedule" to download CalendarSchedule.csv
-- Contains all scheduled events with employee assignments
-
-## Development
-
-### Running Tests
-
-```bash
-# Run all tests
-python -m pytest
-
-# Run with verbose output
-python -m pytest -v
-
-# Run specific test file
-python -m pytest test_routes.py -v
-```
-
-### Test Coverage
-
-Current test suite includes 34 tests covering:
-- Dashboard and scheduling routes (8 tests)
-- Employee availability API (7 tests) 
-- Schedule saving logic (9 tests)
-- CSV import/export functionality (10 tests)
-
-### Project Structure
-
-```
-flask-schedule-webapp/
-├── scheduler_app/              # Main application
-│   ├── app.py                 # Flask application entry point
-│   ├── models/                # Database models (10 models)
-│   ├── routes/                # Route handlers (21 blueprints)
-│   ├── services/              # Business logic (13 services)
-│   ├── static/                # Frontend assets (CSS/JS)
-│   ├── templates/             # Jinja2 templates
-│   ├── migrations/            # Alembic database migrations
-│   └── instance/              # Runtime data & SQLite database
-│
-├── scripts/                    # Utility & maintenance scripts
-│   ├── migrations/            # Database migration utilities
-│   ├── testing/               # Test scripts
-│   ├── verification/          # Verification scripts
-│   ├── data/                  # Data management scripts
-│   └── setup/                 # Setup and deployment scripts
-│
-├── docs/                       # Documentation
-│   ├── deployment/            # Deployment guides
-│   ├── implementation/        # Implementation documentation
-│   ├── epics/                 # Epic summaries
-│   ├── architecture/          # Architecture documentation
-│   └── archived/              # Historical documentation
-│
-├── docker/                     # Docker configuration
-│   ├── Dockerfile             # Production container image
-│   ├── docker-compose.yml     # Multi-container setup
-│   ├── entrypoint.sh          # Container initialization
-│   └── nginx.conf             # Nginx reverse proxy config
-│
-├── backups/                    # Database backups
-├── archived/                   # Obsolete code and files
-├── tests/                      # Test suite
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment template
-└── README.md                   # This file
-```
-
-## Database Schema
-
-### Tables
-
-**employees**
-- `id` (String, Primary Key) - Employee identifier
-- `name` (String, NOT NULL) - Employee display name
-
-**events**
-- `id` (Integer, Primary Key) - Auto-increment ID
-- `project_name` (Text, NOT NULL) - Project/event name
-- `project_ref_num` (Integer, NOT NULL, UNIQUE) - Business identifier
-- `location_mvid` (Text) - Location identifier
-- `store_number` (Integer) - Store identifier
-- `store_name` (Text) - Store name
-- `start_datetime` (DateTime, NOT NULL) - Earliest schedule date
-- `due_datetime` (DateTime, NOT NULL) - Latest schedule date
-- `estimated_time` (Integer) - Duration in minutes
-- `is_scheduled` (Boolean, NOT NULL, Default: False) - Status flag
-
-**schedules**
-- `id` (Integer, Primary Key) - Auto-increment ID
-- `event_ref_num` (Integer, Foreign Key) - Links to events table
-- `employee_id` (String, Foreign Key) - Links to employees table
-- `schedule_datetime` (DateTime, NOT NULL) - Scheduled date and time
-
-## API Endpoints
-
-### Core Routes
-- `GET /` - Dashboard with unscheduled events
-- `GET /schedule/<event_id>` - Event scheduling form
-- `POST /save_schedule` - Save schedule assignment
-
-### AJAX Endpoints
-- `GET /api/available_employees/<date>` - Get available employees for date
-- `POST /api/import/events` - Import events from CSV
-- `GET /api/export/schedule` - Export scheduled events to CSV
 
 ## Technology Stack
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
 | Runtime | Python | 3.11+ | Application runtime |
-| Framework | Flask | 3.0.0 | Web framework |
-| Database | SQLAlchemy | 2.0.36 | ORM |
-| Migrations | Alembic | Latest | Database versioning |
-| Storage | SQLite | Built-in | Local database |
-| Testing | pytest | Latest | Test framework |
-| Frontend | Vanilla JS | ES6+ | Dynamic functionality |
-| Styling | Custom CSS | - | Responsive design |
-| PDF Generation | ReportLab | 4.0.7 | PDF creation |
+| Framework | Flask | 3.0.3 | Web framework |
+| Database | SQLAlchemy | 3.1.1 | ORM |
+| Migrations | Alembic | 1.16.5 | Database versioning |
+| Task Queue | Celery | 5.3.6 | Background tasks |
+| Cache | Redis | 5.0.3 | Caching and task broker |
+| PDF Generation | ReportLab | 4.2.5 | PDF creation |
+| Security | Cryptography | 42.0.5 | Encryption |
+| Testing | pytest | 8.1.1 | Test framework |
 | Deployment | Docker | 20.10+ | Containerization |
-| Web Server | Nginx | Alpine | Reverse proxy |
+| Web Server | Gunicorn | 21.2.0 | WSGI server |
 
-## Quality Assurance
+## Database Models
 
-This project follows comprehensive quality standards:
+The application uses 17 database models:
 
-- **100% Test Coverage**: All functionality covered with edge cases
-- **Story-Driven Development**: Features implemented through complete user stories
-- **QA Gate Approval**: All stories pass rigorous quality review
-- **Error Handling**: Comprehensive validation and user feedback
-- **Transaction Integrity**: Database rollback on errors
+| Model | Description |
+|-------|-------------|
+| Employee | Employee profiles and settings |
+| Event | Projects and events from Crossmark |
+| Schedule | Event-employee assignments |
+| EmployeeWeeklyAvailability | Weekly availability patterns |
+| EmployeeAvailability | Daily availability |
+| EmployeeTimeOff | Time-off requests |
+| EmployeeAvailabilityOverride | Availability exceptions |
+| RotationAssignment | Daily rotation assignments |
+| PendingSchedule | Auto-scheduler queue |
+| SchedulerRunHistory | Scheduler execution logs |
+| ScheduleException | Scheduling exceptions |
+| EventSchedulingOverride | Event-specific overrides |
+| SystemSetting | Application configuration |
+| AuditLog | Change tracking |
+| EmployeeAttendance | Attendance records |
+| PaperworkTemplate | Document templates |
+| UserSession | Authentication sessions |
+| CompanyHoliday | Company-wide holidays |
 
-### Development Quality Scores
-- Story 1.1 (Project Setup): 85/100
-- Story 1.2 (Interactive Forms): 90/100
-- Story 1.3 (Employee API): 95/100
-- Story 1.4 (Schedule Saving): 100/100
-- Story 1.5 (CSV Operations): 100/100
+## API Endpoints
 
-## Troubleshooting
+### Core Routes
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | / | Dashboard with unscheduled events |
+| GET | /daily-view | Daily schedule view |
+| GET | /schedule/event_id | Event scheduling form |
+| POST | /save_schedule | Save schedule assignment |
 
-### Common Issues
+### API Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/available_employees/date | Available employees for date |
+| GET | /api/suggest_employees | AI-powered employee suggestions |
+| POST | /api/validate_schedule | Validate schedule conflicts |
+| GET | /api/schedule-verification | Schedule verification data |
 
-**Database not found**: Run `python app.py` once to auto-create the database
+### AI Assistant
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /ai/chat | AI chat interface |
+| GET | /ai/suggestions | AI scheduling suggestions |
 
-**Import errors**: Ensure virtual environment is activated with `source ../venv/bin/activate`
+### Admin
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /admin/settings | System settings |
+| POST | /admin/company-holidays | Manage holidays |
 
-**Test failures**: Database is automatically managed by test fixtures
+## Development
 
-**CSV import issues**: Verify file has all required headers and proper date format (`YYYY-MM-DD HH:MM:SS`)
+### Running Tests
 
-### Debug Mode
+\`\`\`bash
+# Run all tests
+python -m pytest
 
-The application runs in debug mode during development, providing:
-- Detailed error pages
-- Automatic reloading on code changes
-- Console logging of requests and errors
+# Run with verbose output
+python -m pytest -v
 
-## Contributing
+# Run with coverage
+python -m pytest --cov=app
+\`\`\`
 
-This project uses the BMad development methodology with:
-- Story-driven development (Stories 1.1-1.5 completed)
-- Comprehensive QA review process
-- Complete test coverage requirements
-- Quality gate approval system
+### Database Migrations
+
+\`\`\`bash
+# Create migration
+flask db migrate -m "Description"
+
+# Apply migrations
+flask db upgrade
+
+# Rollback
+flask db downgrade
+\`\`\`
+
+## Environment Configuration
+
+Create a .env file based on .env.example:
+
+\`\`\`env
+FLASK_ENV=development
+SECRET_KEY=your-secret-key
+DATABASE_URL=sqlite:///instance/scheduler.db
+CROSSMARK_API_KEY=your-api-key
+REDIS_URL=redis://localhost:6379/0
+\`\`\`
 
 ## Documentation
 
-- **Docker Deployment**: [docs/deployment/DOCKER_DEPLOYMENT.md](docs/deployment/DOCKER_DEPLOYMENT.md)
-- **Quick Start**: [docs/deployment/QUICK_START.md](docs/deployment/QUICK_START.md)
-- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Implementation Guides**: [docs/implementation/](docs/implementation/)
-- **Epic Documentation**: [docs/epics/](docs/epics/)
-- **User Stories**: [docs/stories/](docs/stories/)
-
-## Maintenance
-
-### Database Backup
-
-```bash
-python scripts/setup/backup_database.py
-```
-
-Backups are stored in `backups/` with timestamps and checksums.
-
-### Running Scripts
-
-All utility scripts are organized in `scripts/`:
-- **Migrations**: `scripts/migrations/` - Database migration utilities
-- **Testing**: `scripts/testing/` - Test and validation scripts
-- **Verification**: `scripts/verification/` - System verification tools
-- **Data Management**: `scripts/data/` - Data manipulation utilities
-
-### Deployment
-
-See [Docker Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT.md) for:
-- Production deployment
-- Environment configuration
-- Backup and restore procedures
-- Troubleshooting
-- Maintenance operations
-
-## Support
-
-For issues and questions:
-- Check [Docker Deployment Guide](docs/deployment/DOCKER_DEPLOYMENT.md)
-- Review logs: `docker-compose logs -f web` (Docker) or check `logs/` directory
-- Consult implementation guides in `docs/implementation/`
+- [Docker Deployment Guide](docs/deployment/DOCKER.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [API Reference](docs/API.md)
 
 ## License
 
@@ -386,5 +213,4 @@ Internal project - see organization policies for usage guidelines.
 
 ---
 
-**Status**: Production-ready with comprehensive feature set
-**Latest**: Docker deployment, organized codebase, comprehensive documentation
+**Status**: Production-ready with AI-powered scheduling assistance
