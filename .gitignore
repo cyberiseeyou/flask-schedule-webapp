@@ -201,6 +201,9 @@ nginx-*.log
 celerybeat.pid
 celerybeat-schedule
 
+# Docker development overrides (auto-loaded, not for production)
+docker-compose.override.yml
+
 # SSL Certificates
 *.pem
 *.key

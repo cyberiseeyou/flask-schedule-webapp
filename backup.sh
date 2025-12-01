@@ -27,7 +27,6 @@ NC='\033[0m' # No Color
 # Default configuration
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
-DOCKER_DIR="deployment/docker"
 
 # Print functions
 print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }

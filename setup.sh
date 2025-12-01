@@ -47,19 +47,47 @@ echo -e "${NC}"
 # Determine environment (default: production)
 ENVIRONMENT=${1:-prod}
 
-DOCKER_DIR="deployment/docker"
+# Docker files are now in root directory (industry standard)
+COMPOSE_FILE="docker-compose.yml"
 
 if [ "$ENVIRONMENT" = "dev" ]; then
     print_info "Setting up DEVELOPMENT environment"
-    COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml"
+    # docker-compose.override.yml is auto-loaded when present
+    if [ ! -f "docker-compose.override.yml" ]; then
+        print_info "Creating docker-compose.override.yml for development..."
+        cat > docker-compose.override.yml << 'DEVEOF'
+# Development overrides - automatically loaded by docker compose
+services:
+  db:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    ports:
+      - "${APP_PORT:-5000}:5000"
+DEVEOF
+    fi
 else
     print_info "Setting up PRODUCTION environment"
-    COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+    # For production, explicitly exclude override file
+    COMPOSE_ARGS="-f docker-compose.yml"
 fi
 
 # Validate docker-compose file exists
 if [ ! -f "$COMPOSE_FILE" ]; then
     print_error "Docker Compose file not found: $COMPOSE_FILE"
+    print_info "Expected file at: $(pwd)/$COMPOSE_FILE"
     exit 1
 fi
 
@@ -158,12 +186,20 @@ rm -f "$ENV_FILE.bak" 2>/dev/null || true
 
 # Step 6: Build Docker images
 print_info "Building Docker images..."
-$COMPOSE_CMD -f "$COMPOSE_FILE" build
+if [ "$ENVIRONMENT" = "prod" ]; then
+    $COMPOSE_CMD -f docker-compose.yml build
+else
+    $COMPOSE_CMD build
+fi
 print_success "Docker images built successfully"
 
 # Step 7: Start containers
 print_info "Starting containers..."
-$COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+if [ "$ENVIRONMENT" = "prod" ]; then
+    $COMPOSE_CMD -f docker-compose.yml up -d
+else
+    $COMPOSE_CMD up -d
+fi
 print_success "Containers started successfully"
 
 # Step 8: Wait for database to be ready
@@ -172,10 +208,10 @@ sleep 5
 
 # Step 9: Run database migrations
 print_info "Running database migrations..."
-if [ "$ENVIRONMENT" = "dev" ]; then
-    $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app flask db upgrade
+if [ "$ENVIRONMENT" = "prod" ]; then
+    $COMPOSE_CMD -f docker-compose.yml exec -T app flask db upgrade
 else
-    $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app flask db upgrade
+    $COMPOSE_CMD exec -T app flask db upgrade
 fi
 print_success "Database migrations completed"
 
@@ -184,7 +220,11 @@ echo ""
 print_success "Setup completed successfully!"
 echo ""
 print_info "Container Status:"
-$COMPOSE_CMD -f "$COMPOSE_FILE" ps
+if [ "$ENVIRONMENT" = "prod" ]; then
+    $COMPOSE_CMD -f docker-compose.yml ps
+else
+    $COMPOSE_CMD ps
+fi
 
 # Step 11: Display access information
 echo ""
@@ -201,10 +241,19 @@ echo -e "  http://localhost:${APP_PORT:-8000}/health/ping"
 
 echo ""
 print_info "Useful Commands:"
-echo -e "  View logs:    ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE logs -f${NC}"
-echo -e "  Stop app:     ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE down${NC}"
-echo -e "  Restart app:  ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE restart${NC}"
-echo -e "  Shell access: ${YELLOW}$COMPOSE_CMD -f $COMPOSE_FILE exec app /bin/bash${NC}"
+if [ "$ENVIRONMENT" = "prod" ]; then
+    echo -e "  View logs:    ${YELLOW}docker compose -f docker-compose.yml logs -f${NC}"
+    echo -e "  Stop app:     ${YELLOW}docker compose -f docker-compose.yml down${NC}"
+    echo -e "  Restart app:  ${YELLOW}docker compose -f docker-compose.yml restart${NC}"
+    echo -e "  Rebuild:      ${YELLOW}docker compose -f docker-compose.yml up --build -d${NC}"
+    echo -e "  Shell access: ${YELLOW}docker compose -f docker-compose.yml exec app /bin/bash${NC}"
+else
+    echo -e "  View logs:    ${YELLOW}docker compose logs -f${NC}"
+    echo -e "  Stop app:     ${YELLOW}docker compose down${NC}"
+    echo -e "  Restart app:  ${YELLOW}docker compose restart${NC}"
+    echo -e "  Rebuild:      ${YELLOW}docker compose up --build -d${NC}"
+    echo -e "  Shell access: ${YELLOW}docker compose exec app /bin/bash${NC}"
+fi
 
 echo ""
-print_success "Happy scheduling! 🚀"
+print_success "Happy scheduling!"

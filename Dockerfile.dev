@@ -1,0 +1,42 @@
+# Flask Schedule Webapp - Development Dockerfile
+# Optimized for fast rebuilds and hot reloading
+
+FROM python:3.11-slim
+
+# Set build arguments
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    postgresql-client \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    FLASK_ENV=development \
+    FLASK_DEBUG=1
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir debugpy watchdog
+
+# Copy application code
+COPY . /app
+
+# Create necessary directories
+RUN mkdir -p /app/instance /app/logs
+
+# Expose ports
+EXPOSE 8000 5678
+
+# Run with Flask development server for hot reload
+CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8000", "--reload"]

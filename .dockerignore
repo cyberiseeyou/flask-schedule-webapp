@@ -90,10 +90,11 @@ tests/
 test_*.py
 comprehensive_api_test.py
 
-# Docker
+# Docker (exclude dev files from production builds)
 Dockerfile.dev
+docker-compose.override.yml
 docker-compose.dev.yml
-docker/
+deployment/docker/
 
 # CI/CD
 .github/

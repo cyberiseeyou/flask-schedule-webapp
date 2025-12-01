@@ -1,0 +1,112 @@
+# Flask Schedule Webapp - Production Docker Compose
+# Usage: docker compose up -d
+# With build: docker compose up --build -d
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: scheduler-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crossmark_scheduler}
+      POSTGRES_USER: ${POSTGRES_USER:-scheduler_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - scheduler-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scheduler_app} -d ${POSTGRES_DB:-crossmark_scheduler}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for Celery task queue and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: scheduler-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis_data:/data
+    networks:
+      - scheduler-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flask Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scheduler-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-scheduler_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crossmark_scheduler}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+    volumes:
+      - app_instance:/app/instance
+      - app_logs:/app/logs
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - scheduler-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker (for background tasks)
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scheduler-celery
+    restart: unless-stopped
+    command: celery -A celery_worker worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-scheduler_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-crossmark_scheduler}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+    volumes:
+      - app_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    networks:
+      - scheduler-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_instance:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  scheduler-network:
+    driver: bridge
