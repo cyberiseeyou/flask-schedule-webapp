@@ -17,19 +17,28 @@ depends_on = None
 
 
 def upgrade():
-    # SQLite doesn't support ALTER TABLE ADD COLUMN with foreign keys directly
-    # So we need to do it in two steps
+    # Check if column already exists before adding
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
 
-    # Step 1: Add the column without the foreign key
-    with op.batch_alter_table('events', schema=None, recreate='never') as batch_op:
-        batch_op.add_column(sa.Column('parent_event_ref_num', sa.Integer(), nullable=True))
+    existing_columns = {col['name'] for col in inspector.get_columns('events')}
 
-    # Step 2: Add the foreign key constraint (optional - SQLite doesn't enforce unless PRAGMA foreign_keys=ON)
-    # Since SQLite doesn't support adding FK constraints after table creation easily,
-    # we'll skip the FK constraint creation. The application-level relationship will work fine.
+    # Only add the column if it doesn't exist
+    if 'parent_event_ref_num' not in existing_columns:
+        with op.batch_alter_table('events', schema=None, recreate='never') as batch_op:
+            batch_op.add_column(sa.Column('parent_event_ref_num', sa.Integer(), nullable=True))
 
 
 def downgrade():
-    # Remove parent_event_ref_num column from events table
-    with op.batch_alter_table('events', schema=None, recreate='never') as batch_op:
-        batch_op.drop_column('parent_event_ref_num')
+    # Check if column exists before dropping
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+
+    existing_columns = {col['name'] for col in inspector.get_columns('events')}
+
+    # Only drop the column if it exists
+    if 'parent_event_ref_num' in existing_columns:
+        with op.batch_alter_table('events', schema=None, recreate='never') as batch_op:
+            batch_op.drop_column('parent_event_ref_num')
