@@ -1,6 +1,6 @@
-"""Add employee import fields (simple)
+"""Add employee import fields
 
-Revision ID: add_employee_import_fields_simple
+Revision ID: add_emp_import_fields
 Revises: add_rejected_simple
 Create Date: 2025-11-21
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'add_employee_import_fields_simple'
+revision = 'add_emp_import_fields'
 down_revision = 'add_rejected_simple'
 branch_labels = None
 depends_on = None

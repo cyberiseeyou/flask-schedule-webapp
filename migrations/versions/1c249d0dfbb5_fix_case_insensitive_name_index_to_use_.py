@@ -1,7 +1,7 @@
 """Fix case-insensitive name index to use column reference
 
 Revision ID: 1c249d0dfbb5
-Revises: add_employee_import_fields_simple
+Revises: add_emp_import_fields
 Create Date: 2025-11-21 05:37:23.191211
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '1c249d0dfbb5'
-down_revision = 'add_employee_import_fields_simple'
+down_revision = 'add_emp_import_fields'
 branch_labels = None
 depends_on = None
 
