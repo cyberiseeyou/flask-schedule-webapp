@@ -4,6 +4,7 @@ Handles admin operations, sync management, testing, and utility endpoints
 """
 from flask import Blueprint, render_template, request, jsonify, current_app, abort, make_response
 from app.routes.auth import require_authentication
+from app.utils.db_compat import disable_foreign_keys, is_sqlite
 from datetime import datetime, timedelta, date, time
 from io import BytesIO
 from sqlalchemy import func
@@ -72,10 +73,8 @@ def refresh_database():
         current_app.logger.info("Clearing all existing events from database")
         existing_count = Event.query.count()
 
-        # Disable foreign key constraints temporarily for SQLite
-        db.session.execute(db.text('PRAGMA foreign_keys=OFF'))
-
-        try:
+        # Use database-agnostic context manager to disable FK constraints
+        with disable_foreign_keys(db.session):
             # Clear all related tables in order (to handle foreign key constraints)
             # Import AutoSchedulerResult if available
             try:
@@ -94,11 +93,6 @@ def refresh_database():
             current_app.logger.info(f"Cleared {existing_count} events")
 
             # Commit the deletions
-            db.session.commit()
-
-        finally:
-            # Re-enable foreign key constraints
-            db.session.execute(db.text('PRAGMA foreign_keys=ON'))
             db.session.commit()
 
         current_app.logger.info(f"Successfully cleared {existing_count} existing events from database")
