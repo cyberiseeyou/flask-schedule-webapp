@@ -45,3 +45,20 @@ Pillow>=10.0.0
 
 # Database
 psycopg2-binary==2.9.9
+
+# ===================================================================
+# AI ASSISTANT DEPENDENCIES
+# ===================================================================
+# Choose ONE of the following LLM providers (or install multiple for flexibility):
+
+# Option 1: Google Gemini 1.5 Flash (Recommended - CHEAPEST!)
+# Cost: ~$0.075 per 1M tokens ($0.11/month for 50 queries/day)
+google-generativeai>=0.3.0
+
+# Option 2: OpenAI GPT-4o-mini (Fast & Affordable)
+# Cost: ~$0.15 per 1M tokens ($0.23/month for 50 queries/day)
+# openai>=1.12.0
+
+# Option 3: Anthropic Claude 3.5 Haiku
+# Cost: ~$0.25 per 1M tokens ($0.38/month for 50 queries/day)
+# anthropic>=0.18.0

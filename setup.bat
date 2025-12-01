@@ -19,12 +19,20 @@ REM Determine environment (default: production)
 set ENVIRONMENT=%1
 if "%ENVIRONMENT%"=="" set ENVIRONMENT=prod
 
+set DOCKER_DIR=deployment\docker
+
 if "%ENVIRONMENT%"=="dev" (
     echo [INFO] Setting up DEVELOPMENT environment
-    set COMPOSE_FILE=docker-compose.dev.yml
+    set COMPOSE_FILE=%DOCKER_DIR%\docker-compose.dev.yml
 ) else (
     echo [INFO] Setting up PRODUCTION environment
-    set COMPOSE_FILE=docker-compose.yml
+    set COMPOSE_FILE=%DOCKER_DIR%\docker-compose.yml
+)
+
+REM Validate docker-compose file exists
+if not exist "%COMPOSE_FILE%" (
+    echo [ERROR] Docker Compose file not found: %COMPOSE_FILE%
+    exit /b 1
 )
 
 REM Step 1: Check Docker installation
@@ -56,8 +64,8 @@ echo [SUCCESS] Docker Compose is installed
 
 REM Step 3: Create .env file if it doesn't exist
 echo [INFO] Configuring environment variables...
-set ENV_FILE=scheduler_app\.env
-set ENV_EXAMPLE=scheduler_app\.env.example
+set ENV_FILE=.env
+set ENV_EXAMPLE=.env.example
 
 if not exist "%ENV_FILE%" (
     if exist "%ENV_EXAMPLE%" (
@@ -83,10 +91,10 @@ if exist temp_secret.txt (
     echo [SUCCESS] Generated SECRET_KEY
 )
 
-REM Create .env for Docker Compose if it doesn't exist
-if not exist ".env" (
-    echo [INFO] Creating Docker Compose .env file...
-
+REM Add Docker Compose variables to .env if not already present
+echo [INFO] Configuring Docker Compose variables...
+findstr /c:"POSTGRES_DB=" "%ENV_FILE%" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
     REM Generate random passwords
     python -c "import secrets; print(secrets.token_urlsafe(32)[:32])" > temp_db_pass.txt 2>nul
     python -c "import secrets; print(secrets.token_urlsafe(32)[:32])" > temp_redis_pass.txt 2>nul
@@ -95,39 +103,35 @@ if not exist ".env" (
     set /p REDIS_PASS=<temp_redis_pass.txt
 
     (
-        echo # Docker Compose Environment Variables
-        echo # Database Configuration
-        echo POSTGRES_DB=scheduler_db
-        echo POSTGRES_USER=scheduler_user
+        echo.
+        echo # ===================================================================
+        echo # DOCKER COMPOSE VARIABLES ^(auto-generated^)
+        echo # ===================================================================
+        echo POSTGRES_DB=crossmark_scheduler
+        echo POSTGRES_USER=scheduler_app
         echo POSTGRES_PASSWORD=!DB_PASS!
         echo POSTGRES_PORT=5432
-        echo.
-        echo # Redis Configuration
         echo REDIS_PASSWORD=!REDIS_PASS!
         echo REDIS_PORT=6379
-        echo.
-        echo # Application Configuration
         echo APP_PORT=8000
-        echo.
-        echo # Nginx Configuration ^(Production only^)
         echo NGINX_HTTP_PORT=80
         echo NGINX_HTTPS_PORT=443
-    ) > .env
+    ) >> "%ENV_FILE%"
 
     del temp_db_pass.txt temp_redis_pass.txt 2>nul
-    echo [SUCCESS] Created Docker Compose .env file with secure passwords
+    echo [SUCCESS] Added Docker Compose variables with secure passwords
 ) else (
-    echo [WARNING] Docker Compose .env file already exists, skipping...
+    echo [WARNING] Docker Compose variables already exist, skipping...
 )
 
 REM Load environment variables from .env
-for /f "tokens=1,2 delims==" %%a in (.env) do (
+for /f "tokens=1,2 delims==" %%a in (%ENV_FILE%) do (
     set %%a=%%b
 )
 
 REM Step 5: Update DATABASE_URL in app .env
 echo [INFO] Updating database connection string...
-set DB_URL=postgresql://%POSTGRES_USER%:%POSTGRES_PASSWORD%@localhost:%POSTGRES_PORT%/%POSTGRES_DB%
+set DB_URL=postgresql://%POSTGRES_USER%:%POSTGRES_PASSWORD%@db:%POSTGRES_PORT%/%POSTGRES_DB%
 powershell -Command "(Get-Content '%ENV_FILE%') -replace '^DATABASE_URL=.*', 'DATABASE_URL=%DB_URL%' | Set-Content '%ENV_FILE%'"
 echo [SUCCESS] Updated DATABASE_URL in %ENV_FILE%
 

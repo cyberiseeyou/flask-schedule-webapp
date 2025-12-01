@@ -47,12 +47,20 @@ echo -e "${NC}"
 # Determine environment (default: production)
 ENVIRONMENT=${1:-prod}
 
+DOCKER_DIR="deployment/docker"
+
 if [ "$ENVIRONMENT" = "dev" ]; then
     print_info "Setting up DEVELOPMENT environment"
-    COMPOSE_FILE="docker-compose.dev.yml"
+    COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml"
 else
     print_info "Setting up PRODUCTION environment"
-    COMPOSE_FILE="docker-compose.yml"
+    COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+fi
+
+# Validate docker-compose file exists
+if [ ! -f "$COMPOSE_FILE" ]; then
+    print_error "Docker Compose file not found: $COMPOSE_FILE"
+    exit 1
 fi
 
 # Step 1: Check Docker installation
@@ -82,8 +90,8 @@ fi
 
 # Step 3: Create .env file if it doesn't exist
 print_info "Configuring environment variables..."
-ENV_FILE="scheduler_app/.env"
-ENV_EXAMPLE="scheduler_app/.env.example"
+ENV_FILE=".env"
+ENV_EXAMPLE=".env.example"
 
 if [ ! -f "$ENV_FILE" ]; then
     if [ -f "$ENV_EXAMPLE" ]; then
@@ -111,39 +119,42 @@ if ! grep -q "^SECRET_KEY=.*[a-f0-9]\{64\}" "$ENV_FILE"; then
     fi
 fi
 
-# Create .env for Docker Compose if it doesn't exist
-DOCKER_ENV=".env"
-if [ ! -f "$DOCKER_ENV" ]; then
-    cat > "$DOCKER_ENV" << EOF
-# Docker Compose Environment Variables
-# Database Configuration
-POSTGRES_DB=scheduler_db
-POSTGRES_USER=scheduler_user
-POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+# Add Docker Compose variables to .env if not already present
+print_info "Configuring Docker Compose variables..."
+
+if ! grep -q "^POSTGRES_DB=" "$ENV_FILE"; then
+    POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+    REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+
+    cat >> "$ENV_FILE" << EOF
+
+# ===================================================================
+# DOCKER COMPOSE VARIABLES (auto-generated)
+# ===================================================================
+POSTGRES_DB=crossmark_scheduler
+POSTGRES_USER=scheduler_app
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 POSTGRES_PORT=5432
-
-# Redis Configuration
-REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d /=+ | cut -c -32)
+REDIS_PASSWORD=$REDIS_PASSWORD
 REDIS_PORT=6379
-
-# Application Configuration
 APP_PORT=8000
-
-# Nginx Configuration (Production only)
 NGINX_HTTP_PORT=80
 NGINX_HTTPS_PORT=443
 EOF
-    print_success "Created Docker Compose .env file with secure passwords"
+    print_success "Added Docker Compose variables with secure passwords"
 else
-    print_warning "Docker Compose .env file already exists, skipping..."
+    print_warning "Docker Compose variables already exist, skipping..."
 fi
 
 # Step 5: Update DATABASE_URL in app .env
 print_info "Updating database connection string..."
-source "$DOCKER_ENV"
-DB_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}"
+source "$ENV_FILE"
+DB_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}"
 sed -i.bak "s|^DATABASE_URL=.*|DATABASE_URL=$DB_URL|" "$ENV_FILE"
 print_success "Updated DATABASE_URL in $ENV_FILE"
+
+# Clean up backup files created by sed
+rm -f "$ENV_FILE.bak" 2>/dev/null || true
 
 # Step 6: Build Docker images
 print_info "Building Docker images..."

@@ -97,6 +97,7 @@ $RECYCLE.BIN/
 *.bak
 *.backup
 *~
+backups/
 
 # Compiled files
 *.com

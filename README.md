@@ -191,7 +191,7 @@ flask db downgrade
 
 ## Environment Configuration
 
-Create a .env file based on .env.example:
+Create a `.env` file based on `.env.example`:
 
 \`\`\`env
 FLASK_ENV=development
@@ -200,6 +200,58 @@ DATABASE_URL=sqlite:///instance/scheduler.db
 CROSSMARK_API_KEY=your-api-key
 REDIS_URL=redis://localhost:6379/0
 \`\`\`
+
+The setup script automatically generates secure secrets and configures the database connection.
+
+## Database Backup
+
+The application includes comprehensive backup scripts for both Linux/Mac and Windows.
+
+**Linux/Mac:**
+\`\`\`bash
+chmod +x backup.sh
+
+# Interactive mode
+./backup.sh
+
+# Run backup immediately
+./backup.sh --now
+
+# Set up scheduled backups (cron)
+./backup.sh --schedule
+
+# Restore from backup
+./backup.sh --restore backups/scheduler_backup_postgresql_20231215_020000.sql.gz
+
+# List available backups
+./backup.sh --list
+\`\`\`
+
+**Windows:**
+\`\`\`cmd
+REM Interactive mode
+backup.bat
+
+REM Run backup immediately
+backup.bat --now
+
+REM Set up scheduled backups (Windows Task Scheduler)
+backup.bat --schedule
+
+REM Restore from backup
+backup.bat --restore backups\scheduler_backup_postgresql_20231215_020000.sql
+
+REM List available backups
+backup.bat --list
+\`\`\`
+
+The backup scripts support:
+- PostgreSQL (Docker and native)
+- SQLite databases
+- Automatic compression
+- Scheduled backups with customizable frequency
+- Retention policy configuration
+- Interactive restore functionality
 
 ## Documentation
 
