@@ -18,6 +18,7 @@ from sqlalchemy import func, and_, or_
 from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass, field
 from collections import Counter
+from app.utils.db_compat import extract_time
 import logging
 import re
 
@@ -365,7 +366,7 @@ class ScheduleVerificationService:
                 self.Event, self.Schedule.event_ref_num == self.Event.project_ref_num
             ).filter(
                 func.date(self.Schedule.schedule_datetime) == verify_date,
-                func.time(self.Schedule.schedule_datetime) == timeslot,
+                extract_time(self.Schedule.schedule_datetime) == timeslot,
                 self.Event.event_type == 'Core'
             ).count()
             shift_counts[timeslot] = count
@@ -509,7 +510,7 @@ class ScheduleVerificationService:
             self.Employee, self.Schedule.employee_id == self.Employee.id
         ).filter(
             func.date(self.Schedule.schedule_datetime) == verify_date,
-            func.time(self.Schedule.schedule_datetime) == target_time,
+            extract_time(self.Schedule.schedule_datetime) == target_time,
             self.Event.event_type == 'Core',
             self.Employee.job_title == 'Event Specialist'
         ).all()
@@ -523,7 +524,7 @@ class ScheduleVerificationService:
             self.Employee, self.Schedule.employee_id == self.Employee.id
         ).filter(
             func.date(self.Schedule.schedule_datetime) == verify_date,
-            func.time(self.Schedule.schedule_datetime) != target_time,
+            extract_time(self.Schedule.schedule_datetime) != target_time,
             self.Event.event_type == 'Core',
             self.Employee.job_title == target_job_title
         ).all()

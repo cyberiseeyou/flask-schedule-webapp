@@ -122,13 +122,14 @@ def get_daily_summary(date):
     for timeslot in core_timeslots:
         # OPTIMIZED: Count unique employees with events starting at this exact time
         # Uses date range for better performance
+        from app.utils.db_compat import extract_time
         count = db.session.query(
             func.count(func.distinct(Schedule.employee_id))
         ).filter(
             and_(
                 Schedule.schedule_datetime >= date_start,
                 Schedule.schedule_datetime < date_end,
-                func.time(Schedule.schedule_datetime) == timeslot
+                extract_time(Schedule.schedule_datetime) == timeslot
             )
         ).scalar()
 
