@@ -1,8 +1,9 @@
 # Data Models
 
 **Project:** Flask Schedule Webapp
-**Generated:** 2025-11-20
+**Generated:** 2025-12-02 (Exhaustive Rescan)
 **Scan Level:** Exhaustive
+**Model Count:** 18 database models
 
 ## Overview
 

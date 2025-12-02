@@ -4,7 +4,7 @@
 **Primary Language:** Python 3.11+
 **Framework:** Flask 3.0.3
 **Architecture Pattern:** MVC/Layered with Application Factory
-**Generated:** 2025-11-20
+**Generated:** 2025-12-02 (Exhaustive Rescan)
 
 ## Quick Reference
 
@@ -13,8 +13,8 @@
 - **Application Factory:** `app/__init__.py::create_app()`
 - **Architecture:** MVC with Blueprint modularity and Service layer
 - **External Integrations:** Crossmark API (crossmark.mvretail.com), Walmart Retail Link
-- **Database:** 16 models with Alembic migrations
-- **API Endpoints:** 50+ REST endpoints across 23 blueprints
+- **Database:** 18 models with Alembic migrations
+- **API Endpoints:** 100+ REST endpoints across 23 blueprints
 - **Deployment:** Docker (recommended) or manual with Gunicorn
 
 ## Core Features
@@ -32,9 +32,10 @@
 
 ### Core Documentation
 - [Project Overview](./project-overview.md) - Executive summary, tech stack, features
+- [Scheduling Rules](./scheduling-rules.md) - **Complete manual scheduling reference guide**
 - [Source Tree Analysis](./source-tree-analysis.md) - Complete directory structure with annotations
 - [API Contracts](./api-contracts.md) - All REST API endpoints with examples
-- [Data Models](./data-models.md) - Database schema, relationships, 16 models
+- [Data Models](./data-models.md) - Database schema, relationships, 18 models
 
 ### Architecture Documentation
 - [Architectural Optimizations](./architecture/ARCHITECTURAL_OPTIMIZATIONS.md) - System optimizations
@@ -265,7 +266,7 @@ Current workflow phase and next steps are tracked in the status file.
 
 ---
 
-**Documentation Generated:** 2025-11-20
+**Documentation Generated:** 2025-12-02 (Exhaustive Rescan)
 **Application Version:** 1.2
 **Python Version:** 3.11+
 **Status:** Production-Ready

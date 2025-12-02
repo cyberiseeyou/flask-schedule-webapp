@@ -3,7 +3,7 @@
 **Project Name:** Flask Schedule Webapp
 **Type:** Web Application (Monolith)
 **Status:** Production-Ready
-**Generated:** 2025-11-20
+**Generated:** 2025-12-02 (Exhaustive Rescan)
 
 ## Executive Summary
 
@@ -69,7 +69,7 @@ The system automates and streamlines the complex process of assigning employees 
 
 **Type:** Monolith
 **Organization:** Single cohesive codebase with modular components
-**Size:** ~80 Python modules, 20+ templates, extensive JavaScript/CSS
+**Size:** ~79 Python modules, 20+ templates, extensive JavaScript/CSS, 18 database models
 
 ## Core Features
 
@@ -202,10 +202,11 @@ The system automates and streamlines the complex process of assigning employees 
 
 ## Documentation
 
-- **API Contracts:** Complete REST API documentation
-- **Data Models:** Full database schema with relationships
-- **Source Tree:** Annotated directory structure
-- **Architecture:** System design and patterns
+- **[Scheduling Rules](./scheduling-rules.md):** Complete reference for manual scheduling without errors
+- **[API Contracts](./api-contracts.md):** Complete REST API documentation (100+ endpoints)
+- **[Data Models](./data-models.md):** Full database schema with 18 models and relationships
+- **[Source Tree](./source-tree-analysis.md):** Annotated directory structure
+- **[Architecture](./architecture.md):** System design and patterns
 - **Deployment Guides:** Docker and manual setup
 - **Operations:** Restart procedures, maintenance
 - **Testing:** Test reports and coverage
@@ -260,6 +261,6 @@ Internal project - see organization policies for usage guidelines.
 
 ---
 
-**Last Updated:** 2025-11-20
-**Documentation Version:** 1.0
+**Last Updated:** 2025-12-02
+**Documentation Version:** 1.1 (Exhaustive Rescan)
 **Application Version:** 1.2

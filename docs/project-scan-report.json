@@ -1,1 +1,40 @@
-{"workflow_version":"1.2.0","timestamps":{"started":"2025-11-20T17:30:00Z","last_updated":"2025-11-20T17:50:00Z","completed":"2025-11-20T17:50:00Z"},"mode":"initial_scan","scan_level":"exhaustive","project_root":"C:\\Users\\mathe\\flask-schedule-webapp","output_folder":"C:\\Users\\mathe\\flask-schedule-webapp\\docs","completed_steps":[{"step":"step_1","status":"completed","timestamp":"2025-11-20T17:35:00Z","summary":"Classified as monolith with 1 part - Flask Web Application"},{"step":"step_2","status":"completed","timestamp":"2025-11-20T17:38:00Z","summary":"Found 19 existing docs"},{"step":"step_3","status":"completed","timestamp":"2025-11-20T17:42:00Z","summary":"Tech stack: Flask 3.0.3 on Python 3.11+"},{"step":"step_4","status":"completed","timestamp":"2025-11-20T17:45:00Z","summary":"Conditional analysis complete, 5 files written"},{"step":"step_10","status":"completed","timestamp":"2025-11-20T17:50:00Z","summary":"Master index generated"},{"step":"step_12","status":"completed","timestamp":"2025-11-20T17:50:00Z","summary":"Workflow complete"}],"current_step":"completed","findings":{"project_classification":"Monolith, 1 part, Flask Web Application","existing_docs_count":"19 docs found","technology_stack":"Flask on Python"},"project_types":[{"part_id":"main","project_type_id":"web","display_name":"Flask Web Application"}],"outputs_generated":["project-scan-report.json","api-contracts.md","data-models.md","source-tree-analysis.md","project-overview.md","index.md"],"resume_instructions":"Documentation complete"}
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2025-12-02T10:00:00Z",
+    "last_updated": "2025-12-02T10:45:00Z",
+    "completed": "2025-12-02T10:45:00Z"
+  },
+  "mode": "full_rescan",
+  "scan_level": "exhaustive",
+  "project_root": "C:\\Users\\mathe\\flask-schedule-webapp",
+  "output_folder": "C:\\Users\\mathe\\flask-schedule-webapp\\docs",
+  "completed_steps": [
+    {"step": "step_1", "status": "completed", "timestamp": "2025-12-02T10:05:00Z", "summary": "Classified as Monolith, 1 part - Flask Web Application (backend type)"},
+    {"step": "step_2", "status": "completed", "timestamp": "2025-12-02T10:07:00Z", "summary": "Found 33 existing docs across docs/, operations/, architecture/"},
+    {"step": "step_3", "status": "completed", "timestamp": "2025-12-02T10:10:00Z", "summary": "Tech stack: Flask 3.0.3, SQLAlchemy, Celery, Redis, PostgreSQL/SQLite"},
+    {"step": "step_4", "status": "completed", "timestamp": "2025-12-02T10:20:00Z", "summary": "Performed exhaustive scan - API (100+ endpoints), data models (18), scheduling rules"},
+    {"step": "step_5", "status": "completed", "timestamp": "2025-12-02T10:30:00Z", "summary": "Generated scheduling-rules.md with complete manual scheduling reference"},
+    {"step": "step_6", "status": "completed", "timestamp": "2025-12-02T10:45:00Z", "summary": "Updated all documentation files and master index"}
+  ],
+  "current_step": "completed",
+  "findings": {
+    "project_classification": "Monolith, 1 part, Flask Web Application",
+    "existing_docs_count": "34 docs (including new scheduling-rules.md)",
+    "technology_stack": "Flask 3.0.3 on Python 3.11+",
+    "database_models": "18 models identified",
+    "api_endpoints": "100+ endpoints across 23 blueprints",
+    "scheduling_rules": "Comprehensive constraint validation system documented"
+  },
+  "project_types": [
+    {"part_id": "main", "project_type_id": "backend", "display_name": "Flask Web Application with Scheduling Engine"}
+  ],
+  "outputs_generated": [
+    "project-scan-report.json",
+    "scheduling-rules.md",
+    "project-overview.md (updated)",
+    "data-models.md (updated)",
+    "index.md (updated)"
+  ],
+  "status": "COMPLETED"
+}
