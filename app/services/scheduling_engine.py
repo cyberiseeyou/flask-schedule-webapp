@@ -74,17 +74,18 @@ class SchedulingEngine:
             }
         except Exception as e:
             # Fallback to hard-coded defaults if settings not available
+            # Updated 2025-12-02: Times moved forward 1 hour, corrected durations
             return {
-                'Juicer Production': time(9, 0),
-                'Juicer Survey': time(17, 0),
+                'Juicer Production': time(9, 0),   # 480 min + 60 min lunch = 540 min
+                'Juicer Survey': time(17, 0),      # 30 min
                 'Juicer': time(9, 0),
-                'Digital Setup': time(9, 15),
-                'Digital Refresh': time(9, 15),
-                'Freeosk': time(9, 0),
-                'Digital Teardown': time(17, 0),
-                'Core': time(9, 45),
-                'Supervisor': time(12, 0),
-                'Other': time(10, 0)
+                'Digital Setup': time(10, 15),     # 30 min (moved from 9:15)
+                'Digital Refresh': time(10, 15),   # 30 min (moved from 9:15)
+                'Freeosk': time(10, 0),            # 30 min (moved from 9:00)
+                'Digital Teardown': time(18, 0),   # 30 min (moved from 17:00)
+                'Core': time(9, 45),               # 360 min + 30 min lunch = 390 min
+                'Supervisor': time(12, 0),         # 5 min
+                'Other': time(11, 0)               # 60 min (moved from 10:00)
             }
 
     @classmethod
@@ -108,8 +109,8 @@ class SchedulingEngine:
             slots = get_digital_setup_slots()
             return [slot['start'] for slot in slots]
         except Exception:
-            # Fallback to hard-coded defaults
-            return [time(9, 15), time(9, 30), time(9, 45), time(10, 0)]
+            # Fallback to hard-coded defaults (moved forward 1 hour from 9:15)
+            return [time(10, 15), time(10, 30), time(10, 45), time(11, 0)]
 
     @classmethod
     def _get_teardown_time_slots(cls):
@@ -120,10 +121,10 @@ class SchedulingEngine:
             slots = get_digital_teardown_slots()
             return [slot['start'] for slot in slots]
         except Exception:
-            # Fallback to hard-coded defaults
+            # Fallback to hard-coded defaults (moved forward 1 hour from 17:00)
             return [
-                time(17, 0), time(17, 15), time(17, 30), time(17, 45),
-                time(18, 0), time(18, 15), time(18, 30), time(18, 45)
+                time(18, 0), time(18, 15), time(18, 30), time(18, 45),
+                time(19, 0), time(19, 15), time(19, 30), time(19, 45)
             ]
 
     def __init__(self, db_session: Session, models: dict):
@@ -1809,7 +1810,7 @@ class SchedulingEngine:
         if event.event_type == 'Digitals' and ('SETUP' in event_name_upper or 'REFRESH' in event_name_upper):
             schedule_time = self._get_next_digital_time_slot(schedule_date)
         else:
-            schedule_time = self.DEFAULT_TIMES.get('Freeosk', time(9, 0))
+            schedule_time = self.DEFAULT_TIMES.get('Freeosk', time(10, 0))
 
         schedule_datetime = datetime.combine(schedule_date.date(), schedule_time)
         target_date = schedule_datetime.date()
@@ -2539,20 +2540,21 @@ class SchedulingEngine:
             dict with 'employee_id' and 'employee_name' if successful, None if failed
         """
         # Determine appropriate time based on event type
+        # Updated 2025-12-02: Times moved forward 1 hour for Digital/Freeosk/Other
         if event.event_type == 'Juicer':
             schedule_time = self._get_juicer_time(event)
         elif event.event_type in ['Digital Setup', 'Digital Refresh']:
-            schedule_time = time(9, 15)
+            schedule_time = time(10, 15)  # 30 min duration, moved from 9:15
         elif event.event_type == 'Digital Teardown':
-            schedule_time = time(17, 0)
+            schedule_time = time(18, 0)   # 30 min duration, moved from 17:00
         elif event.event_type == 'Freeosk':
-            schedule_time = time(9, 0)
+            schedule_time = time(10, 0)   # 30 min duration, moved from 9:00
         elif event.event_type == 'Core':
-            schedule_time = time(9, 45)
+            schedule_time = time(9, 45)   # 390 min (360 + 30 lunch)
         elif event.event_type == 'Supervisor':
-            schedule_time = time(12, 0)
+            schedule_time = time(12, 0)   # 5 min
         else:
-            schedule_time = time(10, 0)
+            schedule_time = time(11, 0)   # 60 min duration, moved from 10:00
 
         # Use event's start date
         schedule_date = max(event.start_datetime.date(), datetime.now().date())

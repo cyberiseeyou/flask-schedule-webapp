@@ -120,8 +120,8 @@ class EventTimeSettings:
     @classmethod
     def get_freeosk_times(cls) -> Dict[str, time]:
         """Get Freeosk event times"""
-        start = cls._get_setting('freeosk_start_time', '09:00')
-        end = cls._get_setting('freeosk_end_time', '09:15')
+        start = cls._get_setting('freeosk_start_time', '10:00')
+        end = cls._get_setting('freeosk_end_time', '10:30')
         return {
             'start': cls._parse_time(start),
             'end': cls._parse_time(end)
@@ -129,11 +129,19 @@ class EventTimeSettings:
 
     @classmethod
     def get_digital_setup_slots(cls) -> List[Dict[str, time]]:
-        """Get Digital Setup time slots (4 slots)"""
+        """Get Digital Setup time slots (4 slots) - 30 min each starting at 10:15"""
+        # Default times moved forward 1 hour from original 9:15
+        defaults = [
+            {'start': '10:15', 'end': '10:45'},
+            {'start': '10:30', 'end': '11:00'},
+            {'start': '10:45', 'end': '11:15'},
+            {'start': '11:00', 'end': '11:30'},
+        ]
         slots = []
         for slot in range(1, 5):
-            start = cls._get_setting(f'digital_setup_{slot}_start_time', f'09:{15*(slot-1):02d}')
-            end = cls._get_setting(f'digital_setup_{slot}_end_time', f'09:{15*slot:02d}')
+            default = defaults[slot - 1]
+            start = cls._get_setting(f'digital_setup_{slot}_start_time', default['start'])
+            end = cls._get_setting(f'digital_setup_{slot}_end_time', default['end'])
             slots.append({
                 'slot': slot,
                 'start': cls._parse_time(start),
@@ -181,20 +189,19 @@ class EventTimeSettings:
 
     @classmethod
     def get_digital_teardown_slots(cls) -> List[Dict[str, time]]:
-        """Get Digital Teardown time slots (4 slots)"""
+        """Get Digital Teardown time slots (4 slots) - 30 min each starting at 18:00"""
+        # Default times moved forward 1 hour from original 17:00
+        defaults = [
+            {'start': '18:00', 'end': '18:30'},
+            {'start': '18:15', 'end': '18:45'},
+            {'start': '18:30', 'end': '19:00'},
+            {'start': '18:45', 'end': '19:15'},
+        ]
         slots = []
         for slot in range(1, 5):
-            hour = 17 + (slot - 1) // 4
-            minute = ((slot - 1) % 4) * 15
-            default_start = f'{hour:02d}:{minute:02d}'
-            minute_end = minute + 15
-            if minute_end >= 60:
-                hour += 1
-                minute_end -= 60
-            default_end = f'{hour:02d}:{minute_end:02d}'
-
-            start = cls._get_setting(f'digital_teardown_{slot}_start_time', default_start)
-            end = cls._get_setting(f'digital_teardown_{slot}_end_time', default_end)
+            default = defaults[slot - 1]
+            start = cls._get_setting(f'digital_teardown_{slot}_start_time', default['start'])
+            end = cls._get_setting(f'digital_teardown_{slot}_end_time', default['end'])
             slots.append({
                 'slot': slot,
                 'start': cls._parse_time(start),
@@ -204,9 +211,9 @@ class EventTimeSettings:
 
     @classmethod
     def get_other_times(cls) -> Dict[str, time]:
-        """Get Other event type times"""
-        start = cls._get_setting('other_start_time', '10:00')
-        end = cls._get_setting('other_end_time', '10:15')
+        """Get Other event type times - 60 min duration"""
+        start = cls._get_setting('other_start_time', '11:00')
+        end = cls._get_setting('other_end_time', '12:00')
         return {
             'start': cls._parse_time(start),
             'end': cls._parse_time(end)

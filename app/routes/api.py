@@ -119,21 +119,39 @@ def get_daily_summary(date):
         }
     timeslot_coverage = {}
 
+    # Get Employee model for name lookup
+    Employee = m['Employee']
+
     for timeslot in core_timeslots:
-        # OPTIMIZED: Count unique employees with events starting at this exact time
-        # Uses date range for better performance
-        from app.utils.db_compat import extract_time
-        count = db.session.query(
-            func.count(func.distinct(Schedule.employee_id))
+        # OPTIMIZED: Get employees with events starting at this exact time
+        # Parse the timeslot string to create datetime range for the specific minute
+        from datetime import time as dt_time
+        parts = timeslot.split(':')
+        slot_time = dt_time(int(parts[0]), int(parts[1]), int(parts[2]))
+
+        # Create datetime range for this specific timeslot (e.g., 09:45:00 to 09:45:59)
+        slot_start = datetime.combine(selected_date, slot_time)
+        slot_end = slot_start + timedelta(minutes=1)
+
+        # Get distinct employees scheduled at this timeslot with their names
+        employees = db.session.query(
+            Employee.name
+        ).join(
+            Schedule, Schedule.employee_id == Employee.id
         ).filter(
             and_(
-                Schedule.schedule_datetime >= date_start,
-                Schedule.schedule_datetime < date_end,
-                extract_time(Schedule.schedule_datetime) == timeslot
+                Schedule.schedule_datetime >= slot_start,
+                Schedule.schedule_datetime < slot_end,
+                Schedule.employee_id.isnot(None)
             )
-        ).scalar()
+        ).distinct().all()
 
-        timeslot_coverage[timeslot] = count or 0
+        # Return employee names list
+        employee_names = [emp.name for emp in employees]
+        timeslot_coverage[timeslot] = {
+            'count': len(employee_names),
+            'employees': employee_names
+        }
 
     return jsonify({
         'event_types': type_counts,
@@ -468,21 +486,92 @@ def unschedule_event_quick(schedule_id):
         else:
             logger.warning(f"Schedule {schedule_id} has no external_id, skipping Crossmark API call")
 
-        # Delete schedule (cascade will handle attendance if configured)
-        db.session.delete(schedule)
-        db.session.commit()
+        # Get the event for CORE-Supervisor pairing check
+        event = Event.query.filter_by(project_ref_num=schedule.event_ref_num).first()
 
-        logger.info(
-            f'Schedule {schedule_id} deleted. Employee: {employee_name}, '
-            f'Event: {event_name}, Had attendance: {has_attendance}'
-        )
+        # BEGIN NESTED TRANSACTION for CORE-Supervisor pairing
+        try:
+            with db.session.begin_nested():
+                # NEW: Check if this is a CORE event and unschedule Supervisor (Sprint 2)
+                from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
 
-        return jsonify({
-            'success': True,
-            'schedule_id': schedule_id,
-            'had_attendance': has_attendance,
-            'message': 'Event unscheduled successfully'
-        }), 200
+                if event and is_core_event_redesign(event):
+                    logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
+
+                    supervisor_status = get_supervisor_status(event)
+
+                    if supervisor_status['exists'] and supervisor_status['is_scheduled']:
+                        supervisor_event = supervisor_status['event']
+                        logger.info(
+                            f"Found paired Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                        )
+
+                        # Find Supervisor's schedule
+                        supervisor_schedule = Schedule.query.filter_by(
+                            event_ref_num=supervisor_event.project_ref_num
+                        ).first()
+
+                        if supervisor_schedule:
+                            # Call Crossmark API to unschedule Supervisor
+                            if supervisor_schedule.external_id:
+                                logger.info(
+                                    f"Calling Crossmark API to unschedule Supervisor: schedule_id={supervisor_schedule.external_id}"
+                                )
+
+                                supervisor_api_result = external_api.unschedule_mplan_event(str(supervisor_schedule.external_id))
+
+                                if not supervisor_api_result.get('success'):
+                                    error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                                    logger.error(f"Supervisor unschedule API call failed: {error_msg}")
+                                    raise Exception(f"Failed to unschedule Supervisor in Crossmark: {error_msg}")
+
+                                logger.info(f"Successfully unscheduled Supervisor in Crossmark API")
+
+                            # Delete Supervisor schedule record
+                            db.session.delete(supervisor_schedule)
+
+                            # Check if Supervisor has other schedules
+                            remaining_supervisor_schedules = Schedule.query.filter_by(
+                                event_ref_num=supervisor_event.project_ref_num
+                            ).count()
+                            if remaining_supervisor_schedules == 0:
+                                supervisor_event.is_scheduled = False
+
+                            logger.info(
+                                f"✅ Successfully auto-unscheduled Supervisor event {supervisor_event.project_ref_num}"
+                            )
+                        else:
+                            logger.warning(f"Supervisor schedule not found for event {supervisor_event.project_ref_num}")
+                    elif supervisor_status['exists']:
+                        logger.info(
+                            f"Supervisor event exists but is not scheduled (condition: {supervisor_status['condition']}). "
+                            f"No auto-unschedule needed."
+                        )
+                    else:
+                        logger.info("No paired Supervisor event found for this CORE event.")
+
+                # Delete the CORE schedule
+                db.session.delete(schedule)
+
+            # COMMIT TRANSACTION
+            db.session.commit()
+
+            logger.info(
+                f'Schedule {schedule_id} deleted. Employee: {employee_name}, '
+                f'Event: {event_name}, Had attendance: {has_attendance}'
+            )
+
+            return jsonify({
+                'success': True,
+                'schedule_id': schedule_id,
+                'had_attendance': has_attendance,
+                'message': 'Event unscheduled successfully'
+            }), 200
+
+        except Exception as nested_error:
+            db.session.rollback()
+            logger.error(f"Transaction failed during unschedule: {str(nested_error)}", exc_info=True)
+            raise nested_error
 
     except Exception as e:
         db.session.rollback()
@@ -804,6 +893,58 @@ def get_event_allowed_times(event_type):
             'success': False,
             'allowed_times': [],
             'has_restrictions': False,
+            'error': str(e)
+        })
+
+
+@api_bp.route('/event-time-settings')
+def get_event_time_settings():
+    """
+    Get all event time settings for the scheduler.
+
+    Returns core timeslots for populating schedule time dropdowns.
+    Used by reissue modal and other scheduling interfaces.
+
+    Returns:
+        JSON with core_slots array containing slot info
+    """
+    from app.services.event_time_settings import EventTimeSettings
+
+    try:
+        # Get core slots
+        core_slots_raw = EventTimeSettings.get_core_slots()
+        core_slots = []
+        for slot in core_slots_raw:
+            start = slot['start']
+            # Format time as HH:MM
+            start_str = f"{start.hour:02d}:{start.minute:02d}"
+            # Format readable label
+            hour_12 = start.hour % 12 or 12
+            am_pm = 'AM' if start.hour < 12 else 'PM'
+            label = f"{hour_12}:{start.minute:02d} {am_pm}"
+
+            core_slots.append({
+                'slot': slot['slot'],
+                'start': start_str,
+                'label': label
+            })
+
+        return jsonify({
+            'success': True,
+            'core_slots': core_slots
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting event time settings: {e}")
+        # Return default core slots as fallback
+        return jsonify({
+            'success': False,
+            'core_slots': [
+                {'slot': 1, 'start': '09:45', 'label': '9:45 AM'},
+                {'slot': 2, 'start': '10:30', 'label': '10:30 AM'},
+                {'slot': 3, 'start': '11:00', 'label': '11:00 AM'},
+                {'slot': 4, 'start': '11:30', 'label': '11:30 AM'}
+            ],
             'error': str(e)
         })
 
@@ -1334,34 +1475,124 @@ def reschedule_event_with_validation(schedule_id):
             logger.error(f"API submission error: {str(api_error)}")
             return jsonify({'error': f'Failed to submit to Crossmark API: {str(api_error)}'}), 500
 
-        # API submission successful - now update local database
-        old_datetime = schedule.schedule_datetime
-        schedule.schedule_datetime = new_datetime
+        # API submission successful - now update local database with transaction
+        from app.integrations.external_api.session_api_service import session_api as external_api
 
-        # Update event sync status
-        event.sync_status = 'synced'
-        event.last_synced = datetime.utcnow()
+        try:
+            with db.session.begin_nested():
+                old_datetime = schedule.schedule_datetime
+                schedule.schedule_datetime = new_datetime
 
-        # Log if conflicts were overridden
-        if not validation_result.is_valid and override_conflicts:
-            logger.warning(
-                f'Schedule {schedule_id} rescheduled with conflict override: '
-                f'{len(validation_result.violations)} conflict(s) ignored'
+                # Update event sync status
+                event.sync_status = 'synced'
+                event.last_synced = datetime.utcnow()
+
+                # Log if conflicts were overridden
+                if not validation_result.is_valid and override_conflicts:
+                    logger.warning(
+                        f'Schedule {schedule_id} rescheduled with conflict override: '
+                        f'{len(validation_result.violations)} conflict(s) ignored'
+                    )
+
+                # NEW: Check if this is a CORE event and reschedule Supervisor (Sprint 2)
+                from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
+
+                supervisor_rescheduled = False
+                if is_core_event_redesign(event):
+                    logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
+
+                    supervisor_status = get_supervisor_status(event)
+
+                    if supervisor_status['exists'] and supervisor_status['is_scheduled']:
+                        supervisor_event = supervisor_status['event']
+                        logger.info(
+                            f"Found paired Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                        )
+
+                        # Find Supervisor's schedule
+                        Schedule = current_app.config['Schedule']
+                        Employee = current_app.config['Employee']
+                        supervisor_schedule = Schedule.query.filter_by(
+                            event_ref_num=supervisor_event.project_ref_num
+                        ).first()
+
+                        if supervisor_schedule:
+                            # Calculate Supervisor datetime (2 hours after CORE start)
+                            supervisor_new_datetime = new_datetime + timedelta(hours=2)
+
+                            # Get Supervisor employee
+                            supervisor_employee = db.session.get(Employee, supervisor_schedule.employee_id)
+
+                            if supervisor_employee:
+                                # Prepare Supervisor API data
+                                supervisor_rep_id = str(supervisor_employee.external_id) if supervisor_employee.external_id else None
+                                supervisor_mplan_id = str(supervisor_event.external_id) if supervisor_event.external_id else None
+                                supervisor_location_id = str(supervisor_event.location_mvid) if supervisor_event.location_mvid else None
+
+                                # Validate Supervisor API fields
+                                if all([supervisor_rep_id, supervisor_mplan_id, supervisor_location_id]):
+                                    # Calculate Supervisor end datetime
+                                    supervisor_estimated_minutes = supervisor_event.estimated_time or supervisor_event.get_default_duration(supervisor_event.event_type)
+                                    supervisor_end_datetime = supervisor_new_datetime + timedelta(minutes=supervisor_estimated_minutes)
+
+                                    # Call Crossmark API for Supervisor
+                                    logger.info(
+                                        f"Calling Crossmark API for Supervisor: "
+                                        f"rep_id={supervisor_rep_id}, mplan_id={supervisor_mplan_id}, "
+                                        f"start={supervisor_new_datetime.isoformat()}"
+                                    )
+
+                                    supervisor_api_result = external_api.schedule_mplan_event(
+                                        rep_id=supervisor_rep_id,
+                                        mplan_id=supervisor_mplan_id,
+                                        location_id=supervisor_location_id,
+                                        start_datetime=supervisor_new_datetime,
+                                        end_datetime=supervisor_end_datetime,
+                                        planning_override=True
+                                    )
+
+                                    if not supervisor_api_result.get('success'):
+                                        error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                                        logger.error(f"Supervisor API call failed: {error_msg}")
+                                        raise Exception(f"Failed to reschedule Supervisor in Crossmark: {error_msg}")
+
+                                    # Update Supervisor schedule
+                                    supervisor_schedule.schedule_datetime = supervisor_new_datetime
+
+                                    # Update Supervisor event sync status
+                                    supervisor_event.sync_status = 'synced'
+                                    supervisor_event.last_synced = datetime.utcnow()
+
+                                    supervisor_rescheduled = True
+                                    logger.info(
+                                        f"✅ Successfully auto-rescheduled Supervisor event {supervisor_event.project_ref_num} "
+                                        f"to {supervisor_new_datetime.isoformat()}"
+                                    )
+
+            # COMMIT TRANSACTION
+            db.session.commit()
+
+            logger.info(
+                f'Schedule {schedule_id} rescheduled from {old_datetime} to {new_datetime} '
+                f'for employee {employee.name} on event {event.project_name}'
             )
 
-        db.session.commit()
+            message = 'Event rescheduled successfully'
+            if supervisor_rescheduled:
+                message += '. Supervisor event was also rescheduled.'
 
-        logger.info(
-            f'Schedule {schedule_id} rescheduled from {old_datetime} to {new_datetime} '
-            f'for employee {employee.name} on event {event.project_name}'
-        )
+            return jsonify({
+                'success': True,
+                'message': message,
+                'schedule_id': schedule_id,
+                'new_datetime': new_datetime.isoformat(),
+                'supervisor_rescheduled': supervisor_rescheduled
+            }), 200
 
-        return jsonify({
-            'success': True,
-            'message': 'Event rescheduled successfully',
-            'schedule_id': schedule_id,
-            'new_datetime': new_datetime.isoformat()
-        }), 200
+        except Exception as nested_error:
+            db.session.rollback()
+            logger.error(f"Transaction failed during reschedule: {str(nested_error)}", exc_info=True)
+            raise nested_error
 
     except Exception as e:
         db.session.rollback()
@@ -1832,16 +2063,68 @@ def unschedule_event_by_id(event_id):
             # Delete the schedule
             db.session.delete(schedule)
 
+        # NEW: Check if this is a CORE event and unschedule Supervisor (Sprint 2)
+        from app.utils.event_helpers import is_core_event_redesign, get_supervisor_status
+
+        supervisor_unscheduled = False
+        if is_core_event_redesign(event):
+            current_app.logger.info(f"CORE event detected: {event.project_name}. Checking for paired Supervisor...")
+
+            supervisor_status = get_supervisor_status(event)
+
+            if supervisor_status['exists'] and supervisor_status['is_scheduled']:
+                supervisor_event = supervisor_status['event']
+                current_app.logger.info(
+                    f"Found paired Supervisor: {supervisor_event.project_name} (ID: {supervisor_event.project_ref_num})"
+                )
+
+                # Find Supervisor's schedule
+                supervisor_schedule = Schedule.query.filter_by(
+                    event_ref_num=supervisor_event.project_ref_num
+                ).first()
+
+                if supervisor_schedule:
+                    # Call Crossmark API to unschedule Supervisor
+                    if supervisor_schedule.external_id:
+                        current_app.logger.info(
+                            f"Calling Crossmark API to unschedule Supervisor: schedule_id={supervisor_schedule.external_id}"
+                        )
+
+                        supervisor_api_result = external_api.unschedule_mplan_event(str(supervisor_schedule.external_id))
+
+                        if not supervisor_api_result.get('success'):
+                            error_msg = supervisor_api_result.get('message', 'Unknown API error')
+                            current_app.logger.error(f"Supervisor unschedule API call failed: {error_msg}")
+                            # Don't fail the whole operation, just log and continue
+                        else:
+                            current_app.logger.info(f"Successfully unscheduled Supervisor in Crossmark API")
+
+                    # Delete Supervisor schedule record
+                    db.session.delete(supervisor_schedule)
+
+                    # Mark Supervisor as unscheduled
+                    supervisor_event.is_scheduled = False
+                    supervisor_unscheduled = True
+
+                    current_app.logger.info(
+                        f"✅ Successfully auto-unscheduled Supervisor event {supervisor_event.project_ref_num}"
+                    )
+
         # Mark event as unscheduled
         event.is_scheduled = False
         event.condition = 'Unstaffed'
 
         db.session.commit()
 
+        message = f'Event unscheduled successfully. Removed {len(schedules)} schedule(s).'
+        if supervisor_unscheduled:
+            message += ' Supervisor event was also unscheduled.'
+
         return jsonify({
             'success': True,
-            'message': f'Event unscheduled successfully. Removed {len(schedules)} schedule(s).',
-            'schedules_removed': len(schedules)
+            'message': message,
+            'schedules_removed': len(schedules),
+            'supervisor_unscheduled': supervisor_unscheduled
         })
 
     except Exception as e:
@@ -3666,14 +3949,19 @@ def get_available_employees():
 @require_authentication()
 def reissue_event():
     """
-    Reissue an event to Crossmark system
+    Reissue an event to Crossmark system (two-step process)
+
+    Step 1: Call createPendingWork to reissue with the new employee
+    Step 2: Call scheduleMplanEvent to schedule the event to that employee
 
     Request JSON:
     {
         "schedule_id": int,         # Schedule ID to reissue
-        "employee_id": int,         # Employee ID (defaults to currently scheduled employee)
+        "employee_id": str,         # Employee ID (defaults to currently scheduled employee)
         "include_responses": bool,  # Include previous responses (default: false)
-        "expiration_date": str      # Optional expiration date (YYYY-MM-DD)
+        "expiration_date": str,     # Optional expiration date (YYYY-MM-DD)
+        "schedule_date": str,       # Optional schedule date (YYYY-MM-DD), defaults to original
+        "schedule_time": str        # Optional schedule time (HH:MM), defaults to original
     }
 
     Returns:
@@ -3685,6 +3973,8 @@ def reissue_event():
         employee_id = data.get('employee_id')
         include_responses = data.get('include_responses', False)
         expiration_date_str = data.get('expiration_date')
+        schedule_date_str = data.get('schedule_date')
+        schedule_time_str = data.get('schedule_time')
 
         if not schedule_id:
             return jsonify({'error': 'schedule_id is required'}), 400
@@ -3708,11 +3998,9 @@ def reissue_event():
             return jsonify({'error': 'Event not found'}), 404
 
         # Get employee (use provided or default to scheduled employee)
-        # Use 'is None' check since employee_id=0 is falsy but could be valid
         if employee_id is None:
             employee_id = schedule.employee_id
 
-        # Log the employee ID being used
         logger.info(f"Reissue: using employee_id={employee_id} (original schedule employee_id={schedule.employee_id})")
 
         employee = db.session.query(Employee).filter_by(id=employee_id).first()
@@ -3726,30 +4014,52 @@ def reissue_event():
             except ValueError:
                 return jsonify({'error': 'Invalid expiration_date format. Use YYYY-MM-DD'}), 400
         else:
-            # Default to due date + 1 day
             expiration_date = event.due_datetime + timedelta(days=1)
+
+        # Parse schedule date/time or use original
+        if schedule_date_str and schedule_time_str:
+            try:
+                schedule_datetime = datetime.strptime(f"{schedule_date_str} {schedule_time_str}", '%Y-%m-%d %H:%M')
+            except ValueError:
+                return jsonify({'error': 'Invalid schedule_date or schedule_time format'}), 400
+        else:
+            schedule_datetime = schedule.schedule_datetime
 
         # Get SessionAPIService instance
         session_api = current_app.config.get('SESSION_API_SERVICE')
         if not session_api:
             return jsonify({'error': 'External API service not configured'}), 500
 
-        # Ensure authenticated
         if not session_api.ensure_authenticated():
             return jsonify({'error': 'Failed to authenticate with external system'}), 500
 
         # Get the employee's external ID (rep ID in Crossmark system)
         rep_id = employee.external_id if employee.external_id else employee.id
 
-        # Get store ID from store_number or location_mvid
+        # Get store ID and mPlan ID
         store_id = str(event.store_number) if event.store_number else (str(event.location_mvid) if event.location_mvid else '')
+        mplan_id = str(event.project_ref_num) if event.project_ref_num else ''
 
-        # Prepare reissue data matching the curl command structure
+        # Get workLogEntryID from the schedule's external_id (the Crossmark scheduled event ID)
+        work_log_entry_id = schedule.external_id if schedule.external_id else ''
+
+        # Common headers for both API calls
+        request_headers = {
+            'accept': '*/*',
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'origin': 'https://crossmark.mvretail.com',
+            'referer': 'https://crossmark.mvretail.com/planning/',
+            'x-requested-with': 'XMLHttpRequest'
+        }
+
+        # ========================================
+        # STEP 1: Create Pending Work (Reissue)
+        # ========================================
         reissue_data = {
-            'workLogEntryID': '',  # Empty for reissue
+            'workLogEntryID': work_log_entry_id,
             'storeID': store_id,
-            'mPlanID': str(event.project_ref_num) if event.project_ref_num else '',
-            'reissueBulkJson': '[]',  # Empty array for single reissue
+            'mPlanID': mplan_id,
+            'reissueBulkJson': '[]',
             'action': 'reissue',
             'includeResponses': 'true' if include_responses else 'false',
             'pendingWorkReasonComments': '',
@@ -3757,62 +4067,128 @@ def reissue_event():
             'excludeReps': 'false',
             'excludedRepIDs': '[]',
             'overrideReps': 'true',
-            'overriddenRepIDs': f'[{rep_id}]',  # Use external rep ID
+            'overriddenRepIDs': f'[{rep_id}]',
             'expirationDate': expiration_date.strftime('%Y-%m-%dT00:00:00'),
             'additionalEmail': ''
         }
 
-        # Log the request data
-        print(f"[REISSUE] Request data: storeID={reissue_data['storeID']}, mPlanID={reissue_data['mPlanID']}, repID={rep_id}, includeResponses={reissue_data['includeResponses']}, expirationDate={reissue_data['expirationDate']}")
-        logger.info(f"Reissue request data: storeID={reissue_data['storeID']}, mPlanID={reissue_data['mPlanID']}, repID={rep_id}, includeResponses={reissue_data['includeResponses']}, expirationDate={reissue_data['expirationDate']}")
+        logger.info(f"[REISSUE STEP 1] createPendingWork: workLogEntryID={work_log_entry_id}, storeID={store_id}, mPlanID={mplan_id}, repID={rep_id}")
+        print(f"[REISSUE STEP 1] createPendingWork: workLogEntryID={work_log_entry_id}, storeID={store_id}, mPlanID={mplan_id}, repID={rep_id}")
 
-        # Make the reissue request
         try:
-            # Build headers matching the curl command
-            request_headers = {
-                'accept': '*/*',
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'origin': 'https://crossmark.mvretail.com',
-                'referer': 'https://crossmark.mvretail.com/planning/',
-                'x-requested-with': 'XMLHttpRequest'
-            }
-
-            response = session_api.make_request(
+            response1 = session_api.make_request(
                 'POST',
                 '/pendingworkextcontroller/createPendingWork/',
                 data=reissue_data,
                 headers=request_headers
             )
 
-            # Log the response
-            print(f"[REISSUE] API response: status={response.status_code}")
-            print(f"[REISSUE] Response body: {response.text[:500]}")
-            logger.info(f"Reissue API response: status={response.status_code}, body={response.text[:500]}")
+            logger.info(f"[REISSUE STEP 1] Response: status={response1.status_code}, body={response1.text[:500]}")
+            print(f"[REISSUE STEP 1] Response: status={response1.status_code}, body={response1.text[:500]}")
 
-            if response.status_code == 200:
-                # Update event condition to Reissued
-                event.condition = 'Reissued'
-
-                # Update schedule if employee changed
-                if employee_id != schedule.employee_id:
-                    schedule.employee_id = employee_id
-
-                db.session.commit()
-
-                logger.info(f"Successfully reissued event {event.project_name} (ID: {event.id}) to {employee.name}")
-
+            if response1.status_code not in [200, 201]:
+                logger.error(f"Step 1 failed: {response1.status_code} - {response1.text}")
                 return jsonify({
-                    'success': True,
-                    'message': f'Successfully reissued {event.project_name} to {employee.name}',
-                    'event_id': event.id,
-                    'employee_name': employee.name
-                }), 200
-            else:
-                logger.error(f"Reissue failed: {response.status_code} - {response.text}")
-                return jsonify({
-                    'error': 'Failed to reissue event',
-                    'details': response.text
+                    'error': 'Failed to create pending work (Step 1)',
+                    'details': response1.text
                 }), 500
+
+            # Check for success in response body
+            try:
+                response1_json = response1.json()
+                if not response1_json.get('success', True):  # Default to True if not present
+                    return jsonify({
+                        'error': 'Pending work creation failed',
+                        'details': response1_json.get('message', response1.text)
+                    }), 500
+            except Exception:
+                pass  # Response might not be JSON, continue if status was 200/201
+
+            # ========================================
+            # STEP 2: Schedule the mPlan Event
+            # ========================================
+            # Calculate start and end times with timezone offset
+            # Using Eastern Time offset (-05:00)
+            start_datetime = schedule_datetime
+            # End is typically the next day at midnight for full-day events
+            end_datetime = start_datetime + timedelta(days=1)
+
+            schedule_data = {
+                'ClassName': 'MVScheduledmPlan',
+                'RepID': str(rep_id),
+                'mPlanID': mplan_id,
+                'LocationID': store_id,
+                'Start': start_datetime.strftime('%Y-%m-%dT%H:%M:%S') + '-05:00',
+                'End': end_datetime.strftime('%Y-%m-%dT00:00:00') + '-05:00',
+                'hash': '',
+                'v': '3.0.1',
+                'PlanningOverride': 'true'
+            }
+
+            logger.info(f"[REISSUE STEP 2] scheduleMplanEvent: RepID={rep_id}, mPlanID={mplan_id}, LocationID={store_id}, Start={schedule_data['Start']}")
+            print(f"[REISSUE STEP 2] scheduleMplanEvent: RepID={rep_id}, mPlanID={mplan_id}, LocationID={store_id}, Start={schedule_data['Start']}")
+
+            response2 = session_api.make_request(
+                'POST',
+                '/planningextcontroller/scheduleMplanEvent',
+                data=schedule_data,
+                headers=request_headers
+            )
+
+            logger.info(f"[REISSUE STEP 2] Response: status={response2.status_code}, body={response2.text[:500]}")
+            print(f"[REISSUE STEP 2] Response: status={response2.status_code}, body={response2.text[:500]}")
+
+            if response2.status_code not in [200, 201]:
+                logger.error(f"Step 2 failed: {response2.status_code} - {response2.text}")
+                return jsonify({
+                    'error': 'Failed to schedule event (Step 2)',
+                    'details': response2.text
+                }), 500
+
+            # ========================================
+            # Update local database
+            # ========================================
+            event.condition = 'Reissued'
+
+            # Update schedule with new employee and datetime
+            request_employee_id = str(employee_id) if employee_id is not None else None
+            current_employee_id = str(schedule.employee_id) if schedule.employee_id is not None else None
+
+            if request_employee_id is not None and request_employee_id != current_employee_id:
+                logger.info(f"Updating schedule employee from {current_employee_id} to {request_employee_id}")
+                schedule.employee_id = employee_id
+
+            # Update schedule datetime if changed
+            if schedule_datetime != schedule.schedule_datetime:
+                schedule.schedule_datetime = schedule_datetime
+
+            # Try to extract new external_id from response
+            try:
+                response2_json = response2.json()
+                new_external_id = (
+                    response2_json.get('scheduleEventID') or
+                    response2_json.get('id') or
+                    response2_json.get('scheduledEventId') or
+                    response2_json.get('ID')
+                )
+                if new_external_id:
+                    schedule.external_id = str(new_external_id)
+                    logger.info(f"Updated schedule external_id to {new_external_id}")
+            except Exception:
+                pass
+
+            schedule.last_synced = datetime.utcnow()
+            schedule.sync_status = 'synced'
+            db.session.commit()
+
+            logger.info(f"Successfully reissued event {event.project_name} (ID: {event.id}) to {employee.name}")
+
+            return jsonify({
+                'success': True,
+                'message': f'Successfully reissued {event.project_name} to {employee.name}',
+                'event_id': event.id,
+                'employee_name': employee.name
+            }), 200
 
         except Exception as api_error:
             logger.error(f"API request failed: {api_error}", exc_info=True)
