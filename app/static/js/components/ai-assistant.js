@@ -2,10 +2,11 @@
  * AI Assistant Component
  *
  * Handles chat interactions with the AI assistant
+ * Supports both cloud API and local Ollama RAG API
  */
 
 class AIAssistant {
-    constructor() {
+    constructor(options = {}) {
         // DOM elements
         this.container = document.getElementById('ai-chat-container');
         this.toggleBtn = document.getElementById('ai-chat-toggle');
@@ -17,11 +18,21 @@ class AIAssistant {
         this.input = document.getElementById('ai-input');
         this.sendBtn = document.getElementById('ai-send-btn');
 
+        // Configuration
+        this.options = {
+            preferLocal: true,  // Prefer local Ollama RAG API if available
+            cloudApiBase: '/api/ai',
+            ragApiBase: '/api/ai/rag',
+            ...options
+        };
+
         // State
         this.isOpen = false;
         this.conversationId = null;
         this.conversationHistory = [];
         this.pendingConfirmation = null;
+        this.useRagApi = false;  // Will be set based on health check
+        this.providerInfo = null;
 
         this.init();
     }
@@ -138,38 +149,74 @@ class AIAssistant {
         const loadingId = this.showLoading();
 
         try {
-            // Send to API
-            const response = await fetch('/api/ai/query', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    query: message,
-                    conversation_id: this.conversationId,
-                    history: this.conversationHistory
-                })
-            });
+            let response, data;
 
-            // Remove loading
-            this.removeLoading(loadingId);
+            if (this.useRagApi) {
+                // Use local RAG API (Ollama)
+                response = await fetch(`${this.options.ragApiBase}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to get response');
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to get response');
+                }
+
+                data = await response.json();
+
+                // Remove loading
+                this.removeLoading(loadingId);
+
+                // Update conversation history
+                this.conversationHistory.push(
+                    { role: 'user', content: message },
+                    { role: 'assistant', content: data.answer }
+                );
+
+                // Add assistant response
+                this.addMessage('assistant', data.answer, {
+                    response: data.answer,
+                    metadata: data.metadata
+                });
+
+            } else {
+                // Use cloud API
+                response = await fetch(`${this.options.cloudApiBase}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        conversation_id: this.conversationId,
+                        history: this.conversationHistory
+                    })
+                });
+
+                // Remove loading
+                this.removeLoading(loadingId);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to get response');
+                }
+
+                data = await response.json();
+
+                // Update conversation
+                this.conversationId = data.conversation_id;
+                this.conversationHistory.push(
+                    { role: 'user', content: message },
+                    { role: 'assistant', content: data.response }
+                );
+
+                // Add assistant response
+                this.addMessage('assistant', data.response, data);
             }
-
-            const data = await response.json();
-
-            // Update conversation
-            this.conversationId = data.conversation_id;
-            this.conversationHistory.push(
-                { role: 'user', content: message },
-                { role: 'assistant', content: data.response }
-            );
-
-            // Add assistant response
-            this.addMessage('assistant', data.response, data);
 
         } catch (error) {
             console.error('Error sending message:', error);
@@ -344,18 +391,71 @@ class AIAssistant {
     }
 
     async checkHealth() {
+        // First, check if local RAG API (Ollama) is available
+        if (this.options.preferLocal) {
+            try {
+                const ragResponse = await fetch(`${this.options.ragApiBase}/health`);
+                const ragData = await ragResponse.json();
+
+                if (ragData.status === 'healthy') {
+                    this.useRagApi = true;
+                    this.providerInfo = {
+                        type: 'local',
+                        provider: ragData.providers?.primary?.provider || 'ollama',
+                        model: ragData.config?.model || 'ministral-3:3b'
+                    };
+                    console.log('AI Assistant: Using local Ollama RAG API', this.providerInfo);
+                    this.updateProviderIndicator();
+                    return;
+                }
+            } catch (error) {
+                console.log('Local RAG API not available, trying cloud API...');
+            }
+        }
+
+        // Fall back to cloud API
         try {
-            const response = await fetch('/api/ai/health');
+            const response = await fetch(`${this.options.cloudApiBase}/health`);
             const data = await response.json();
 
-            if (data.status === 'error') {
+            if (data.status === 'ok' && data.configured) {
+                this.useRagApi = false;
+                this.providerInfo = {
+                    type: 'cloud',
+                    provider: data.provider || 'unknown'
+                };
+                console.log('AI Assistant: Using cloud API', this.providerInfo);
+                this.updateProviderIndicator();
+            } else {
                 console.warn('AI Assistant not configured:', data.message);
-                // Optionally disable the chat button
-                // this.toggleBtn.disabled = true;
-                // this.toggleBtn.title = 'AI Assistant not configured';
+                this.providerInfo = { type: 'none', error: data.message };
+                this.updateProviderIndicator();
             }
         } catch (error) {
             console.error('Failed to check AI health:', error);
+            this.providerInfo = { type: 'none', error: error.message };
+            this.updateProviderIndicator();
         }
+    }
+
+    updateProviderIndicator() {
+        // Update the header subtitle to show which provider is being used
+        const subtitle = this.chatWindow?.querySelector('.ai-header-subtitle');
+        if (subtitle && this.providerInfo) {
+            if (this.providerInfo.type === 'local') {
+                subtitle.textContent = `Local AI (${this.providerInfo.model})`;
+                subtitle.style.color = '#90EE90';  // Light green
+            } else if (this.providerInfo.type === 'cloud') {
+                subtitle.textContent = `Cloud AI (${this.providerInfo.provider})`;
+                subtitle.style.color = '#87CEEB';  // Light blue
+            } else {
+                subtitle.textContent = 'AI not configured';
+                subtitle.style.color = '#FFB6C1';  // Light red
+            }
+        }
+    }
+
+    getApiEndpoint() {
+        return this.useRagApi ? this.options.ragApiBase : this.options.cloudApiBase;
     }
 }
