@@ -173,6 +173,10 @@ def register_blueprints(app, db, models):
     from app.routes.ai_routes import ai_bp
     app.register_blueprint(ai_bp)
 
+    # AI RAG blueprint (local Ollama-based AI)
+    from app.ai.routes import ai_rag_bp
+    app.register_blueprint(ai_rag_bp)
+
     from app.routes.rotations import rotations_bp
     app.register_blueprint(rotations_bp)
 

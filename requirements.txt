@@ -62,3 +62,8 @@ google-generativeai>=0.3.0
 # Option 3: Anthropic Claude 3.5 Haiku
 # Cost: ~$0.25 per 1M tokens ($0.38/month for 50 queries/day)
 # anthropic>=0.18.0
+
+# Option 4: Ollama (Local LLM - FREE!)
+# Requires Ollama installed locally: https://ollama.com
+# Models: ministral-3:3b, deepseek-r1:8b, llama3.2:3b, etc.
+ollama>=0.4.0
