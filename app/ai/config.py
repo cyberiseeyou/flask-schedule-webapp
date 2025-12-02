@@ -15,7 +15,7 @@ class AIConfig:
     # Provider settings
     provider: str = "ollama"  # ollama | openai | anthropic
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "ministral-3:3b"
+    ollama_model: str = "llama3.2:3b"
 
     # Cloud fallback
     openai_api_key: Optional[str] = None
@@ -41,7 +41,7 @@ class AIConfig:
             enabled=os.getenv("AI_ENABLED", "true").lower() == "true",
             provider=os.getenv("AI_PROVIDER", "ollama"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-            ollama_model=os.getenv("OLLAMA_MODEL", "ministral-3:3b"),
+            ollama_model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             fallback_enabled=os.getenv("AI_FALLBACK_ENABLED", "false").lower() == "true",
