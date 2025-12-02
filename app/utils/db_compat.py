@@ -6,14 +6,22 @@ from sqlalchemy.sql import expression
 from contextlib import contextmanager
 
 
+def get_dialect_name(session):
+    """Get the dialect name from a session, handling None bind gracefully."""
+    bind = session.get_bind() if hasattr(session, 'get_bind') else session.bind
+    if bind is None:
+        raise RuntimeError("Database session is not bound to an engine")
+    return bind.dialect.name
+
+
 def is_sqlite(session):
     """Check if the database is SQLite."""
-    return session.bind.dialect.name == 'sqlite'
+    return get_dialect_name(session) == 'sqlite'
 
 
 def is_postgresql(session):
     """Check if the database is PostgreSQL."""
-    return session.bind.dialect.name == 'postgresql'
+    return get_dialect_name(session) == 'postgresql'
 
 
 @contextmanager
@@ -31,7 +39,7 @@ def disable_foreign_keys(session):
             Model.query.delete()
             db.session.commit()
     """
-    dialect = session.bind.dialect.name
+    dialect = get_dialect_name(session)
 
     try:
         if dialect == 'sqlite':

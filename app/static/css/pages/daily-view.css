@@ -307,6 +307,69 @@
 }
 
 /**
+ * Section Header with Filter
+ */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md, 16px);
+  margin-bottom: var(--spacing-md, 16px);
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+}
+
+/**
+ * Event Type Filter
+ */
+.event-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-neutral-600, #6B7280);
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-neutral-300, #D1D5DB);
+  border-radius: var(--border-radius-sm, 4px);
+  background: white;
+  font-size: 14px;
+  color: var(--color-neutral-700, #374151);
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #3B82F6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+@media (max-width: 767px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .event-filter {
+    width: 100%;
+  }
+
+  .filter-select {
+    flex: 1;
+  }
+}
+
+/**
  * Event Summary Component
  * Displays event counts by type
  */
@@ -399,12 +462,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--spacing-lg, 24px);
+  justify-content: flex-start;
+  padding: var(--spacing-md, 16px);
   border-radius: var(--border-radius-md, 8px);
   text-align: center;
   cursor: help;
   transition: transform 150ms ease, box-shadow 150ms ease;
+  min-height: 120px;
 }
 
 .timeslot-block:hover {
@@ -413,9 +477,14 @@
 }
 
 .timeslot-block__time {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   margin-bottom: var(--spacing-sm, 8px);
+  text-align: center;
+  width: 100%;
+  padding-bottom: var(--spacing-xs, 4px);
+  border-bottom: 1px solid currentColor;
+  opacity: 0.7;
 }
 
 .timeslot-block__count {
@@ -427,6 +496,35 @@
 .timeslot-block__label {
   font-size: 14px;
   margin-top: var(--spacing-xs, 4px);
+}
+
+/**
+ * Employee List in Timeslot
+ * Shows employee names instead of just count
+ */
+.timeslot-block__employees {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: center;
+}
+
+.timeslot-block__employee {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeslot-block__empty {
+  font-size: 14px;
+  font-style: italic;
+  opacity: 0.7;
 }
 
 /**

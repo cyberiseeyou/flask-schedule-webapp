@@ -356,8 +356,11 @@
                         class="btn-reissue"
                         data-schedule-id="{{ item.schedule.id }}"
                         data-event-name="{{ item.event.project_name|escape }}"
+                        data-event-type="{{ item.event.event_type }}"
                         data-employee-id="{{ item.employee.id }}"
                         data-employee-name="{{ item.employee.name|escape }}"
+                        data-schedule-date="{{ item.schedule_date.strftime('%Y-%m-%d') }}"
+                        data-schedule-time="{{ item.schedule.schedule_datetime.strftime('%H:%M') }}"
                         data-expiration-date="{{ (item.event.due_datetime + timedelta(days=1)).strftime('%Y-%m-%d') }}"
                     >
                         Reissue
@@ -395,12 +398,33 @@
 
             <form id="reissueForm">
                 <input type="hidden" id="scheduleId" name="schedule_id">
+                <input type="hidden" id="eventType" name="event_type">
 
                 <div class="form-group">
                     <label class="form-label" for="employeeSelect">Assign To Employee:</label>
                     <select id="employeeSelect" name="employee_id" class="form-control" required>
                         <!-- Will be populated by JavaScript -->
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="scheduleDate">Schedule Date:</label>
+                    <input
+                        type="date"
+                        id="scheduleDate"
+                        name="schedule_date"
+                        class="form-control"
+                        required
+                    >
+                    <small class="form-help">Select the date for the rescheduled event</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="scheduleTime">Schedule Time:</label>
+                    <select id="scheduleTime" name="schedule_time" class="form-control" required>
+                        <option value="">Loading times...</option>
+                    </select>
+                    <small class="form-help">Select a core timeslot for the event</small>
                 </div>
 
                 <div class="form-group">
@@ -424,7 +448,7 @@
         </div>
         <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeReissueModal()">Cancel</button>
-            <button type="button" class="btn-primary" onclick="submitReissue()">Reissue Event</button>
+            <button type="button" class="btn-primary" onclick="submitReissue(event)">Reissue Event</button>
         </div>
     </div>
 </div>
@@ -435,6 +459,8 @@
 <script>
 let currentScheduleId = null;
 let currentEmployeeId = null;
+let currentEventType = null;
+let availableTimeslots = [];
 
 // Add event listeners to all reissue buttons when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -443,29 +469,135 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', function() {
             const scheduleId = this.dataset.scheduleId;
             const eventName = this.dataset.eventName;
+            const eventType = this.dataset.eventType;
             const employeeId = this.dataset.employeeId;
             const employeeName = this.dataset.employeeName;
+            const scheduleDate = this.dataset.scheduleDate;
+            const scheduleTime = this.dataset.scheduleTime;
             const expirationDate = this.dataset.expirationDate;
 
-            openReissueModal(scheduleId, eventName, employeeId, employeeName, expirationDate);
+            openReissueModal(scheduleId, eventName, eventType, employeeId, employeeName, scheduleDate, scheduleTime, expirationDate);
         });
     });
 });
 
-function openReissueModal(scheduleId, eventName, employeeId, employeeName, expirationDate) {
+async function loadTimeslots(eventType) {
+    try {
+        // Load timeslots based on event type
+        const response = await fetch(`/api/event-allowed-times/${encodeURIComponent(eventType || 'Core')}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.allowed_times && data.allowed_times.length > 0) {
+                // Convert allowed_times to slot format
+                availableTimeslots = data.allowed_times.map((time, index) => ({
+                    slot: index + 1,
+                    start: time,
+                    label: formatTimeLabel(time)
+                }));
+                console.log(`Loaded ${eventType} timeslots:`, availableTimeslots);
+                return;
+            }
+        }
+        // Fallback to core slots if no specific times found
+        await loadCoreTimeslots();
+    } catch (error) {
+        console.error('Failed to load timeslots:', error);
+        await loadCoreTimeslots();
+    }
+}
+
+async function loadCoreTimeslots() {
+    try {
+        const response = await fetch('/api/event-time-settings');
+        if (response.ok) {
+            const data = await response.json();
+            availableTimeslots = data.core_slots || [];
+            console.log('Loaded core timeslots:', availableTimeslots);
+        }
+    } catch (error) {
+        console.error('Failed to load core timeslots:', error);
+        // Fallback timeslots
+        availableTimeslots = [
+            { slot: 1, start: '09:45', label: '9:45 AM' },
+            { slot: 2, start: '10:30', label: '10:30 AM' },
+            { slot: 3, start: '11:00', label: '11:00 AM' },
+            { slot: 4, start: '11:30', label: '11:30 AM' }
+        ];
+    }
+}
+
+function populateTimeslotDropdown(selectedTime) {
+    const select = document.getElementById('scheduleTime');
+    select.innerHTML = '';
+
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Select a time...';
+    select.appendChild(defaultOption);
+
+    // Add timeslot options
+    availableTimeslots.forEach(slot => {
+        const option = document.createElement('option');
+        // Handle different data formats
+        const startTime = slot.start || slot.start_time;
+        const label = slot.label || formatTimeLabel(startTime);
+
+        option.value = startTime;
+        option.textContent = `Slot ${slot.slot}: ${label}`;
+
+        // Pre-select if matches
+        if (startTime === selectedTime || startTime === selectedTime + ':00') {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+
+    // If no match found and we have a selected time, add it as custom option
+    if (selectedTime && !select.value) {
+        const customOption = document.createElement('option');
+        customOption.value = selectedTime;
+        customOption.textContent = `Current: ${formatTimeLabel(selectedTime)}`;
+        customOption.selected = true;
+        select.insertBefore(customOption, select.options[1]);
+    }
+}
+
+function formatTimeLabel(time24) {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+}
+
+async function openReissueModal(scheduleId, eventName, eventType, employeeId, employeeName, scheduleDate, scheduleTime, expirationDate) {
     currentScheduleId = scheduleId;
     currentEmployeeId = employeeId;
+    currentEventType = eventType;
 
     // Set event info
     document.getElementById('eventInfo').innerHTML = `
         <strong>Event:</strong> ${eventName}<br>
+        <strong>Type:</strong> ${eventType}<br>
         <strong>Currently Scheduled To:</strong> ${employeeName}
     `;
 
     // Set form values
     document.getElementById('scheduleId').value = scheduleId;
+    document.getElementById('eventType').value = eventType;
+    document.getElementById('scheduleDate').value = scheduleDate;
     document.getElementById('expirationDate').value = expirationDate;
     document.getElementById('includeResponses').checked = false;
+
+    // Show loading state for time dropdown
+    const timeSelect = document.getElementById('scheduleTime');
+    timeSelect.innerHTML = '<option value="">Loading times...</option>';
+
+    // Load timeslots based on event type, then populate
+    await loadTimeslots(eventType);
+    populateTimeslotDropdown(scheduleTime);
 
     // Load employees
     loadEmployees(employeeId);
@@ -493,7 +625,6 @@ async function loadEmployees(defaultEmployeeId) {
             const option = document.createElement('option');
             option.value = emp.id;
             option.textContent = emp.name;
-            // Use == for type coercion (emp.id may be int, defaultEmployeeId is string)
             if (String(emp.id) === String(defaultEmployeeId)) {
                 option.selected = true;
             }
@@ -505,16 +636,18 @@ async function loadEmployees(defaultEmployeeId) {
     }
 }
 
-async function submitReissue() {
+async function submitReissue(evt) {
     const scheduleId = document.getElementById('scheduleId').value;
     const employeeSelect = document.getElementById('employeeSelect');
     const employeeId = employeeSelect.value;
-    const employeeName = employeeSelect.options[employeeSelect.selectedIndex].text;
+    const employeeName = employeeSelect.options[employeeSelect.selectedIndex]?.text || '';
+    const scheduleDate = document.getElementById('scheduleDate').value;
+    const scheduleTime = document.getElementById('scheduleTime').value;
     const expirationDate = document.getElementById('expirationDate').value;
     const includeResponses = document.getElementById('includeResponses').checked;
 
-    if (!employeeId || !expirationDate) {
-        alert('Please fill in all required fields.');
+    if (!employeeId || !scheduleDate || !scheduleTime || !expirationDate) {
+        alert('Please fill in all required fields (Employee, Date, Time, and Expiration Date).');
         return;
     }
 
@@ -523,18 +656,25 @@ async function submitReissue() {
         schedule_id: scheduleId,
         employee_id: employeeId,
         employee_name: employeeName,
-        expiration_date: expirationDate
+        schedule_date: scheduleDate,
+        schedule_time: scheduleTime,
+        expiration_date: expirationDate,
+        selected_index: employeeSelect.selectedIndex
     });
 
     try {
         // Disable submit button to prevent double-submission
-        const submitButton = event.target;
-        submitButton.disabled = true;
-        submitButton.textContent = 'Reissuing...';
+        const submitButton = evt?.target || document.querySelector('.modal-footer .btn-primary');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Reissuing...';
+        }
 
         const requestBody = {
             schedule_id: parseInt(scheduleId),
-            employee_id: parseInt(employeeId),
+            employee_id: employeeId,  // Keep as string - employee IDs can be alphanumeric
+            schedule_date: scheduleDate,
+            schedule_time: scheduleTime,
             include_responses: includeResponses,
             expiration_date: expirationDate
         };
@@ -558,15 +698,19 @@ async function submitReissue() {
             window.location.reload();
         } else {
             alert('Error: ' + (data.error || 'Failed to reissue event'));
-            submitButton.disabled = false;
-            submitButton.textContent = 'Reissue Event';
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Reissue Event';
+            }
         }
     } catch (error) {
         console.error('Failed to reissue event:', error);
         alert('Failed to reissue event. Please try again.');
-        const submitButton = event.target;
-        submitButton.disabled = false;
-        submitButton.textContent = 'Reissue Event';
+        const btn = document.querySelector('.modal-footer .btn-primary');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Reissue Event';
+        }
     }
 }
 

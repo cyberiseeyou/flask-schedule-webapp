@@ -14,6 +14,8 @@ class DailyView {
         this.timeslotContainer = document.getElementById('timeslot-blocks');
         this.eventsContainer = document.getElementById('event-cards-container');  // NEW for Story 3.3
         this.attendanceContainer = document.getElementById('attendance-list-container');  // NEW for attendance
+        this.typeFilter = document.getElementById('event-type-filter');  // Type filter dropdown
+        this.allEvents = [];  // Store all events for filtering
         this.init();
     }
 
@@ -21,6 +23,32 @@ class DailyView {
         await this.loadDailySummary();  // From Story 3.2
         await this.loadAttendance();    // NEW for attendance
         await this.loadDailyEvents();   // NEW for Story 3.3
+        this.setupTypeFilter();         // Setup filter listener
+    }
+
+    /**
+     * Setup type filter event listener
+     */
+    setupTypeFilter() {
+        if (this.typeFilter) {
+            this.typeFilter.addEventListener('change', () => {
+                this.filterAndRenderEvents();
+            });
+        }
+    }
+
+    /**
+     * Filter events by type and re-render
+     */
+    filterAndRenderEvents() {
+        const selectedType = this.typeFilter ? this.typeFilter.value : 'all';
+        let filteredEvents = this.allEvents;
+
+        if (selectedType !== 'all') {
+            filteredEvents = this.allEvents.filter(event => event.event_type === selectedType);
+        }
+
+        this.renderEventCards(filteredEvents);
     }
 
     /* ===================================================================
@@ -78,6 +106,7 @@ class DailyView {
     /**
      * Render timeslot coverage blocks
      * Now uses timeslot metadata from settings instead of hardcoded values
+     * Shows employee names instead of just counts
      */
     renderTimeslotCoverage(timeslotCoverage, timeslotMetadata = null) {
         if (!this.timeslotContainer) return;
@@ -105,12 +134,23 @@ class DailyView {
         }
 
         const html = timeslots.map(slot => {
-            const count = timeslotCoverage[slot.time] || 0;
+            // Handle both old format (number) and new format (object with count and employees)
+            const coverageData = timeslotCoverage[slot.time];
+            let count = 0;
+            let employees = [];
+
+            if (typeof coverageData === 'object' && coverageData !== null) {
+                count = coverageData.count || 0;
+                employees = coverageData.employees || [];
+            } else {
+                count = coverageData || 0;
+            }
+
             const status = this.getTimeslotStatus(count);
             const statusClass = `timeslot-block--${status}`;
 
             // Build tooltip with shift details if available
-            let tooltip = `Employees with events starting at ${slot.label}: ${count}`;
+            let tooltip = `Employees starting at ${slot.label}:\n${employees.length > 0 ? employees.join(', ') : 'None'}`;
             if (slot.end) {
                 tooltip += `\nShift ends at ${this.formatTime12h(slot.end)}`;
             }
@@ -118,13 +158,19 @@ class DailyView {
                 tooltip += `\nLunch: ${this.formatTime12h(slot.lunchBegin)} - ${this.formatTime12h(slot.lunchEnd)}`;
             }
 
+            // Build employee list HTML
+            const employeeListHtml = employees.length > 0
+                ? employees.map(name => `<div class="timeslot-block__employee">${this.escapeHtml(name)}</div>`).join('')
+                : '<div class="timeslot-block__empty">No employees</div>';
+
             return `
                 <div class="timeslot-block ${statusClass}"
                      title="${tooltip}"
                      aria-label="${count} employees starting at ${slot.label}">
                     <div class="timeslot-block__time">${slot.label}</div>
-                    <div class="timeslot-block__count">${count}</div>
-                    <div class="timeslot-block__label">employees</div>
+                    <div class="timeslot-block__employees">
+                        ${employeeListHtml}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -473,7 +519,8 @@ class DailyView {
             }
 
             const data = await response.json();
-            this.renderEventCards(data.events);
+            this.allEvents = data.events;  // Store for filtering
+            this.filterAndRenderEvents();  // Render with current filter
         } catch (error) {
             console.error('Failed to load daily events:', error);
             this.showEventsError('Failed to load events. Please refresh the page.');

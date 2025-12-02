@@ -175,7 +175,23 @@
 
     <!-- Event Cards Section (Story 3.3) -->
     <div class="dashboard-section">
-      <h3 class="section-title">Scheduled Events</h3>
+      <div class="section-header">
+        <h3 class="section-title">Scheduled Events</h3>
+        <div class="event-filter">
+          <label for="event-type-filter" class="filter-label">Filter by Type:</label>
+          <select id="event-type-filter" class="filter-select">
+            <option value="all">All Types</option>
+            <option value="Core">Core</option>
+            <option value="Demo">Demo</option>
+            <option value="Setup">Setup</option>
+            <option value="Juicer">Juicer</option>
+            <option value="Supervisor">Supervisor</option>
+            <option value="Freeosk">Freeosk</option>
+            <option value="Digitals">Digitals</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
       <div id="event-cards-container" class="event-cards">
         <!-- JavaScript will populate this -->
         <div class="loading-spinner" role="status" aria-live="polite">
