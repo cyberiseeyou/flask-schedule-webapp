@@ -41,8 +41,35 @@ class OllamaProvider(BaseLLMProvider):
         """Check if Ollama is running and model is available"""
         try:
             # List available models
-            models = self.client.list()
-            model_names = [m['name'] for m in models.get('models', [])]
+            response = self.client.list()
+
+            # Handle different response formats from ollama library versions
+            model_names = []
+
+            # Try to get models list - handle both dict and object responses
+            models_data = None
+            if isinstance(response, dict):
+                models_data = response.get('models', [])
+            elif hasattr(response, 'models'):
+                models_data = response.models
+            else:
+                # Try to iterate directly
+                models_data = response if response else []
+
+            # Extract model names - handle both dict and object model entries
+            for m in models_data:
+                if isinstance(m, dict):
+                    name = m.get('name', m.get('model', ''))
+                elif hasattr(m, 'name'):
+                    name = m.name
+                elif hasattr(m, 'model'):
+                    name = m.model
+                else:
+                    name = str(m)
+                if name:
+                    model_names.append(name)
+
+            logger.debug(f"Available Ollama models: {model_names}")
 
             # Check if our model is available
             model_available = any(
